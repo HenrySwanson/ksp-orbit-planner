@@ -1,0 +1,13 @@
+.TODO
+
+*.sublime-project
+*.sublime-workspace
+
+latex/kepler-math.*
+!latex/*.tex
+!latex/*.pdf
+
+
+# Added by cargo
+
+/target
