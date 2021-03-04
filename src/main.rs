@@ -29,36 +29,6 @@ fn main() {
     //     draw_grid(&mut window, 20, 1.0, &Point3::new(0.5, 0.5, 0.5));
     //     draw_loop(&mut window, &circle_pts, &Point3::new(1.0, 0.0, 0.0));
     // }
-
-    // Build the Earth and see if the orbit simulation is right.
-    let orbit_radius = 1.496e11;
-    let orbit_velocity = 29806.0;
-    let sun_mu = 1.327e20;
-    let expected_period = 3.154e7;
-
-    let mut state = State::new(
-        Vector3::x() * orbit_radius,
-        Vector3::y() * orbit_velocity,
-        0.0,
-        sun_mu,
-    );
-
-    let N = 4;
-    let root_beta = (-2.0 * state.get_energy()).sqrt();
-    let delta_s = 2.0 * std::f64::consts::PI / (N as f64) / root_beta;
-
-    for i in 0..=N {
-        println!(
-            "Should be {}/{} around the Sun.\n
-            Position: {}\n
-            Velocity: {}",
-            i,
-            N,
-            state.get_position(),
-            state.get_velocity()
-        );
-        state.advance_s(delta_s);
-    }
 }
 
 fn draw_grid(window: &mut Window, num_squares: i32, square_size: f32, color: &Point3<f32>) {
