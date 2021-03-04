@@ -1,7 +1,29 @@
 use std::cmp::Ordering;
 
+pub fn stumpff_c(x: f64) -> [f64; 4] {
+    [c0(x), c1(x), c2(x), c3(x)]
+}
+
+#[allow(non_snake_case)]
+pub fn stumpff_G(beta: f64, s: f64) -> [f64; 4] {
+    // the kth entry should be s^k c_k(beta s^2)
+    let mut output = stumpff_c(beta * s * s);
+    for k in 0..4 {
+        output[k] *= s.powi(k as i32);
+    }
+
+    output
+}
+
+fn compare_to_zero(x: f64) -> Ordering {
+    match x.partial_cmp(&0.0) {
+        Some(x) => x,
+        None => panic!("Got a weird float: {:?}", x),
+    }
+}
+
 pub fn c0(x: f64) -> f64 {
-    match x.partial_cmp(&0.0).unwrap() {
+    match compare_to_zero(x) {
         Ordering::Greater => x.sqrt().cos(),
         Ordering::Less => (-x).sqrt().cosh(),
         Ordering::Equal => 1.0,
@@ -9,7 +31,7 @@ pub fn c0(x: f64) -> f64 {
 }
 
 pub fn c1(x: f64) -> f64 {
-    match x.partial_cmp(&0.0).unwrap() {
+    match compare_to_zero(x) {
         Ordering::Greater => x.sqrt().sin() / x.sqrt(),
         Ordering::Less => (-x).sqrt().sinh() / (-x).sqrt(),
         Ordering::Equal => 1.0,
@@ -17,7 +39,7 @@ pub fn c1(x: f64) -> f64 {
 }
 
 pub fn c2(x: f64) -> f64 {
-    match x.partial_cmp(&0.0).unwrap() {
+    match compare_to_zero(x) {
         // 1 - cos u = 2 sin^2(u/2)
         Ordering::Greater => 2.0 * (x.sqrt() / 2.0).sin().powi(2) / x,
         // 1 - cosh u = -2 sinh^2(u/2)
