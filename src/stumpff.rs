@@ -73,6 +73,7 @@ pub fn c3(x: f64) -> f64 {
 }
 
 // --- testing stumpff functions ---
+#[allow(dead_code)]
 pub mod plotting {
     use super::*;
     use plotters::prelude::*;
@@ -148,6 +149,7 @@ pub mod plotting {
     }
 }
 
+#[allow(dead_code)]
 pub mod chebyshev {
 
     fn get_coeff_of_xn(n: usize, k: usize) -> f64 {
