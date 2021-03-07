@@ -1,5 +1,6 @@
 extern crate kiss3d;
 
+mod consts;
 mod simple_render;
 mod state;
 mod stumpff;
@@ -7,6 +8,7 @@ mod stumpff;
 use kiss3d::nalgebra as na;
 use na::Vector3;
 
+use crate::consts::{get_circular_velocity, KERBIN_ORBIT_RADIUS, KERBOL_MU};
 use crate::state::State;
 
 fn main() {
@@ -29,10 +31,10 @@ fn main() {
 
     let kerbol = State::new(Vector3::x() * 0.0, Vector3::y() * 0.0, 0.0, 0.0);
     let kerbin = State::new(
-        Vector3::x() * 13_599_840_256.0,
-        Vector3::y() * 9284.5,
+        Vector3::x() * KERBIN_ORBIT_RADIUS,
+        Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU),
         0.0,
-        1.1723328e18,
+        KERBOL_MU,
     );
-    simple_render::draw_scene(&[kerbol, kerbin]);
+    simple_render::draw_scene(&mut [kerbol, kerbin]);
 }

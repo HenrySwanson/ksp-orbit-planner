@@ -7,7 +7,7 @@ pub struct State {
     position: Vector3<f64>,
     velocity: Vector3<f64>,
     time: f64,
-    mu: f64, // TODO: move this elsewhere
+    pub mu: f64, // TODO: move this elsewhere
 }
 
 #[allow(non_snake_case)]
@@ -68,14 +68,11 @@ impl State {
 mod tests {
     use super::*;
 
+    use crate::consts::{
+        get_circular_velocity, get_period, KERBIN_ORBIT_PERIOD, KERBIN_ORBIT_RADIUS, KERBOL_MU,
+    };
+
     use std::f64::consts::PI;
-
-    // Taken from the KSP wiki
-    const KERBIN_ORBIT_RADIUS: f64 = 13_599_840_256.0;
-    const KERBIN_ORBIT_PERIOD: f64 = 9_203_544.6;
-    const KERBOL_MU: f64 = 1.1723328e18;
-
-    const KERBIN_ORBIT_VELOCITY: f64 = 9284.5; // had to increase precision over the wiki
 
     fn assert_close(expected: f64, actual: f64, tolerance: f64) {
         let difference = actual - expected;
@@ -108,7 +105,7 @@ mod tests {
         // Build Kerbin and see if the orbit simulation is right.
         // Kerbin's orbit is perfectly circular.
         let initial_position = Vector3::x() * KERBIN_ORBIT_RADIUS;
-        let initial_velocity = Vector3::y() * KERBIN_ORBIT_VELOCITY;
+        let initial_velocity = Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU);
 
         let mut state = State::new(initial_position, initial_velocity, 0.0, KERBOL_MU);
 
@@ -125,7 +122,7 @@ mod tests {
 
         // Time is a little fuzzier, because the velocity constant (and thus this orbit) isn't
         // perfect.
-        let computed_period = (4.0 * PI * PI * KERBIN_ORBIT_RADIUS.powi(3) / KERBOL_MU).sqrt();
+        let computed_period = get_period(KERBIN_ORBIT_RADIUS, KERBOL_MU);
         println!(
             "Periods:\n\
             \t(defined)   {}\n\

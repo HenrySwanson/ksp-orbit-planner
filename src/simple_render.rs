@@ -8,27 +8,42 @@ use na::{Point3, Translation3, Vector3};
 
 use crate::state::State;
 
-pub fn draw_scene(bodies: &[State]) {
+pub fn draw_scene(bodies: &mut [State]) {
     // Set up window and camera
     let mut window = Window::new("Kiss3d: cube");
     window.set_light(Light::StickToCamera);
 
     let mut camera = ArcBall::new(Point3::new(0.0, -10.0, 10.0), Point3::origin());
 
-    // Create bodies
+    // Set up bodies
+    let mut spheres = Vec::with_capacity(bodies.len());
     for body in bodies.iter() {
         // This is where per-body reference frame stuff happens
         let position = Point3::origin() + body.get_position();
 
         let mut sphere = window.add_sphere(1.0);
         sphere.set_color(0.0, 1.0, 0.0);
-        sphere.set_local_translation(Translation3::from(shrink_and_cast(&position).coords))
+        sphere.set_local_translation(Translation3::from(shrink_and_cast(&position).coords));
         // TODO draw orbit
+
+        spheres.push(sphere);
     }
 
     while window.render_with_camera(&mut camera) {
         // Draw grid
         draw_grid(&mut window, 20, 1.0, &Point3::new(0.5, 0.5, 0.5));
+
+        // Post-render
+        for (i, body) in bodies.iter_mut().enumerate() {
+            if body.mu == 0.0 {
+                continue; // bad hack till parents work right
+            }
+
+            body.advance_s(0.000001);
+
+            let position = Point3::origin() + body.get_position();
+            spheres[i].set_local_translation(Translation3::from(shrink_and_cast(&position).coords))
+        }
     }
 }
 
