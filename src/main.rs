@@ -36,5 +36,11 @@ fn main() {
         0.0,
         KERBOL_MU,
     );
-    simple_render::draw_scene(&mut [kerbol, kerbin]);
+    let kerbin2 = State::new(
+        Vector3::x() * 4.0 * KERBIN_ORBIT_RADIUS,
+        Vector3::y() * get_circular_velocity(4.0 * KERBIN_ORBIT_RADIUS, KERBOL_MU),
+        0.0,
+        KERBOL_MU,
+    );
+    simple_render::draw_scene(&mut [kerbol, kerbin, kerbin2]);
 }

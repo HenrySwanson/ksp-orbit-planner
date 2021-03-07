@@ -12,8 +12,9 @@ pub fn draw_scene(bodies: &mut [State]) {
     // Set up window and camera
     let mut window = Window::new("Kiss3d: cube");
     window.set_light(Light::StickToCamera);
+    window.set_framerate_limit(Some(60));
 
-    let mut camera = ArcBall::new(Point3::new(0.0, -10.0, 10.0), Point3::origin());
+    let mut camera = ArcBall::new(Point3::new(0.0, -20.0, 20.0), Point3::origin());
 
     // Set up bodies
     let mut spheres = Vec::with_capacity(bodies.len());
@@ -39,7 +40,7 @@ pub fn draw_scene(bodies: &mut [State]) {
                 continue; // bad hack till parents work right
             }
 
-            body.advance_s(0.000001);
+            body.advance_t(9_203_544.6 / 600.0);
 
             let position = Point3::origin() + body.get_position();
             spheres[i].set_local_translation(Translation3::from(shrink_and_cast(&position).coords))

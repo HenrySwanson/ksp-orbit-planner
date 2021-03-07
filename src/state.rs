@@ -62,6 +62,64 @@ impl State {
         self.velocity = new_velocity;
         self.time += delta_t;
     }
+
+    pub fn advance_t(&mut self, delta_t: f64) {
+        // We find the delta_s corresponding to the given delta_t, and advance using that.
+        // Since ds/dt = 1/r, s and t are monotonically related, so there's a unique solution.
+
+        // Grab some constants
+        let beta = -2.0 * self.get_energy();
+        let mu = self.mu;
+        let r_0 = self.position.norm();
+        let r_dot_0 = self.position.dot(&self.velocity) / r_0;
+
+        // We want to find a root of this function, which is monotonically increasing:
+        //  r_0 * G_1(β, s) + r_0 * r_dot_0 * G_2(β, s) + mu * G_3(β, s) - delta_t
+        let f_and_f_prime = |s: f64| {
+            let G = stumpff_G(beta, s);
+            let f = r_0 * G[1] + r_0 * r_dot_0 * G[2] + mu * G[3] - delta_t;
+            let f_prime = r_0 * G[0] + r_0 * r_dot_0 * G[1] + mu * G[2];
+            (f, f_prime)
+        };
+
+        let mut best_s = None;
+
+        // We'll use Newton's method for now, but we could probably do something
+        // fancy like Brent.
+        // We track two guesses to avoid floating point oscillation screwing us.
+        // Since ds/dt = 1/r, maybe t/r is a good starting guess.
+        let mut s_prev = 0.0;
+        let mut s_guess = 2.0 * delta_t / r_0;
+        for _ in 0..100 {
+            let (f, f_prime) = f_and_f_prime(s_guess);
+            let s_new = s_guess - f / f_prime;
+
+            // We check if it's either of the last two values
+            // we've seen.
+            if s_new == s_guess || s_new == s_prev {
+                best_s = Some(s_new);
+                break;
+            }
+
+            s_prev = s_guess;
+            s_guess = s_new;
+        }
+
+        match best_s {
+            Some(s) => self.advance_s(s),
+            None => panic!(
+                "Newton's method didn't converge!
+                Parameters were:
+                delta_t = {},
+                beta = {},
+                mu = {},
+                r_0 = {},
+                r_dot_0 = {}",
+                delta_t, beta, mu, r_0, r_dot_0,
+            ),
+        }
+        self.advance_s(s_guess);
+    }
 }
 
 #[cfg(test)]
