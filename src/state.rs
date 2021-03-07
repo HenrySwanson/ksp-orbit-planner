@@ -1,23 +1,33 @@
 use kiss3d::nalgebra as na;
 use na::Vector3;
+use std::rc::Rc;
 
+use crate::body::BodyInfo;
 use crate::stumpff::stumpff_G;
 
 pub struct State {
     position: Vector3<f64>,
     velocity: Vector3<f64>,
     time: f64,
-    pub mu: f64, // TODO: move this elsewhere
+    parent_id: usize,
+    parent_info: Rc<BodyInfo>,
 }
 
 #[allow(non_snake_case)]
 impl State {
-    pub fn new(position: Vector3<f64>, velocity: Vector3<f64>, time: f64, mu: f64) -> Self {
+    pub fn new(
+        position: Vector3<f64>,
+        velocity: Vector3<f64>,
+        time: f64,
+        parent_id: usize,
+        parent_info: Rc<BodyInfo>,
+    ) -> Self {
         State {
             position,
             velocity,
             time,
-            mu,
+            parent_id,
+            parent_info,
         }
     }
 
@@ -33,14 +43,18 @@ impl State {
         self.time
     }
 
+    pub fn get_parent_id(&self) -> usize {
+        self.parent_id
+    }
+
     pub fn get_energy(&self) -> f64 {
         // KE = 1/2 v^2, PE = - mu/r
-        self.velocity.norm_squared() / 2.0 - self.mu / self.position.norm()
+        self.velocity.norm_squared() / 2.0 - self.parent_info.mu / self.position.norm()
     }
 
     pub fn advance_s(&mut self, delta_s: f64) {
         let beta = -2.0 * self.get_energy();
-        let mu = self.mu;
+        let mu = self.parent_info.mu;
         let G: [f64; 4] = stumpff_G(beta, delta_s);
 
         let r_0 = self.position.norm();
@@ -69,7 +83,7 @@ impl State {
 
         // Grab some constants
         let beta = -2.0 * self.get_energy();
-        let mu = self.mu;
+        let mu = self.parent_info.mu;
         let r_0 = self.position.norm();
         let r_dot_0 = self.position.dot(&self.velocity) / r_0;
 
@@ -158,6 +172,13 @@ mod tests {
         }
     }
 
+    fn make_kerbol_info() -> Rc<BodyInfo> {
+        let info = BodyInfo {
+            mu: KERBOL_MU,
+        };
+        Rc::new(info)
+    }
+
     #[test]
     fn test_kerbin() {
         // Build Kerbin and see if the orbit simulation is right.
@@ -165,7 +186,7 @@ mod tests {
         let initial_position = Vector3::x() * KERBIN_ORBIT_RADIUS;
         let initial_velocity = Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU);
 
-        let mut state = State::new(initial_position, initial_velocity, 0.0, KERBOL_MU);
+        let mut state = State::new(initial_position, initial_velocity, 0.0, 0, make_kerbol_info());
 
         // Advance for one full orbit.
         // This is a circular orbit, so s is proportional to theta. Specifically,
@@ -202,7 +223,7 @@ mod tests {
 
         let initial_position = Vector3::x() * radius;
         let initial_velocity = Vector3::z() * velocity;
-        let mut state = State::new(initial_position, initial_velocity, 0.0, KERBOL_MU);
+        let mut state = State::new(initial_position, initial_velocity, 0.0, 0, make_kerbol_info());
 
         // Compute s for a whole orbit. Since r doesn't change, s varies linearly with t.
         let beta = -2.0 * state.get_energy();

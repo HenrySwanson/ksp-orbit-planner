@@ -1,15 +1,19 @@
 extern crate kiss3d;
 
+mod body;
 mod consts;
 mod simple_render;
 mod state;
 mod stumpff;
+mod universe;
 
 use kiss3d::nalgebra as na;
 use na::Vector3;
 
+use crate::body::{Body, BodyInfo};
 use crate::consts::{get_circular_velocity, KERBIN_ORBIT_RADIUS, KERBOL_MU};
 use crate::state::State;
+use crate::universe::Universe;
 
 fn main() {
     // // Set up window and camera
@@ -29,18 +33,20 @@ fn main() {
     //     draw_loop(&mut window, &circle_pts, &Point3::new(1.0, 0.0, 0.0));
     // }
 
-    let kerbol = State::new(Vector3::x() * 0.0, Vector3::y() * 0.0, 0.0, 0.0);
-    let kerbin = State::new(
+    let mut u = Universe::new(BodyInfo { mu: KERBOL_MU });
+
+    let kerbin = u.add_body(
+        BodyInfo { mu: 3.5316000e12 },
         Vector3::x() * KERBIN_ORBIT_RADIUS,
         Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU),
-        0.0,
-        KERBOL_MU,
+        u.root_body,
     );
-    let kerbin2 = State::new(
-        Vector3::x() * 4.0 * KERBIN_ORBIT_RADIUS,
-        Vector3::y() * get_circular_velocity(4.0 * KERBIN_ORBIT_RADIUS, KERBOL_MU),
-        0.0,
-        KERBOL_MU,
+
+    let mun = u.add_body(
+        BodyInfo { mu: 6.5138398e10 },
+        Vector3::x() * 12_000_000.0,
+        Vector3::y() * get_circular_velocity(12_000_000.0, 3.5316000e12),
+        kerbin,
     );
-    simple_render::draw_scene(&mut [kerbol, kerbin, kerbin2]);
+    simple_render::draw_scene(u);
 }
