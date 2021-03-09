@@ -1,5 +1,5 @@
 use kiss3d::nalgebra as na;
-use na::{Point3, Translation3, Vector3};
+use na::{Point3, Vector3};
 
 use std::rc::Rc;
 
@@ -8,6 +8,8 @@ use crate::state::State;
 // All the immutable info about a body
 pub struct BodyInfo {
     pub mu: f64,
+    pub radius: f32,
+    pub color: Vector3<f32>,
 }
 
 pub struct Body {

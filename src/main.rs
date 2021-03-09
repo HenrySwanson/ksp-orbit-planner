@@ -1,6 +1,7 @@
 extern crate kiss3d;
 
 mod body;
+mod camera;
 mod consts;
 mod simple_render;
 mod state;
@@ -33,17 +34,29 @@ fn main() {
     //     draw_loop(&mut window, &circle_pts, &Point3::new(1.0, 0.0, 0.0));
     // }
 
-    let mut u = Universe::new(BodyInfo { mu: KERBOL_MU });
+    let mut u = Universe::new(BodyInfo {
+        mu: KERBOL_MU,
+        radius: 261_600_000.0,
+        color: Vector3::new(1.0, 1.0, 0.0),
+    });
 
     let kerbin = u.add_body(
-        BodyInfo { mu: 3.5316000e12 },
+        BodyInfo {
+            mu: 3.5316000e12,
+            radius: 600_000.0,
+            color: Vector3::new(0.0, 1.0, 0.0),
+        },
         Vector3::x() * KERBIN_ORBIT_RADIUS,
         Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU),
         u.root_body,
     );
 
     let mun = u.add_body(
-        BodyInfo { mu: 6.5138398e10 },
+        BodyInfo {
+            mu: 6.5138398e10,
+            radius: 200_000.0,
+            color: Vector3::new(0.3, 0.3, 0.3),
+        },
         Vector3::x() * 12_000_000.0,
         Vector3::y() * get_circular_velocity(12_000_000.0, 3.5316000e12),
         kerbin,

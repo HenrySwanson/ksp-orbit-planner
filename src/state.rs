@@ -175,6 +175,8 @@ mod tests {
     fn make_kerbol_info() -> Rc<BodyInfo> {
         let info = BodyInfo {
             mu: KERBOL_MU,
+            color: Vector3::x(),
+            radius: 1.0,
         };
         Rc::new(info)
     }
