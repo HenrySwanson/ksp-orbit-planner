@@ -1,4 +1,3 @@
-use kiss3d::camera::ArcBall;
 use kiss3d::camera::Camera;
 use kiss3d::event::{Action, MouseButton, WindowEvent};
 use kiss3d::resource::ShaderUniform;
@@ -78,7 +77,7 @@ impl CustomCamera {
 impl Camera for CustomCamera {
     fn handle_event(&mut self, canvas: &Canvas, event: &WindowEvent) {
         match *event {
-            WindowEvent::CursorPos(x, y, modifiers) => {
+            WindowEvent::CursorPos(x, y, _) => {
                 let curr_pos = Vector2::new(x as f32, y as f32);
 
                 if canvas.get_mouse_button(MouseButton::Button1) == Action::Press {
@@ -106,7 +105,7 @@ impl Camera for CustomCamera {
                 println!("{}", self.radius);
             }
             WindowEvent::FramebufferSize(w, h) => {
-                self.aspect = (w as f32 / h as f32);
+                self.aspect = w as f32 / h as f32;
             }
             _ => {}
         }
@@ -136,7 +135,7 @@ impl Camera for CustomCamera {
         (self.projection().znear(), self.projection().zfar())
     }
 
-    fn update(&mut self, canvas: &Canvas) {}
+    fn update(&mut self, _canvas: &Canvas) {}
 
     fn upload(
         &self,

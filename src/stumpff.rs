@@ -8,8 +8,8 @@ pub fn stumpff_c(x: f64) -> [f64; 4] {
 pub fn stumpff_G(beta: f64, s: f64) -> [f64; 4] {
     // the kth entry should be s^k c_k(beta s^2)
     let mut output = stumpff_c(beta * s * s);
-    for k in 0..4 {
-        output[k] *= s.powi(k as i32);
+    for (k, value) in output.iter_mut().enumerate() {
+        *value *= s.powi(k as i32);
     }
 
     output
@@ -181,6 +181,7 @@ pub mod chebyshev {
         }
     }
 
+    #[allow(clippy::float_cmp)]
     fn is_negligible_against(epsilon: f64, value: f64) -> bool {
         // This is a good stopping criterion for series computation
         epsilon != 0.0 && value + epsilon == value
@@ -199,7 +200,6 @@ pub mod chebyshev {
         for i in 0.. {
             let delta = coeff_i * get_coeff_of_xn(i, k);
 
-            let old_total = total;
             total += delta;
 
             // We have to check that we didn't just try to add 0, but otherwise,

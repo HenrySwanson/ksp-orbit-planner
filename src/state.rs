@@ -77,6 +77,7 @@ impl State {
         self.time += delta_t;
     }
 
+    #[allow(clippy::float_cmp)]
     pub fn advance_t(&mut self, delta_t: f64) {
         // We find the delta_s corresponding to the given delta_t, and advance using that.
         // Since ds/dt = 1/r, s and t are monotonically related, so there's a unique solution.

@@ -11,9 +11,8 @@ mod universe;
 use kiss3d::nalgebra as na;
 use na::Vector3;
 
-use crate::body::{Body, BodyInfo};
+use crate::body::BodyInfo;
 use crate::consts::{get_circular_velocity, KERBIN_ORBIT_RADIUS, KERBOL_MU};
-use crate::state::State;
 use crate::universe::Universe;
 
 fn main() {
@@ -51,7 +50,7 @@ fn main() {
         u.root_body,
     );
 
-    let mun = u.add_body(
+    let _mun = u.add_body(
         BodyInfo {
             mu: 6.5138398e10,
             radius: 200_000.0,

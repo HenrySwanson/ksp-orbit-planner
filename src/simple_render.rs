@@ -1,7 +1,4 @@
-use kiss3d::camera::ArcBall;
-use kiss3d::event::WindowEvent;
 use kiss3d::light::Light;
-use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
 
 use kiss3d::nalgebra as na;
@@ -20,10 +17,7 @@ pub fn draw_scene(mut universe: Universe) {
 
     // Set up bodies
     let mut spheres = Vec::with_capacity(universe.bodies.len());
-    for (id, body) in universe.bodies.iter().enumerate() {
-        // This is where per-body reference frame stuff happens
-        let position = universe.get_body_position(id);
-
+    for body in universe.bodies.iter() {
         let mut sphere = window.add_sphere(body.info.radius);
         let color = &body.info.color;
         sphere.set_color(color.x, color.y, color.z);
@@ -38,7 +32,7 @@ pub fn draw_scene(mut universe: Universe) {
         draw_grid(&mut window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
         // Place camera
-        let kerbin_location = universe.get_body_position(1);
+        //let kerbin_location = universe.get_body_position(1);
         //camera.set_at(camera_transform.apply_to(&kerbin_location));
 
         // Render
@@ -57,7 +51,7 @@ pub fn draw_scene(mut universe: Universe) {
         }
 
         // Update scene
-        for (id, body) in universe.bodies.iter().enumerate() {
+        for (id, _) in universe.bodies.iter().enumerate() {
             let position: Point3<f32> = na::convert(universe.get_body_position(id));
             spheres[id].set_local_translation(Translation3::from(position.coords));
         }
