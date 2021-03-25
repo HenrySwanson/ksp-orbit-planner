@@ -102,7 +102,6 @@ impl Camera for CustomCamera {
                 }
 
                 self.radius = na::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
-                println!("{}", self.radius);
             }
             WindowEvent::FramebufferSize(w, h) => {
                 self.aspect = w as f32 / h as f32;

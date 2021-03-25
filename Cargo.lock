@@ -1528,6 +1528,7 @@ dependencies = [
 name = "rust-ksp"
 version = "0.1.0"
 dependencies = [
+ "approx",
  "kiss3d",
  "plotters",
 ]

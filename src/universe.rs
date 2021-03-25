@@ -3,6 +3,7 @@ use na::{Point3, Vector3};
 use std::rc::Rc;
 
 use crate::body::{Body, BodyInfo};
+use crate::orbit::Orbit;
 use crate::state::State;
 
 pub struct Universe {
@@ -55,5 +56,20 @@ impl Universe {
                 None => return position,
             };
         }
+    }
+
+    pub fn get_body_orbit(&self, id: usize) -> Option<Orbit> {
+        // TODO: how am i going to handle moons? reference frames?
+        let state = match &self.bodies[id].state {
+            Some(state) => state,
+            None => return None,
+        };
+
+        let parent_body = &self.bodies[state.get_parent_id()];
+        Some(Orbit::from_cartesian(
+            state.get_position(),
+            state.get_velocity(),
+            parent_body.info.mu,
+        ))
     }
 }

@@ -176,7 +176,7 @@ mod tests {
     fn make_kerbol_info() -> Rc<BodyInfo> {
         let info = BodyInfo {
             mu: KERBOL_MU,
-            color: Vector3::x(),
+            color: na::Point3::new(1.0, 0.0, 0.0),
             radius: 1.0,
         };
         Rc::new(info)
@@ -189,7 +189,13 @@ mod tests {
         let initial_position = Vector3::x() * KERBIN_ORBIT_RADIUS;
         let initial_velocity = Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU);
 
-        let mut state = State::new(initial_position, initial_velocity, 0.0, 0, make_kerbol_info());
+        let mut state = State::new(
+            initial_position,
+            initial_velocity,
+            0.0,
+            0,
+            make_kerbol_info(),
+        );
 
         // Advance for one full orbit.
         // This is a circular orbit, so s is proportional to theta. Specifically,
@@ -226,7 +232,13 @@ mod tests {
 
         let initial_position = Vector3::x() * radius;
         let initial_velocity = Vector3::z() * velocity;
-        let mut state = State::new(initial_position, initial_velocity, 0.0, 0, make_kerbol_info());
+        let mut state = State::new(
+            initial_position,
+            initial_velocity,
+            0.0,
+            0,
+            make_kerbol_info(),
+        );
 
         // Compute s for a whole orbit. Since r doesn't change, s varies linearly with t.
         let beta = -2.0 * state.get_energy();
