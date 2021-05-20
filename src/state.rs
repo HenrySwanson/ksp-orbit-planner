@@ -133,7 +133,6 @@ impl State {
                 delta_t, beta, mu, r_0, r_dot_0,
             ),
         }
-        self.advance_s(s_guess);
     }
 }
 
