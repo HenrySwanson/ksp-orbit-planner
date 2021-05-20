@@ -1,4 +1,5 @@
 use kiss3d::light::Light;
+use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
 
 use kiss3d::nalgebra as na;
@@ -28,8 +29,6 @@ pub fn draw_scene(mut universe: Universe) {
         let mut sphere = window.add_sphere(body.info.radius);
         let color = &body.info.color;
         sphere.set_color(color.x, color.y, color.z);
-        let position: Point3<f32> = na::convert(universe.get_body_position(id));
-        sphere.set_local_translation(Translation3::from(position.coords));
 
         // Compute the orbit path
         let orbit = universe.get_body_orbit(id);
@@ -50,30 +49,11 @@ pub fn draw_scene(mut universe: Universe) {
     }
 
     loop {
-        // Draw grid
-        draw_grid(&mut window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
+        // Update scene objects
+        relocate_scene_objects(&universe, &mut spheres);
 
-        // Draw orbits
-        for (id, body) in universe.bodies.iter().enumerate() {
-            let parent_id = match &body.state {
-                Some(state) => state.get_parent_id(),
-                None => continue,
-            };
-
-            let parent_position: Point3<f32> = na::convert(universe.get_body_position(parent_id));
-            let orbit_path: Vec<_> = orbit_paths[id]
-                .iter()
-                .map(|x| parent_position + x)
-                .collect();
-            draw_path(&mut window, &orbit_path, &body.info.color);
-        }
-
-        // Place camera
-        //let kerbin_location = universe.get_body_position(1);
-        //camera.set_at(camera_transform.apply_to(&kerbin_location));
-
-        // Render
-        if !window.render_with_camera(&mut camera) {
+        // Render (don't need to pass scene objects, as they are bound to `window`)
+        if !render_scene(&mut window, &mut camera, &universe, &orbit_paths) {
             break;
         }
 
@@ -86,12 +66,41 @@ pub fn draw_scene(mut universe: Universe) {
 
             state.advance_t(TIMESTEP);
         }
+    }
+}
 
-        // Update scene
-        for (id, sphere) in spheres.iter_mut().enumerate() {
-            let position: Point3<f32> = na::convert(universe.get_body_position(id));
-            sphere.set_local_translation(Translation3::from(position.coords));
-        }
+fn render_scene(
+    window: &mut Window,
+    camera: &mut CustomCamera,
+    universe: &Universe,
+    orbit_paths: &[Vec<Vector3<f32>>],
+) -> bool {
+    // Draw grid
+    draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
+
+    // Draw orbits
+    for (id, body) in universe.bodies.iter().enumerate() {
+        let parent_id = match &body.state {
+            Some(state) => state.get_parent_id(),
+            None => continue,
+        };
+
+        let parent_position: Point3<f32> = na::convert(universe.get_body_position(parent_id));
+        let orbit_path: Vec<_> = orbit_paths[id]
+            .iter()
+            .map(|x| parent_position + x)
+            .collect();
+        draw_path(window, &orbit_path, &body.info.color);
+    }
+
+    // Render
+    return window.render_with_camera(camera);
+}
+
+fn relocate_scene_objects(universe: &Universe, spheres: &mut [SceneNode]) {
+    for (id, sphere) in spheres.iter_mut().enumerate() {
+        let position: Point3<f32> = na::convert(universe.get_body_position(id));
+        sphere.set_local_translation(Translation3::from(position.coords));
     }
 }
 
