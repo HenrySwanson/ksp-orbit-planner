@@ -1,32 +1,32 @@
 use kiss3d::nalgebra as na;
 use na::{Isometry3, Point3, Translation3, Vector3};
+
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::body::{Body, BodyInfo};
 use crate::orbit::Orbit;
 use crate::state::{CartesianState, State};
 
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct BodyID(pub usize);
+
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
     Root,
-    BodyInertial(usize),
+    BodyInertial(BodyID),
 }
 
 pub struct Universe {
-    pub root_body: usize,
-    pub bodies: Vec<Body>,
+    pub bodies: HashMap<BodyID, Body>,
+    next_id: usize,
 }
 
 impl Universe {
-    pub fn new(root_body: BodyInfo) -> Self {
-        let body = Body {
-            info: Rc::new(root_body),
-            state: State::FixedAtOrigin,
-        };
-
+    pub fn new() -> Self {
         Universe {
-            root_body: 0,
-            bodies: vec![body],
+            bodies: HashMap::new(),
+            next_id: 0,
         }
     }
 
@@ -35,35 +35,46 @@ impl Universe {
         body_info: BodyInfo,
         position: Vector3<f64>,
         velocity: Vector3<f64>,
-        parent_id: usize,
-    ) -> usize {
-        let parent_body = self.bodies.get(parent_id).unwrap();
+        parent_id: BodyID,
+    ) -> BodyID {
+        let parent_body = &self.bodies[&parent_id];
         let state =
             CartesianState::new(position, velocity, 0.0, parent_id, parent_body.info.clone());
 
-        let body = Body {
-            info: Rc::new(body_info),
-            state: State::Orbiting(state),
-        };
-
-        self.bodies.push(body);
-        self.bodies.len() - 1
+        self.insert_new_body(body_info, State::Orbiting(state))
     }
 
-    pub fn get_body_position(&self, id: usize, desired_frame: Frame) -> Point3<f64> {
-        let (position, original_frame) = self.bodies[id].state.get_position();
+    pub fn add_fixed_body(&mut self, body_info: BodyInfo) -> BodyID {
+        self.insert_new_body(body_info, State::FixedAtOrigin)
+    }
+
+    fn insert_new_body(&mut self, info: BodyInfo, state: State) -> BodyID {
+        let body = Body {
+            info: Rc::new(info),
+            state,
+        };
+
+        let new_id = BodyID(self.next_id);
+        self.next_id += 1;
+
+        self.bodies.insert(new_id, body);
+        new_id
+    }
+
+    pub fn get_body_position(&self, id: BodyID, desired_frame: Frame) -> Point3<f64> {
+        let (position, original_frame) = self.bodies[&id].state.get_position();
         self.convert_frames(original_frame, desired_frame)
             .transform_point(&position)
     }
 
-    pub fn get_body_orbit(&self, id: usize) -> Option<Orbit> {
+    pub fn get_body_orbit(&self, id: BodyID) -> Option<Orbit> {
         // TODO: how am i going to handle moons? reference frames?
-        let state = match &self.bodies[id].state {
+        let state = match &self.bodies[&id].state {
             State::FixedAtOrigin => return None,
             State::Orbiting(state) => state,
         };
 
-        let parent_body = &self.bodies[state.get_parent_id()];
+        let parent_body = &self.bodies[&state.get_parent_id()];
         Some(Orbit::from_cartesian(
             state.get_position(),
             state.get_velocity(),
@@ -82,7 +93,7 @@ impl Universe {
         match src {
             Frame::Root => Isometry3::identity(),
             Frame::BodyInertial(k) => {
-                match &self.bodies[k].state {
+                match &self.bodies[&k].state {
                     State::FixedAtOrigin => {
                         // This is equivalent to the root frame; return the identity
                         Isometry3::identity()

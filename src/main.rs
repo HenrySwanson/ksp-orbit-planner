@@ -17,7 +17,9 @@ use crate::consts::get_circular_velocity;
 use crate::universe::Universe;
 
 fn main() {
-    let mut u = Universe::new(BodyInfo {
+    let mut u = Universe::new();
+
+    let kerbol = u.add_fixed_body(BodyInfo {
         mu: consts::KERBOL_MU,
         radius: consts::KERBOL_RADIUS,
         color: Point3::new(1.0, 1.0, 0.0),
@@ -31,7 +33,7 @@ fn main() {
         },
         Vector3::x() * consts::KERBIN_ORBIT_RADIUS,
         Vector3::y() * get_circular_velocity(consts::KERBIN_ORBIT_RADIUS, consts::KERBOL_MU),
-        u.root_body,
+        kerbol,
     );
 
     let _mun = u.add_body(

@@ -5,7 +5,7 @@ use std::rc::Rc;
 use crate::body::BodyInfo;
 use crate::stumpff::stumpff_G;
 
-use crate::universe::Frame; // TODO pull out into its own thing
+use crate::universe::{BodyID, Frame};
 
 pub enum State {
     FixedAtOrigin,
@@ -16,7 +16,7 @@ pub struct CartesianState {
     position: Vector3<f64>,
     velocity: Vector3<f64>,
     time: f64,
-    parent_id: usize,
+    parent_id: BodyID,
     parent_info: Rc<BodyInfo>,
 }
 
@@ -46,7 +46,7 @@ impl CartesianState {
         position: Vector3<f64>,
         velocity: Vector3<f64>,
         time: f64,
-        parent_id: usize,
+        parent_id: BodyID,
         parent_info: Rc<BodyInfo>,
     ) -> Self {
         CartesianState {
@@ -70,7 +70,7 @@ impl CartesianState {
         self.time
     }
 
-    pub fn get_parent_id(&self) -> usize {
+    pub fn get_parent_id(&self) -> BodyID {
         self.parent_id
     }
 
@@ -219,7 +219,7 @@ mod tests {
             initial_position,
             initial_velocity,
             0.0,
-            0,
+            BodyID(0),
             make_kerbol_info(),
         );
 
@@ -262,7 +262,7 @@ mod tests {
             initial_position,
             initial_velocity,
             0.0,
-            0,
+            BodyID(0),
             make_kerbol_info(),
         );
 
