@@ -14,14 +14,5 @@ pub struct BodyInfo {
 
 pub struct Body {
     pub info: Rc<BodyInfo>,
-    pub state: Option<State>,
-}
-
-impl Body {
-    pub fn get_position_as_pt(&self) -> Point3<f64> {
-        match &self.state {
-            Some(state) => Point3::origin() + state.get_position(),
-            None => Point3::origin(),
-        }
-    }
+    pub state: State,
 }

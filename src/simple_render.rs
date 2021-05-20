@@ -8,6 +8,7 @@ use na::{Point3, Translation3, Vector3};
 use std::f64::consts::PI;
 
 use crate::camera::CustomCamera;
+use crate::state::State;
 use crate::universe::{Frame, Universe};
 
 const TIMESTEP: f64 = 138984.0 / 600.0;
@@ -66,12 +67,7 @@ pub fn draw_scene(mut universe: Universe) {
 
         // Update state
         for body in universe.bodies.iter_mut() {
-            let state = match &mut body.state {
-                Some(state) => state,
-                None => continue,
-            };
-
-            state.advance_t(TIMESTEP);
+            body.state.advance_t(TIMESTEP);
         }
     }
 }
@@ -89,8 +85,8 @@ fn render_scene(
     // Draw orbits
     for (id, body) in universe.bodies.iter().enumerate() {
         let parent_id = match &body.state {
-            Some(state) => state.get_parent_id(),
-            None => continue,
+            State::FixedAtOrigin => continue,
+            State::Orbiting(state) => state.get_parent_id(),
         };
 
         // Get the parent's position within the camera frame

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::body::{Body, BodyInfo};
 use crate::orbit::Orbit;
-use crate::state::State;
+use crate::state::{CartesianState, State};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
@@ -21,7 +21,7 @@ impl Universe {
     pub fn new(root_body: BodyInfo) -> Self {
         let body = Body {
             info: Rc::new(root_body),
-            state: None,
+            state: State::FixedAtOrigin,
         };
 
         Universe {
@@ -38,30 +38,20 @@ impl Universe {
         parent_id: usize,
     ) -> usize {
         let parent_body = self.bodies.get(parent_id).unwrap();
-        let state = State::new(position, velocity, 0.0, parent_id, parent_body.info.clone());
+        let state =
+            CartesianState::new(position, velocity, 0.0, parent_id, parent_body.info.clone());
 
         let body = Body {
             info: Rc::new(body_info),
-            state: Some(state),
+            state: State::Orbiting(state),
         };
 
         self.bodies.push(body);
         self.bodies.len() - 1
     }
 
-    pub fn get_body_position_with_frame(&self, id: usize) -> (Point3<f64>, Frame) {
-        match &self.bodies[id].state {
-            None => (Point3::origin(), Frame::Root),
-            Some(state) => {
-                let position = state.get_position().clone();
-                let parent_id = state.get_parent_id();
-                (Point3::from(position), Frame::BodyInertial(parent_id))
-            }
-        }
-    }
-
     pub fn get_body_position(&self, id: usize, desired_frame: Frame) -> Point3<f64> {
-        let (position, original_frame) = self.get_body_position_with_frame(id);
+        let (position, original_frame) = self.bodies[id].state.get_position();
         self.convert_frames(original_frame, desired_frame)
             .transform_point(&position)
     }
@@ -69,8 +59,8 @@ impl Universe {
     pub fn get_body_orbit(&self, id: usize) -> Option<Orbit> {
         // TODO: how am i going to handle moons? reference frames?
         let state = match &self.bodies[id].state {
-            Some(state) => state,
-            None => return None,
+            State::FixedAtOrigin => return None,
+            State::Orbiting(state) => state,
         };
 
         let parent_body = &self.bodies[state.get_parent_id()];
@@ -83,7 +73,6 @@ impl Universe {
 
     pub fn convert_frames(&self, src: Frame, dst: Frame) -> Isometry3<f64> {
         // TODO : do this in a more clever way
-        // First, convert it to the root frame
         let transform_to_root = self.convert_frame_to_root(src);
         let transform_from_root = self.convert_frame_to_root(dst).inverse();
         transform_from_root * transform_to_root
@@ -93,14 +82,13 @@ impl Universe {
         match src {
             Frame::Root => Isometry3::identity(),
             Frame::BodyInertial(k) => {
-                // Get the parent and compute the transform from its reference frame to root
-                let body = &self.bodies[k];
-                match &body.state {
-                    None => {
-                        // We are the root body, return the identity
+                match &self.bodies[k].state {
+                    State::FixedAtOrigin => {
+                        // This is equivalent to the root frame; return the identity
                         Isometry3::identity()
                     }
-                    Some(state) => {
+                    State::Orbiting(state) => {
+                        // Get the parent and compute the transform from its reference frame to root
                         let parent_frame = Frame::BodyInertial(state.get_parent_id());
                         let parent_transform = self.convert_frame_to_root(parent_frame);
                         let vector_from_parent = state.get_position().clone();

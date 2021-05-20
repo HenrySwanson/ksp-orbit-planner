@@ -1,11 +1,18 @@
 use kiss3d::nalgebra as na;
-use na::Vector3;
+use na::{Point3, Vector3};
 use std::rc::Rc;
 
 use crate::body::BodyInfo;
 use crate::stumpff::stumpff_G;
 
-pub struct State {
+use crate::universe::Frame; // TODO pull out into its own thing
+
+pub enum State {
+    FixedAtOrigin,
+    Orbiting(CartesianState), // TODO pull parent id into here (tuple)
+}
+
+pub struct CartesianState {
     position: Vector3<f64>,
     velocity: Vector3<f64>,
     time: f64,
@@ -13,8 +20,28 @@ pub struct State {
     parent_info: Rc<BodyInfo>,
 }
 
-#[allow(non_snake_case)]
 impl State {
+    pub fn get_position(&self) -> (Point3<f64>, Frame) {
+        match self {
+            State::FixedAtOrigin => (Point3::origin(), Frame::Root),
+            State::Orbiting(state) => {
+                let position = state.get_position().clone();
+                let parent_id = state.get_parent_id();
+                (Point3::from(position), Frame::BodyInertial(parent_id))
+            }
+        }
+    }
+
+    pub fn advance_t(&mut self, delta_t: f64) {
+        match self {
+            State::FixedAtOrigin => {}
+            State::Orbiting(state) => state.advance_t(delta_t),
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+impl CartesianState {
     pub fn new(
         position: Vector3<f64>,
         velocity: Vector3<f64>,
@@ -22,7 +49,7 @@ impl State {
         parent_id: usize,
         parent_info: Rc<BodyInfo>,
     ) -> Self {
-        State {
+        CartesianState {
             position,
             velocity,
             time,
@@ -188,7 +215,7 @@ mod tests {
         let initial_position = Vector3::x() * KERBIN_ORBIT_RADIUS;
         let initial_velocity = Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU);
 
-        let mut state = State::new(
+        let mut state = CartesianState::new(
             initial_position,
             initial_velocity,
             0.0,
@@ -231,7 +258,7 @@ mod tests {
 
         let initial_position = Vector3::x() * radius;
         let initial_velocity = Vector3::z() * velocity;
-        let mut state = State::new(
+        let mut state = CartesianState::new(
             initial_position,
             initial_velocity,
             0.0,
