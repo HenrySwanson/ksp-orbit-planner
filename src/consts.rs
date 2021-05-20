@@ -13,6 +13,12 @@ pub const MUN_MU: f64 = 6.5138398e10;
 pub const MUN_RADIUS: f32 = 200_000.0;
 pub const MUN_ORBIT_RADIUS: f64 = 12_000_000.0;
 
+pub const MINIMUS_MU: f64 = 1.7658e9;
+pub const MINIMUS_RADIUS: f32 = 60_000.0;
+pub const MINIMUS_ORBIT_RADIUS: f64 = 47_000_000.0;
+pub const MINIMUS_ORBIT_INCL_DEG: f64 = 6.0;
+pub const MINIMUS_ORBIT_LAN_DEG: f64 = 78.0;
+
 pub fn get_circular_velocity(radius: f64, mu: f64) -> f64 {
     (mu / radius).sqrt()
 }

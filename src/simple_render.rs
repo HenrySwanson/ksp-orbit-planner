@@ -21,7 +21,7 @@ pub fn draw_scene(mut universe: Universe) {
     window.set_framerate_limit(Some(60));
 
     let mut camera = CustomCamera::new(2.0e9);
-    let camera_frame = Frame::BodyInertial(BodyID(2));
+    let camera_frame = Frame::BodyInertial(BodyID(3));
 
     // Set up objects to draw
     let mut spheres = HashMap::with_capacity(universe.bodies.len());
