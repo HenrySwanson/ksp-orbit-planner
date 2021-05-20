@@ -8,7 +8,7 @@ use na::{Point3, Translation3, Vector3};
 use std::f64::consts::PI;
 
 use crate::camera::CustomCamera;
-use crate::universe::Universe;
+use crate::universe::{Frame, Universe};
 
 const TIMESTEP: f64 = 138984.0 / 600.0;
 
@@ -19,6 +19,7 @@ pub fn draw_scene(mut universe: Universe) {
     window.set_framerate_limit(Some(60));
 
     let mut camera = CustomCamera::new(2.0e9);
+    let camera_frame = Frame::BodyInertial(2);
 
     // Set up objects to draw
     let mut spheres = Vec::with_capacity(universe.bodies.len());
@@ -50,10 +51,16 @@ pub fn draw_scene(mut universe: Universe) {
 
     loop {
         // Update scene objects
-        relocate_scene_objects(&universe, &mut spheres);
+        relocate_scene_objects(camera_frame, &universe, &mut spheres);
 
         // Render (don't need to pass scene objects, as they are bound to `window`)
-        if !render_scene(&mut window, &mut camera, &universe, &orbit_paths) {
+        if !render_scene(
+            &mut window,
+            &mut camera,
+            camera_frame,
+            &universe,
+            &orbit_paths,
+        ) {
             break;
         }
 
@@ -72,6 +79,7 @@ pub fn draw_scene(mut universe: Universe) {
 fn render_scene(
     window: &mut Window,
     camera: &mut CustomCamera,
+    camera_frame: Frame,
     universe: &Universe,
     orbit_paths: &[Vec<Vector3<f32>>],
 ) -> bool {
@@ -85,7 +93,9 @@ fn render_scene(
             None => continue,
         };
 
-        let parent_position: Point3<f32> = na::convert(universe.get_body_position(parent_id));
+        // Get the parent's position within the camera frame
+        let parent_position: Point3<f32> =
+            na::convert(universe.get_body_position(parent_id, camera_frame));
         let orbit_path: Vec<_> = orbit_paths[id]
             .iter()
             .map(|x| parent_position + x)
@@ -97,9 +107,9 @@ fn render_scene(
     return window.render_with_camera(camera);
 }
 
-fn relocate_scene_objects(universe: &Universe, spheres: &mut [SceneNode]) {
+fn relocate_scene_objects(camera_frame: Frame, universe: &Universe, spheres: &mut [SceneNode]) {
     for (id, sphere) in spheres.iter_mut().enumerate() {
-        let position: Point3<f32> = na::convert(universe.get_body_position(id));
+        let position: Point3<f32> = na::convert(universe.get_body_position(id, camera_frame));
         sphere.set_local_translation(Translation3::from(position.coords));
     }
 }
