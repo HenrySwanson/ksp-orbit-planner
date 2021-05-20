@@ -2,14 +2,23 @@ use kiss3d::nalgebra as na;
 use na::{Isometry3, Point3, Translation3, Vector3};
 
 use std::collections::HashMap;
-use std::rc::Rc;
 
-use crate::body::{Body, BodyInfo};
-use crate::orbit::Orbit;
 use crate::state::{CartesianState, State};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct BodyID(pub usize);
+
+// All the immutable info about a body
+pub struct BodyInfo {
+    pub mu: f64,
+    pub radius: f32,
+    pub color: Point3<f32>,
+}
+
+pub struct Body {
+    pub info: BodyInfo,
+    pub state: State,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
@@ -37,11 +46,9 @@ impl Universe {
         velocity: Vector3<f64>,
         parent_id: BodyID,
     ) -> BodyID {
-        let parent_body = &self.bodies[&parent_id];
-        let state =
-            CartesianState::new(position, velocity, 0.0, parent_id, parent_body.info.clone());
-
-        self.insert_new_body(body_info, State::Orbiting(state))
+        let parent_mu = self.bodies[&parent_id].info.mu;
+        let state = CartesianState::new(position, velocity, parent_mu);
+        self.insert_new_body(body_info, State::Orbiting(parent_id, state))
     }
 
     pub fn add_fixed_body(&mut self, body_info: BodyInfo) -> BodyID {
@@ -49,10 +56,7 @@ impl Universe {
     }
 
     fn insert_new_body(&mut self, info: BodyInfo, state: State) -> BodyID {
-        let body = Body {
-            info: Rc::new(info),
-            state,
-        };
+        let body = Body { info, state };
 
         let new_id = BodyID(self.next_id);
         self.next_id += 1;
@@ -65,21 +69,6 @@ impl Universe {
         let (position, original_frame) = self.bodies[&id].state.get_position();
         self.convert_frames(original_frame, desired_frame)
             .transform_point(&position)
-    }
-
-    pub fn get_body_orbit(&self, id: BodyID) -> Option<Orbit> {
-        // TODO: how am i going to handle moons? reference frames?
-        let state = match &self.bodies[&id].state {
-            State::FixedAtOrigin => return None,
-            State::Orbiting(state) => state,
-        };
-
-        let parent_body = &self.bodies[&state.get_parent_id()];
-        Some(Orbit::from_cartesian(
-            state.get_position(),
-            state.get_velocity(),
-            parent_body.info.mu,
-        ))
     }
 
     pub fn convert_frames(&self, src: Frame, dst: Frame) -> Isometry3<f64> {
@@ -98,9 +87,9 @@ impl Universe {
                         // This is equivalent to the root frame; return the identity
                         Isometry3::identity()
                     }
-                    State::Orbiting(state) => {
+                    State::Orbiting(parent_id, state) => {
                         // Get the parent and compute the transform from its reference frame to root
-                        let parent_frame = Frame::BodyInertial(state.get_parent_id());
+                        let parent_frame = Frame::BodyInertial(*parent_id);
                         let parent_transform = self.convert_frame_to_root(parent_frame);
                         let vector_from_parent = state.get_position().clone();
                         parent_transform * Translation3::from(vector_from_parent)

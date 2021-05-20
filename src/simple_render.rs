@@ -34,7 +34,7 @@ pub fn draw_scene(mut universe: Universe) {
         sphere.set_color(color.x, color.y, color.z);
 
         // Compute the orbit path
-        let orbit = universe.get_body_orbit(*id);
+        let orbit = body.state.get_orbit();
         let points: Vec<Vector3<f32>> = match orbit {
             Some(orbit) => {
                 (0..=100_usize)
@@ -87,7 +87,7 @@ fn render_scene(
     for (id, body) in universe.bodies.iter() {
         let parent_id = match &body.state {
             State::FixedAtOrigin => continue,
-            State::Orbiting(state) => state.get_parent_id(),
+            State::Orbiting(parent_id, _) => *parent_id,
         };
 
         // Get the parent's position within the camera frame

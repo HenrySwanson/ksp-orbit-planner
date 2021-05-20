@@ -1,60 +1,59 @@
 use kiss3d::nalgebra as na;
 use na::{Point3, Vector3};
-use std::rc::Rc;
 
-use crate::body::BodyInfo;
+use crate::orbit::Orbit;
 use crate::stumpff::stumpff_G;
-
 use crate::universe::{BodyID, Frame};
 
 pub enum State {
     FixedAtOrigin,
-    Orbiting(CartesianState), // TODO pull parent id into here (tuple)
+    Orbiting(BodyID, CartesianState),
 }
 
 pub struct CartesianState {
     position: Vector3<f64>,
     velocity: Vector3<f64>,
-    time: f64,
-    parent_id: BodyID,
-    parent_info: Rc<BodyInfo>,
+    parent_mu: f64,
+    // TODO: maybe track time that we couldn't account for in advance_s?
 }
 
 impl State {
     pub fn get_position(&self) -> (Point3<f64>, Frame) {
         match self {
             State::FixedAtOrigin => (Point3::origin(), Frame::Root),
-            State::Orbiting(state) => {
+            State::Orbiting(parent_id, state) => {
                 let position = state.get_position().clone();
-                let parent_id = state.get_parent_id();
-                (Point3::from(position), Frame::BodyInertial(parent_id))
+                (Point3::from(position), Frame::BodyInertial(*parent_id))
             }
+        }
+    }
+
+    pub fn get_orbit(&self) -> Option<Orbit> {
+        match &self {
+            State::FixedAtOrigin => None,
+            State::Orbiting(_, state) => Some(Orbit::from_cartesian(
+                state.get_position(),
+                state.get_velocity(),
+                state.get_mu(),
+            )),
         }
     }
 
     pub fn advance_t(&mut self, delta_t: f64) {
         match self {
             State::FixedAtOrigin => {}
-            State::Orbiting(state) => state.advance_t(delta_t),
+            State::Orbiting(_, state) => state.advance_t(delta_t),
         }
     }
 }
 
 #[allow(non_snake_case)]
 impl CartesianState {
-    pub fn new(
-        position: Vector3<f64>,
-        velocity: Vector3<f64>,
-        time: f64,
-        parent_id: BodyID,
-        parent_info: Rc<BodyInfo>,
-    ) -> Self {
+    pub fn new(position: Vector3<f64>, velocity: Vector3<f64>, parent_mu: f64) -> Self {
         CartesianState {
             position,
             velocity,
-            time,
-            parent_id,
-            parent_info,
+            parent_mu,
         }
     }
 
@@ -66,22 +65,18 @@ impl CartesianState {
         &self.velocity
     }
 
-    pub fn get_time(&self) -> f64 {
-        self.time
-    }
-
-    pub fn get_parent_id(&self) -> BodyID {
-        self.parent_id
+    pub fn get_mu(&self) -> f64 {
+        self.parent_mu
     }
 
     pub fn get_energy(&self) -> f64 {
         // KE = 1/2 v^2, PE = - mu/r
-        self.velocity.norm_squared() / 2.0 - self.parent_info.mu / self.position.norm()
+        self.velocity.norm_squared() / 2.0 - self.parent_mu / self.position.norm()
     }
 
-    pub fn advance_s(&mut self, delta_s: f64) {
+    pub fn advance_s(&mut self, delta_s: f64) -> f64 {
         let beta = -2.0 * self.get_energy();
-        let mu = self.parent_info.mu;
+        let mu = self.parent_mu;
         let G: [f64; 4] = stumpff_G(beta, delta_s);
 
         let r_0 = self.position.norm();
@@ -101,7 +96,9 @@ impl CartesianState {
 
         self.position = new_position;
         self.velocity = new_velocity;
-        self.time += delta_t;
+
+        // Return the elapsed time, in case anyone's interested
+        delta_t
     }
 
     #[allow(clippy::float_cmp)]
@@ -111,7 +108,7 @@ impl CartesianState {
 
         // Grab some constants
         let beta = -2.0 * self.get_energy();
-        let mu = self.parent_info.mu;
+        let mu = self.parent_mu;
         let r_0 = self.position.norm();
         let r_dot_0 = self.position.dot(&self.velocity) / r_0;
 
@@ -159,7 +156,7 @@ impl CartesianState {
                 r_dot_0 = {}",
                 delta_t, beta, mu, r_0, r_dot_0,
             ),
-        }
+        };
     }
 }
 
@@ -199,15 +196,6 @@ mod tests {
         }
     }
 
-    fn make_kerbol_info() -> Rc<BodyInfo> {
-        let info = BodyInfo {
-            mu: KERBOL_MU,
-            color: na::Point3::new(1.0, 0.0, 0.0),
-            radius: 1.0,
-        };
-        Rc::new(info)
-    }
-
     #[test]
     fn test_kerbin() {
         // Build Kerbin and see if the orbit simulation is right.
@@ -215,20 +203,15 @@ mod tests {
         let initial_position = Vector3::x() * KERBIN_ORBIT_RADIUS;
         let initial_velocity = Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU);
 
-        let mut state = CartesianState::new(
-            initial_position,
-            initial_velocity,
-            0.0,
-            BodyID(0),
-            make_kerbol_info(),
-        );
+        let mut state = CartesianState::new(initial_position, initial_velocity, KERBOL_MU);
+        let mut elapsed_time = 0.0;
 
         // Advance for one full orbit.
         // This is a circular orbit, so s is proportional to theta. Specifically,
         // s = theta / sqrt(beta).
         let beta = -2.0 * state.get_energy();
         let s = 2.0 * PI / beta.sqrt();
-        state.advance_s(s);
+        elapsed_time += state.advance_s(s);
 
         // We expect these to be extremely close, since we got s from the orbit itself
         assert_vectors_close(&initial_position, state.get_position(), 1e-14);
@@ -242,11 +225,9 @@ mod tests {
             \t(defined)   {}\n\
             \t(computed)  {}\n\
             \t(simulated) {}",
-            KERBIN_ORBIT_PERIOD,
-            computed_period,
-            state.get_time()
+            KERBIN_ORBIT_PERIOD, computed_period, elapsed_time,
         );
-        assert_close(KERBIN_ORBIT_PERIOD, state.get_time(), 1e-6);
+        assert_close(KERBIN_ORBIT_PERIOD, elapsed_time, 1e-6);
     }
 
     #[test]
@@ -258,13 +239,8 @@ mod tests {
 
         let initial_position = Vector3::x() * radius;
         let initial_velocity = Vector3::z() * velocity;
-        let mut state = CartesianState::new(
-            initial_position,
-            initial_velocity,
-            0.0,
-            BodyID(0),
-            make_kerbol_info(),
-        );
+        let mut state = CartesianState::new(initial_position, initial_velocity, KERBOL_MU);
+        let mut elapsed_time = 0.0;
 
         // Compute s for a whole orbit. Since r doesn't change, s varies linearly with t.
         let beta = -2.0 * state.get_energy();
@@ -274,7 +250,7 @@ mod tests {
         for i in 0..num_points {
             let num_points = num_points as f64;
 
-            state.advance_s(s / num_points);
+            elapsed_time += state.advance_s(s / num_points);
 
             let theta = 2.0 * PI * (i + 1) as f64 / num_points;
             let expected = radius * Vector3::new(theta.cos(), 0.0, theta.sin());
@@ -285,6 +261,6 @@ mod tests {
         // less precision here, but whatever. Maybe it's just adding something to itself
         // a thousand times.
         let computed_period = 2.0 * PI * radius / velocity;
-        assert_close(computed_period, state.get_time(), 1e-12);
+        assert_close(computed_period, elapsed_time, 1e-12);
     }
 }

@@ -1,6 +1,5 @@
 extern crate kiss3d;
 
-mod body;
 mod camera;
 mod consts;
 mod orbit;
@@ -12,9 +11,8 @@ mod universe;
 use kiss3d::nalgebra as na;
 use na::{Point3, Vector3};
 
-use crate::body::BodyInfo;
 use crate::consts::get_circular_velocity;
-use crate::universe::Universe;
+use crate::universe::{BodyInfo, Universe};
 
 fn main() {
     let mut u = Universe::new();
