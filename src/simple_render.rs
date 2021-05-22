@@ -20,6 +20,7 @@ pub fn draw_scene(mut universe: Universe) {
     window.set_framerate_limit(Some(60));
 
     let mut timestep: f64 = 21600.0 / 60.0; // one Kerbin-day
+    let mut paused = false;
 
     let body_ids: Vec<BodyID> = universe.body_ids().copied().collect();
     let mut camera = CustomCamera::new(2.0e9);
@@ -87,13 +88,22 @@ pub fn draw_scene(mut universe: Universe) {
                     timestep /= 2.0;
                     println!("Timestep is {} s / s", (60.0 * timestep).round())
                 }
+                WindowEvent::Key(Key::R, Action::Press, _) => {
+                    timestep *= -1.0;
+                    paused = false;
+                }
+                WindowEvent::Key(Key::P, Action::Press, _) => {
+                    paused = !paused;
+                }
                 _ => {}
             }
         }
 
         // Update state
-        for body in universe.bodies.values_mut() {
-            body.state.advance_t(timestep);
+        if !paused {
+            for body in universe.bodies.values_mut() {
+                body.state.advance_t(timestep);
+            }
         }
     }
 }
