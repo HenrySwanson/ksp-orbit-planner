@@ -1,0 +1,5 @@
+NAME    MU           RADIUS  COLOR   PARENT SEMIMAJOR       ECC INCL LAN  ARGP MAAE
+Kerbol  1.1723328e18 2.616e8 FFFF00  -
+Kerbin  3.5316000e12 6e5     00FF00  Kerbol 1.3599840256e10 0   0    0    0    3.14
+Mun     6.5138398e10 2e5     B4B4B4  Kerbin 1.2e7           0   0    0    0    1.7
+Minmus  1.7658000e9  6e4     C896FF  Kerbin 4.7e7           0   6    78   38   0.9

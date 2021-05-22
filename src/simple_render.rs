@@ -20,7 +20,7 @@ pub fn draw_scene(mut universe: Universe) {
     window.set_framerate_limit(Some(60));
 
     let mut timestep: f64 = 21600.0 / 60.0; // one Kerbin-day
-    let mut paused = false;
+    let mut paused = true;
 
     let body_ids: Vec<BodyID> = universe.body_ids().copied().collect();
     let mut camera = CustomCamera::new(2.0e9);
