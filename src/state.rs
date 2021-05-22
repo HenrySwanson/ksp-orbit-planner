@@ -2,6 +2,7 @@ use kiss3d::nalgebra as na;
 use na::{Point3, Vector3};
 
 use crate::orbit::Orbit;
+use crate::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::stumpff::stumpff_G;
 use crate::universe::{BodyID, Frame};
 
@@ -101,7 +102,6 @@ impl CartesianState {
         delta_t
     }
 
-    #[allow(clippy::float_cmp)]
     pub fn advance_t(&mut self, delta_t: f64) {
         // We find the delta_s corresponding to the given delta_t, and advance using that.
         // Since ds/dt = 1/r, s and t are monotonically related, so there's a unique solution.
@@ -121,48 +121,11 @@ impl CartesianState {
             (f, f_prime)
         };
 
-        let mut best_s = None;
+        // TODO if these fail, we need to log the parameters somewhere :\
+        let bracket = find_root_bracket(|x| f_and_f_prime(x).0, delta_t / r_0, delta_t / r_0);
+        let root = newton_plus_bisection(f_and_f_prime, bracket, 100);
 
-        // We'll use Newton's method for now, but we could probably do something
-        // fancy like Brent.
-        // We track two guesses to avoid floating point oscillation screwing us.
-        // Since ds/dt = 1/r, maybe t/r is a good starting guess.
-        let mut s_prev = 0.0;
-        let mut s_guess = 2.0 * delta_t / r_0;
-        for _ in 0..100 {
-            let (f, f_prime) = f_and_f_prime(s_guess);
-            let s_new = s_guess - f / f_prime;
-
-            // We check if it's either of the last two values
-            // we've seen.
-            if s_new == s_guess || s_new == s_prev {
-                best_s = Some(s_new);
-                break;
-            }
-
-            s_prev = s_guess;
-            s_guess = s_new;
-        }
-
-        // FIXME: turns out 3-cycles are possible lol
-        // This is a brief fix that makes it impossible to detect failure to converge,
-        // but it stops things from crashing.
-        best_s = best_s.or(Some(s_guess));
-
-        match best_s {
-            Some(s) => self.advance_s(s),
-            None => panic!(
-                "Newton's method didn't converge!
-                Parameters were:
-                delta_t = {},
-                beta = {},
-                mu = {},
-                r_0 = {},
-                r_dot_0 = {}.
-                Previous two guesses were: {} and {}",
-                delta_t, beta, mu, r_0, r_dot_0, s_prev, s_guess,
-            ),
-        };
+        self.advance_s(root);
     }
 }
 

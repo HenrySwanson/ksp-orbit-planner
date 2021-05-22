@@ -3,6 +3,7 @@ extern crate kiss3d;
 mod camera;
 mod consts;
 mod orbit;
+mod root_finding;
 mod simple_render;
 mod state;
 mod stumpff;
