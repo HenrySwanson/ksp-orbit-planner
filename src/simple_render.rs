@@ -1,3 +1,4 @@
+use kiss3d::event::{Action, Key, WindowEvent};
 use kiss3d::light::Light;
 use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
@@ -12,16 +13,17 @@ use crate::camera::CustomCamera;
 use crate::state::State;
 use crate::universe::{BodyID, Frame, Universe};
 
-const TIMESTEP: f64 = 138984.0 / 600.0;
-
 pub fn draw_scene(mut universe: Universe) {
     // Set up window and camera
     let mut window = Window::new("Kiss3d: cube");
     window.set_light(Light::StickToCamera);
     window.set_framerate_limit(Some(60));
 
+    let mut timestep: f64 = 21600.0 / 60.0; // one Kerbin-day
+
+    let body_ids: Vec<BodyID> = universe.body_ids().copied().collect();
     let mut camera = CustomCamera::new(2.0e9);
-    let camera_frame = Frame::BodyInertial(BodyID(3));
+    let mut camera_focus: usize = 0;
 
     // Set up objects to draw
     let mut spheres = HashMap::with_capacity(universe.bodies.len());
@@ -52,6 +54,8 @@ pub fn draw_scene(mut universe: Universe) {
     }
 
     loop {
+        let camera_frame = Frame::BodyInertial(body_ids[camera_focus]);
+
         // Update scene objects
         relocate_scene_objects(camera_frame, &universe, &mut spheres);
 
@@ -66,10 +70,44 @@ pub fn draw_scene(mut universe: Universe) {
             break;
         }
 
+        // Process events
+        for event in window.events().iter() {
+            match event.value {
+                WindowEvent::Key(Key::E, Action::Press, _) => {
+                    camera_focus = (camera_focus + 1) % body_ids.len();
+                }
+                WindowEvent::Key(Key::Q, Action::Press, _) => {
+                    camera_focus = (camera_focus + body_ids.len() - 1) % body_ids.len();
+                }
+                WindowEvent::Key(Key::Period, Action::Press, _) => {
+                    timestep *= 2.0;
+                    println!("Timestep is {} s / s", (60.0 * timestep).round())
+                }
+                WindowEvent::Key(Key::Comma, Action::Press, _) => {
+                    timestep /= 2.0;
+                    println!("Timestep is {} s / s", (60.0 * timestep).round())
+                }
+                _ => {}
+            }
+        }
+
         // Update state
         for body in universe.bodies.values_mut() {
-            body.state.advance_t(TIMESTEP);
+            body.state.advance_t(timestep);
         }
+    }
+}
+
+// ==== RENDERING ====
+
+fn relocate_scene_objects(
+    camera_frame: Frame,
+    universe: &Universe,
+    spheres: &mut HashMap<BodyID, SceneNode>,
+) {
+    for (id, sphere) in spheres.iter_mut() {
+        let position: Point3<f32> = na::convert(universe.get_body_position(*id, camera_frame));
+        sphere.set_local_translation(Translation3::from(position.coords));
     }
 }
 
@@ -102,17 +140,6 @@ fn render_scene(
 
     // Render
     return window.render_with_camera(camera);
-}
-
-fn relocate_scene_objects(
-    camera_frame: Frame,
-    universe: &Universe,
-    spheres: &mut HashMap<BodyID, SceneNode>,
-) {
-    for (id, sphere) in spheres.iter_mut() {
-        let position: Point3<f32> = na::convert(universe.get_body_position(*id, camera_frame));
-        sphere.set_local_translation(Translation3::from(position.coords));
-    }
 }
 
 fn draw_grid(window: &mut Window, num_squares: i32, square_size: f32, color: &Point3<f32>) {

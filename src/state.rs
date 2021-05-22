@@ -144,6 +144,11 @@ impl CartesianState {
             s_guess = s_new;
         }
 
+        // FIXME: turns out 3-cycles are possible lol
+        // This is a brief fix that makes it impossible to detect failure to converge,
+        // but it stops things from crashing.
+        best_s = best_s.or(Some(s_guess));
+
         match best_s {
             Some(s) => self.advance_s(s),
             None => panic!(
@@ -153,8 +158,9 @@ impl CartesianState {
                 beta = {},
                 mu = {},
                 r_0 = {},
-                r_dot_0 = {}",
-                delta_t, beta, mu, r_0, r_dot_0,
+                r_dot_0 = {}.
+                Previous two guesses were: {} and {}",
+                delta_t, beta, mu, r_0, r_dot_0, s_prev, s_guess,
             ),
         };
     }

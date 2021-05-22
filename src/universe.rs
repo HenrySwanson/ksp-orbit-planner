@@ -39,6 +39,10 @@ impl Universe {
         }
     }
 
+    pub fn body_ids(&self) -> impl Iterator<Item = &BodyID> {
+        self.bodies.keys()
+    }
+
     pub fn add_body(
         &mut self,
         body_info: BodyInfo,
