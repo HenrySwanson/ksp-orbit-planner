@@ -22,7 +22,11 @@ pub fn draw_scene(mut universe: Universe) {
     let mut timestep: f64 = 21600.0 / 60.0; // one Kerbin-day
     let mut paused = true;
 
-    let body_ids: Vec<BodyID> = universe.body_ids().copied().collect();
+    let body_ids: Vec<BodyID> = {
+        let mut v: Vec<BodyID> = universe.body_ids().copied().collect();
+        v.sort();
+        v
+    };
     let mut camera = CustomCamera::new(2.0e9);
     let mut camera_focus: usize = 0;
 
