@@ -10,7 +10,7 @@ pub struct Orbit {
     rotation: Rotation3<f64>,
     energy: f64,
     ang_mom: f64,
-    mu: f64, // TODO: BodyInfo instead?
+    mu: f64,
 }
 
 impl Orbit {
@@ -32,6 +32,28 @@ impl Orbit {
             rotation,
             energy,
             ang_mom: ang_mom.norm(),
+            mu,
+        }
+    }
+
+    pub fn from_kepler(a: f64, ecc: f64, incl: f64, lan: f64, argp: f64, mu: f64) -> Self {
+        // The energy depends only on the semimajor axis, and the angular momentum
+        // includes the eccentricity.
+        let energy = -mu / 2.0 / a;
+        let h_sq = mu * a * (1.0 - ecc * ecc);
+
+        // We have an orbit in the xy plane where the periapsis is pointed along the x-axis.
+        // So first, we rotate it around z until the periapsis is at argp away from the x-axis
+        // (which will now be the ascending node). We then rotate around x to get the inclination,
+        // and then one final turn around z to get the correct longitude of the AN.
+        let rotation = Rotation3::from_axis_angle(&Vector3::z_axis(), lan)
+            * Rotation3::from_axis_angle(&Vector3::x_axis(), incl)
+            * Rotation3::from_axis_angle(&Vector3::z_axis(), argp);
+
+        Orbit {
+            rotation,
+            energy,
+            ang_mom: h_sq.sqrt(),
             mu,
         }
     }
@@ -104,6 +126,20 @@ impl Orbit {
         let position = radius * Vector3::new(theta.cos(), theta.sin(), 0.0);
 
         Some(self.rotation() * position)
+    }
+
+    pub fn get_state_at_theta(&self, theta: f64) -> (Vector3<f64>, Vector3<f64>) {
+        // Taken from https://www.mathworks.com/matlabcentral/fileexchange/35455-convert-keplerian-orbital-elements-to-a-state-vector
+        let p = self.semilatus_rectum();
+        let ecc = self.eccentricity();
+        let mu = self.mu;
+        let rotation = self.rotation();
+
+        let radius = p / (1.0 + ecc * theta.cos());
+        let position = radius * Vector3::new(theta.cos(), theta.sin(), 0.0);
+        let velocity = (mu / p).sqrt() * Vector3::new(-theta.sin(), ecc + theta.cos(), 0.0);
+
+        (rotation * position, rotation * velocity)
     }
 }
 
