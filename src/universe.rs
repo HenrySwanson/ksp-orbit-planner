@@ -10,6 +10,7 @@ pub struct BodyID(pub usize);
 
 // All the immutable info about a body
 pub struct BodyInfo {
+    pub name: String,
     pub mu: f64,
     pub radius: f32,
     pub color: Point3<f32>,

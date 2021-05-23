@@ -110,6 +110,14 @@ impl Orbit {
         2.0 * self.semimajor_axis() - self.periapsis()
     }
 
+    pub fn period(&self) -> Option<f64> {
+        if self.energy < 0.0 {
+            Some(2.0 * PI * (self.semimajor_axis().powi(3) / self.mu).sqrt())
+        } else {
+            None
+        }
+    }
+
     pub fn get_position_at_theta(&self, theta: f64) -> Option<Vector3<f64>> {
         let denominator = 1.0 + self.eccentricity() * theta.cos();
         if denominator <= 0.0 {

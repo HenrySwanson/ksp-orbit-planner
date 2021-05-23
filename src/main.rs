@@ -21,6 +21,18 @@ use crate::universe::{BodyInfo, Universe};
 
 fn main() {
     let u = read_file("ksp-bodies.txt");
+
+    for (id, body) in u.bodies.iter() {
+        let period = match body.state.get_orbit() {
+            Some(s) => s.period(),
+            None => continue,
+        };
+        match period {
+            Some(p) => println!("{} has period {}", body.info.name, p),
+            None => println!("No period for {}???", body.info.name),
+        }
+    }
+
     simple_render::draw_scene(u);
 }
 
@@ -53,6 +65,7 @@ fn read_file(filename: &str) -> Universe {
         // Get body-info
         let mu = next_f64!();
         let body_info = BodyInfo {
+            name: name.to_owned(),
             mu,
             radius: next_f64!() as f32,
             color: parse_color(next_string!()),
