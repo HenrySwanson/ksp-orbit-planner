@@ -75,7 +75,8 @@ impl Orbit {
     pub fn asc_node_vector(&self) -> Vector3<f64> {
         // TODO: the ambiguity here makes me think i might wanna just store the angles
         let v = Vector3::z().cross(&self.normal_vector());
-        v.try_normalize(1e-20).unwrap_or_else(|| self.periapse_vector())
+        v.try_normalize(1e-20)
+            .unwrap_or_else(|| self.periapse_vector())
     }
 
     pub fn inclination(&self) -> f64 {

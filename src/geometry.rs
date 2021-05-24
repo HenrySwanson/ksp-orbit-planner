@@ -17,7 +17,7 @@ pub fn directed_angle(u: &Vector3<f64>, v: &Vector3<f64>, up: &Vector3<f64>) -> 
     if u.cross(&v).dot(&up) >= 0.0 {
         theta
     } else {
-        theta + PI
+        2.0 * PI - theta
     }
 }
 

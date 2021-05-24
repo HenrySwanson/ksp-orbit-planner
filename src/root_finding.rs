@@ -13,7 +13,7 @@ impl Bracket {
     }
 
     pub fn contains(&self, x: f64) -> bool {
-        self.lo <= x && x <= self.hi
+        self.lo < x && x < self.hi
     }
 }
 

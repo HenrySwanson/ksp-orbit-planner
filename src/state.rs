@@ -29,6 +29,16 @@ impl State {
         }
     }
 
+    pub fn get_velocity(&self) -> (Vector3<f64>, Frame) {
+        match self {
+            State::FixedAtOrigin => (Vector3::zeros(), Frame::Root),
+            State::Orbiting(parent_id, state) => {
+                let velocity = state.get_velocity().clone();
+                (velocity, Frame::BodyInertial(*parent_id))
+            }
+        }
+    }
+
     pub fn get_orbit(&self) -> Option<Orbit> {
         match &self {
             State::FixedAtOrigin => None,

@@ -152,6 +152,60 @@ fn render_scene(
         draw_path(window, &orbit_path, &body.info.color);
     }
 
+    // Draw text
+    let focused_body = match camera_frame {
+        Frame::Root => panic!("shouldn't happen, bad hack bit me"),
+        Frame::BodyInertial(id) => &universe.bodies[&id],
+    };
+    let orbit = focused_body.state.get_orbit();
+    let o = orbit.as_ref();
+    let body_text = format!(
+        "Focused on: {}
+State:
+  Radius: {:.0} m
+  Velocity: {:.0} m/s
+Orbit:
+  SMA: {:.0}
+  Eccentricity: {:.3}
+  Inclination: {:.3}
+  LAN: {:.1}
+  Arg PE: {:.1}",
+        focused_body.info.name,
+        focused_body.state.get_position().0.coords.norm(),
+        focused_body.state.get_velocity().0.norm(),
+        o.map_or(0.0, |o| o.semimajor_axis()),
+        o.map_or(0.0, |o| o.eccentricity()),
+        o.map_or(0.0, |o| o.inclination().to_degrees()),
+        o.map_or(0.0, |o| o.long_asc_node().to_degrees()),
+        o.map_or(0.0, |o| o.arg_periapse().to_degrees()),
+    );
+
+    // TODO remove...
+    let mut asc_node: Vector3<f32> =
+        na::convert(o.map_or(Vector3::zeros(), |o| o.asc_node_vector()));
+    asc_node *= focused_body.info.radius * 2.0;
+    draw_path(
+        window,
+        &[Point3::origin(), Point3::origin() + asc_node],
+        &Point3::new(1.0, 0.0, 0.0),
+    );
+    let mut periapse_dir: Vector3<f32> =
+        na::convert(o.map_or(Vector3::zeros(), |o| o.periapse_vector()));
+    periapse_dir *= focused_body.info.radius * 2.0;
+    draw_path(
+        window,
+        &[Point3::origin(), Point3::origin() + periapse_dir],
+        &Point3::new(0.0, 1.0, 0.0),
+    );
+
+    window.draw_text(
+        &body_text,
+        &na::Point2::origin(),
+        80.0,
+        &kiss3d::text::Font::default(),
+        &Point3::new(1.0, 1.0, 1.0),
+    );
+
     // Render
     return window.render_with_camera(camera);
 }
