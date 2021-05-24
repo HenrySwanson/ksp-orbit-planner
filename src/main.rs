@@ -1,8 +1,11 @@
 extern crate kiss3d;
 
+#[allow(dead_code)]
+mod consts;
+
 mod anomaly;
 mod camera;
-mod consts;
+mod geometry;
 mod orbit;
 mod root_finding;
 mod simple_render;

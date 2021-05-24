@@ -3,6 +3,8 @@ use na::{Rotation3, Vector3};
 
 use std::f64::consts::PI;
 
+use crate::geometry::{always_find_rotation, directed_angle};
+
 #[derive(Debug)]
 pub struct Orbit {
     // encodes the orientation of the orbit: it moves the xy plane to the orbital
@@ -60,6 +62,39 @@ impl Orbit {
 
     pub fn rotation(&self) -> Rotation3<f64> {
         self.rotation
+    }
+
+    pub fn periapse_vector(&self) -> Vector3<f64> {
+        self.rotation() * Vector3::x()
+    }
+
+    pub fn normal_vector(&self) -> Vector3<f64> {
+        self.rotation() * Vector3::z()
+    }
+
+    pub fn asc_node_vector(&self) -> Vector3<f64> {
+        // TODO: the ambiguity here makes me think i might wanna just store the angles
+        let v = Vector3::z().cross(&self.normal_vector());
+        v.try_normalize(1e-20).unwrap_or_else(|| self.periapse_vector())
+    }
+
+    pub fn inclination(&self) -> f64 {
+        // Inclination is the angle the normal makes with z
+        self.normal_vector().angle(&Vector3::z())
+    }
+
+    pub fn long_asc_node(&self) -> f64 {
+        // Longitude of ascending node is the directed angle from x to the ascending node
+        directed_angle(&Vector3::x(), &self.asc_node_vector(), &Vector3::z())
+    }
+
+    pub fn arg_periapse(&self) -> f64 {
+        // Argument of periapsis is the directed angle from the ascending node to the periapsis
+        directed_angle(
+            &self.asc_node_vector(),
+            &self.periapse_vector(),
+            &self.normal_vector(),
+        )
     }
 
     pub fn energy(&self) -> f64 {
@@ -151,77 +186,11 @@ impl Orbit {
     }
 }
 
-fn reject(u: &Vector3<f64>, v: &Vector3<f64>) -> Vector3<f64> {
-    // Computes the vector rejection of u from v. v must be non-zero.
-    let v_hat = v.normalize();
-    let u_proj_v = u.dot(&v_hat) * v_hat;
-    u - u_proj_v
-
-    // TODO this could also be done by computing v x (u x v) and normalizing
-}
-
-/// Returns a rotation R that sends the z- and x- axes to point in the specified directions.
-/// The orthogonality of new_z and new_x is not checked.
-/// If new_z or new_x is sufficiently close to zero, then some semi-canonical choices will
-/// be made. Unfortunately, the hairy ball theorem prevents us from doing so in a completely
-/// canonical way.
-///
-/// The specific choices we make are:
-/// - if new_z is small:
-///   - R(z) will point as much along the z-axis as possible, while remaining perpendicular
-///     to R(x) = new_x
-///   - if this is ill-defined (new_x ~= z), then R(z) = y
-/// - similarly, if new_x is small:
-///   - R(x) will point as much along the x-axis as possible, while remaining perpendicular
-///     to R(z) = new_z
-///   - if this is ill-defined (new_z ~= x), then R(x) = -y
-/// - if both new_z and new_x are small, then this returns the identity
-pub fn always_find_rotation(
-    new_z: &Vector3<f64>,
-    new_x: &Vector3<f64>,
-    tolerance: f64,
-) -> Rotation3<f64> {
-    let z_large_enough = new_z.norm() >= tolerance;
-    let x_large_enough = new_x.norm() >= tolerance;
-
-    let (new_z, new_x) = match (z_large_enough, x_large_enough) {
-        // Both are good; the easy case
-        (true, true) => (new_z.clone(), new_x.clone()),
-        // z is too small
-        (false, true) => {
-            // Rejecting the z axis from new_x gives us the most-z-like vector
-            // that's perpendicular to new_x. If it's too small, we just pick
-            // our fallback choice.
-            let mut best_new_z = reject(&Vector3::z(), &new_x);
-            if best_new_z.norm() < tolerance {
-                best_new_z = Vector3::y();
-            };
-            (best_new_z, new_x.clone())
-        }
-        // x is too small
-        (true, false) => {
-            // Same thing as above, with z and x switched.
-            let mut best_new_x = reject(&Vector3::x(), &new_z);
-            if best_new_x.norm() < tolerance {
-                best_new_x = -Vector3::y();
-            };
-            (new_z.clone(), best_new_x)
-        }
-        // Easy case, early return here.
-        (false, false) => return Rotation3::identity(),
-    };
-
-    // Unfortunately, the Rotation::face_towards call takes new-z and new-y as arguments,
-    // so we prepend a 90-degree rotation around z (e.g., one taking x to y).
-    let mut rotation = Rotation3::face_towards(&new_z, &new_x);
-    rotation = rotation * Rotation3::from_axis_angle(&Vector3::z_axis(), PI / 2.0);
-    rotation.renormalize();
-    rotation
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use approx::assert_relative_eq;
 
     use crate::consts;
 
@@ -232,70 +201,14 @@ mod tests {
         };
     }
 
-    #[test]
-    fn test_rotation_code() {
-        fn test_rotation(r: Rotation3<f64>, expected_z: &Vector3<f64>, expected_x: &Vector3<f64>) {
-            approx::assert_relative_eq!(
-                r * Vector3::z(),
-                expected_z.normalize(),
-                max_relative = 1e-15
-            );
-            approx::assert_relative_eq!(
-                r * Vector3::x(),
-                expected_x.normalize(),
-                max_relative = 1e-15
-            );
-        }
-
-        // Common vectors
-        let u = Vector3::new(1.0, 2.0, 3.0);
-        let v = Vector3::new(2.0, 2.0, -2.0);
-
-        // Normal
-        test_rotation(always_find_rotation(&u, &v, 1e-20), &u, &v);
-
-        // new-z is too small
-        test_rotation(
-            always_find_rotation(&Vector3::zeros(), &v, 1e-20),
-            &Vector3::new(1.0, 1.0, 2.0),
-            &v,
-        );
-
-        // new-z is too small, and new-x points along z
-        // TODO should we treat new-x = kz and new-x = -kz differently?
-        test_rotation(
-            always_find_rotation(&Vector3::zeros(), &Vector3::z(), 1e-20),
-            &Vector3::y(),
-            &Vector3::z(),
-        );
-
-        // new-x is too small
-        test_rotation(
-            always_find_rotation(&u, &Vector3::zeros(), 1e-20),
-            &u,
-            &Vector3::new(13.0, -2.0, -3.0),
-        );
-
-        // new-x is too small, and new-z points along x
-        test_rotation(
-            always_find_rotation(&Vector3::x(), &Vector3::zeros(), 1e-20),
-            &Vector3::x(),
-            &-Vector3::y(),
-        );
-
-        // both are small
-        test_rotation(
-            always_find_rotation(&Vector3::zeros(), &Vector3::zeros(), 1e-20),
-            &Vector3::z(),
-            &Vector3::x(),
-        );
-    }
+    // TODO: test creation of orbit from cartesian and from kepler
 
     #[test]
     fn test_orbit_quantities() {
         let mu = consts::KERBOL_MU;
         let radius = consts::KERBIN_ORBIT_RADIUS;
         let circ_velocity = consts::get_circular_velocity(radius, mu);
+        let period = 2.0 * PI * radius / circ_velocity;
 
         let make_orbit = |p_dir, v_dir, multiplier| {
             Orbit::from_cartesian(&(radius * p_dir), &(circ_velocity * multiplier * v_dir), mu)
@@ -303,42 +216,49 @@ mod tests {
 
         // Circular orbit
         let orbit = make_orbit(Vector3::y(), Vector3::z(), 1.0);
-        approx::assert_relative_eq!(orbit.energy(), -mu / 2.0 / radius);
-        approx::assert_relative_eq!(orbit.angular_momentum(), radius * circ_velocity);
-        approx::assert_relative_eq!(orbit.eccentricity(), 0.0);
-        approx::assert_relative_eq!(orbit.semimajor_axis(), radius);
-        approx::assert_relative_eq!(orbit.semilatus_rectum(), radius);
-        approx::assert_relative_eq!(orbit.periapsis(), radius);
-        approx::assert_relative_eq!(orbit.apoapsis(), radius);
+        assert_relative_eq!(orbit.energy(), -mu / 2.0 / radius);
+        assert_relative_eq!(orbit.angular_momentum(), radius * circ_velocity);
+        assert_relative_eq!(orbit.eccentricity(), 0.0);
+        assert_relative_eq!(orbit.semimajor_axis(), radius);
+        assert_relative_eq!(orbit.semilatus_rectum(), radius);
+        assert_relative_eq!(orbit.periapsis(), radius);
+        assert_relative_eq!(orbit.apoapsis(), radius);
+        assert_relative_eq!(orbit.period().unwrap(), period, max_relative = 1e-15);
 
         // Parabolic orbit: escape velocity = mu/r * sqrt(2)
         let sqrt_2 = std::f64::consts::SQRT_2;
         let orbit = make_orbit(Vector3::z(), Vector3::x(), sqrt_2);
-        approx::assert_relative_eq!(orbit.energy(), 0.0, epsilon = 1e-5);
-        approx::assert_relative_eq!(orbit.angular_momentum(), radius * sqrt_2 * circ_velocity);
-        approx::assert_relative_eq!(orbit.eccentricity(), 1.0);
+        assert_relative_eq!(orbit.energy(), 0.0, epsilon = 1e-5);
+        assert_relative_eq!(orbit.angular_momentum(), radius * sqrt_2 * circ_velocity);
+        assert_relative_eq!(orbit.eccentricity(), 1.0);
         assert_very_large!(orbit.semimajor_axis());
-        approx::assert_relative_eq!(orbit.semilatus_rectum(), 2.0 * radius);
-        approx::assert_relative_eq!(orbit.periapsis(), radius);
+        assert_relative_eq!(orbit.semilatus_rectum(), 2.0 * radius);
+        assert_relative_eq!(orbit.periapsis(), radius);
         assert_very_large!(orbit.apoapsis());
 
         // Radial orbit
         let orbit = make_orbit(Vector3::z(), Vector3::x(), 0.0);
-        approx::assert_relative_eq!(orbit.energy(), -mu / radius);
-        approx::assert_relative_eq!(orbit.angular_momentum(), 0.0);
-        approx::assert_relative_eq!(orbit.eccentricity(), 1.0);
-        approx::assert_relative_eq!(orbit.semimajor_axis(), radius / 2.0);
-        approx::assert_relative_eq!(orbit.semilatus_rectum(), 0.0);
-        approx::assert_relative_eq!(orbit.periapsis(), 0.0);
-        approx::assert_relative_eq!(orbit.apoapsis(), radius);
+        assert_relative_eq!(orbit.energy(), -mu / radius);
+        assert_relative_eq!(orbit.angular_momentum(), 0.0);
+        assert_relative_eq!(orbit.eccentricity(), 1.0);
+        assert_relative_eq!(orbit.semimajor_axis(), radius / 2.0);
+        assert_relative_eq!(orbit.semilatus_rectum(), 0.0);
+        assert_relative_eq!(orbit.periapsis(), 0.0);
+        assert_relative_eq!(orbit.apoapsis(), radius);
+        assert_relative_eq!(
+            orbit.period().unwrap(),
+            period / f64::sqrt(8.0),
+            max_relative = 1e-15
+        );
 
         // Elliptic orbit
         let orbit = make_orbit(Vector3::y(), Vector3::x(), 1.2);
         assert!(orbit.energy() < 0.0);
         assert!(orbit.eccentricity() < 1.0);
         assert!(orbit.semimajor_axis() > radius);
-        approx::assert_relative_eq!(orbit.periapsis(), radius);
+        assert_relative_eq!(orbit.periapsis(), radius);
         assert!(orbit.apoapsis() > radius);
+        assert!(orbit.period().is_some());
 
         // Elliptic orbit but the other way
         let orbit = make_orbit(Vector3::x(), Vector3::z(), 0.8);
@@ -346,14 +266,37 @@ mod tests {
         assert!(orbit.eccentricity() < 1.0);
         assert!(orbit.semimajor_axis() < radius);
         assert!(orbit.periapsis() < radius);
-        approx::assert_relative_eq!(orbit.apoapsis(), radius);
+        assert_relative_eq!(orbit.apoapsis(), radius);
+        assert!(orbit.period().is_some());
 
         // Hyperbolic orbit
         let orbit = make_orbit(Vector3::y(), Vector3::x(), 1.5);
         assert!(orbit.energy() > 0.0);
         assert!(orbit.eccentricity() > 1.0);
         assert!(orbit.semimajor_axis() < 0.0);
-        approx::assert_relative_eq!(orbit.periapsis(), radius);
+        assert_relative_eq!(orbit.periapsis(), radius);
         assert!(orbit.apoapsis() < -radius); // negative but also < periapsis
+        assert!(orbit.period().is_none());
+    }
+
+    #[test]
+    fn test_orbit_angles() {
+        let mu = consts::KERBOL_MU;
+        let radius = consts::KERBIN_ORBIT_RADIUS;
+
+        // First try an ellipse with moderate inclination, so we don't have any degeneracy
+        let orbit = Orbit::from_kepler(radius, 0.3, PI / 10.0, PI / 6.0, PI / 4.0, mu);
+        assert_relative_eq!(orbit.inclination(), PI / 10.0);
+        assert_relative_eq!(orbit.long_asc_node(), PI / 6.0);
+        assert_relative_eq!(orbit.arg_periapse(), PI / 4.0);
+
+        // Now an ellipse with degenerate inclinations. For 0 inclination, we assume the ascending
+        // node is the periapsis.
+        let orbit = Orbit::from_kepler(radius, 0.3, 0.0, PI / 6.0, PI / 4.0, mu);
+        assert_relative_eq!(orbit.inclination(), 0.0);
+        assert_relative_eq!(orbit.long_asc_node(), PI * 5.0 / 12.0); // pi/6 + pi/4
+        assert_relative_eq!(orbit.arg_periapse(), 0.0);
+
+        // I'd test 180 inclination too, but sin(PI) != 0, so normalize actually succeeds lol
     }
 }
