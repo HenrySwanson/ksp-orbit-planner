@@ -13,6 +13,9 @@ mod state;
 mod stumpff;
 mod universe;
 
+use kiss3d::light::Light;
+use kiss3d::window::Window;
+
 use kiss3d::nalgebra as na;
 use na::Point3;
 
@@ -23,20 +26,12 @@ use crate::orbit::Orbit;
 use crate::universe::{BodyInfo, Universe};
 
 fn main() {
-    let u = read_file("ksp-bodies.txt");
+    let mut window = Window::new("KSP Orbit Simulator");
+    window.set_light(Light::StickToCamera);
 
-    for (id, body) in u.bodies.iter() {
-        let period = match body.state.get_orbit() {
-            Some(s) => s.period(),
-            None => continue,
-        };
-        match period {
-            Some(p) => println!("{} has period {}", body.info.name, p),
-            None => println!("No period for {}???", body.info.name),
-        }
-    }
+    let universe = read_file("ksp-bodies.txt");
 
-    simple_render::draw_scene(u);
+    simple_render::Scene::new(window, universe).draw_loop();
 }
 
 fn read_file(filename: &str) -> Universe {
