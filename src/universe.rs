@@ -3,10 +3,15 @@ use na::{Isometry3, Point3, Translation3, Vector3};
 
 use std::collections::HashMap;
 
+use crate::maneuver::Maneuver;
+use crate::ship::Ship;
 use crate::state::{CartesianState, State};
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyID(pub usize);
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ShipID(pub usize);
 
 // All the immutable info about a body
 pub struct BodyInfo {
@@ -29,14 +34,18 @@ pub enum Frame {
 
 pub struct Universe {
     pub bodies: HashMap<BodyID, Body>,
-    next_id: usize,
+    next_body_id: usize,
+    pub ships: HashMap<ShipID, Ship>,
+    next_ship_id: usize,
 }
 
 impl Universe {
     pub fn new() -> Self {
         Universe {
             bodies: HashMap::new(),
-            next_id: 0,
+            next_body_id: 0,
+            ships: HashMap::new(),
+            next_ship_id: 0,
         }
     }
 
@@ -60,11 +69,32 @@ impl Universe {
         self.insert_new_body(body_info, State::FixedAtOrigin)
     }
 
+    pub fn add_ship(
+        &mut self,
+        schedule: Vec<Maneuver>,
+        position: Vector3<f64>,
+        velocity: Vector3<f64>,
+        parent_id: BodyID,
+    ) -> ShipID {
+        let parent_mu = self.bodies[&parent_id].info.mu;
+        let ship = Ship {
+            state: CartesianState::new(position, velocity, parent_mu),
+            parent_id,
+            schedule,
+        };
+
+        let new_id = ShipID(self.next_ship_id);
+        self.next_ship_id += 1;
+
+        self.ships.insert(new_id, ship);
+        new_id
+    }
+
     fn insert_new_body(&mut self, info: BodyInfo, state: State) -> BodyID {
         let body = Body { info, state };
 
-        let new_id = BodyID(self.next_id);
-        self.next_id += 1;
+        let new_id = BodyID(self.next_body_id);
+        self.next_body_id += 1;
 
         self.bodies.insert(new_id, body);
         new_id
@@ -73,6 +103,13 @@ impl Universe {
     pub fn get_body_position(&self, id: BodyID, desired_frame: Frame) -> Point3<f64> {
         let (position, original_frame) = self.bodies[&id].state.get_position();
         self.convert_frames(original_frame, desired_frame)
+            .transform_point(&position)
+    }
+
+    pub fn get_ship_position(&self, id: ShipID, desired_frame: Frame) -> Point3<f64> {
+        let ship = &self.ships[&id];
+        let position = Point3::from(*ship.state.get_position());
+        self.convert_frames(Frame::BodyInertial(ship.parent_id), desired_frame)
             .transform_point(&position)
     }
 

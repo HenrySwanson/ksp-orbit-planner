@@ -6,8 +6,10 @@ mod consts;
 mod anomaly;
 mod camera;
 mod geometry;
+mod maneuver;
 mod orbit;
 mod root_finding;
+mod ship;
 mod simple_render;
 mod state;
 mod stumpff;
@@ -17,19 +19,27 @@ use kiss3d::light::Light;
 use kiss3d::window::Window;
 
 use kiss3d::nalgebra as na;
-use na::Point3;
+use na::{Point3, Vector3};
 
 use std::collections::HashMap;
 use std::fs;
 
+use crate::maneuver::Maneuver;
 use crate::orbit::Orbit;
-use crate::universe::{BodyInfo, Universe};
+use crate::universe::{BodyID, BodyInfo, Universe};
 
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");
     window.set_light(Light::StickToCamera);
 
-    let universe = read_file("ksp-bodies.txt");
+    let mut universe = read_file("ksp-bodies.txt");
+    let schedule: Vec<Maneuver> = vec![];
+    universe.add_ship(
+        schedule,
+        Vector3::x() * 9000000.0,
+        Vector3::y() * 500.0,
+        BodyID(4),
+    );
 
     simple_render::Scene::new(window, universe).draw_loop();
 }

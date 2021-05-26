@@ -9,13 +9,17 @@ use std::collections::HashMap;
 use std::f64::consts::PI;
 
 use crate::camera::CustomCamera;
+use crate::orbit::Orbit;
 use crate::state::State;
-use crate::universe::{BodyID, Frame, Universe};
+use crate::universe::{BodyID, Frame, ShipID, Universe};
 
 pub struct Scene {
     universe: Universe,
     body_spheres: HashMap<BodyID, SceneNode>,
     orbit_paths: HashMap<BodyID, Vec<Vector3<f32>>>,
+
+    ship_objects: HashMap<ShipID, SceneNode>,
+    ship_paths: HashMap<ShipID, Vec<Vector3<f32>>>,
 
     window: Window,
     camera: CustomCamera,
@@ -60,6 +64,31 @@ impl Scene {
             orbit_paths.insert(*id, path);
         }
 
+        // Collect ships
+        let mut ship_objects = HashMap::with_capacity(universe.ships.len());
+        let mut ship_paths = HashMap::with_capacity(universe.ships.len());
+        for (id, ship) in universe.ships.iter() {
+            // Make the cube that represents the ship
+            let mut cube = window.add_cube(1e6, 1e6, 1e6);
+            cube.set_color(1.0, 1.0, 1.0);
+
+            // Compute the path to draw for the orbit
+            let orbit = Orbit::from_cartesian(
+                ship.state.get_position(),
+                ship.state.get_velocity(),
+                ship.state.get_mu(),
+            );
+            let path: Vec<Vector3<f32>> = (0..=100_usize)
+                // start at -180 so that open orbits work right
+                .map(|i| -PI + (2.0 * PI) * (i as f64) / 100.0)
+                .map(|theta| orbit.get_position_at_theta(theta))
+                .filter_map(|option_v| option_v.map(na::convert))
+                .collect();
+
+            ship_objects.insert(*id, cube);
+            ship_paths.insert(*id, path);
+        }
+
         // We can't query the fps, so let's just set it
         window.set_framerate_limit(Some(60));
 
@@ -67,6 +96,8 @@ impl Scene {
             universe,
             body_spheres,
             orbit_paths,
+            ship_objects,
+            ship_paths,
             window,
             camera,
             camera_focus_order,
@@ -125,6 +156,10 @@ impl Scene {
             for body in self.universe.bodies.values_mut() {
                 body.state.advance_t(self.timestep);
             }
+
+            for ship in self.universe.ships.values_mut() {
+                ship.state.advance_t(self.timestep);
+            }
         }
     }
 
@@ -134,11 +169,17 @@ impl Scene {
             let position = convert_f32(self.universe.get_body_position(*id, camera_frame));
             sphere.set_local_translation(Translation3::from(position.coords));
         }
+
+        for (id, cube) in self.ship_objects.iter_mut() {
+            let position = convert_f32(self.universe.get_ship_position(*id, camera_frame));
+            cube.set_local_translation(Translation3::from(position.coords));
+        }
     }
 
     pub fn render_scene(&mut self) -> bool {
         // Draw grid
         draw_grid(&mut self.window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
+
         // Draw orbits
         for (id, body) in self.universe.bodies.iter() {
             let parent_id = match &body.state {
@@ -156,6 +197,22 @@ impl Scene {
                 .collect();
             draw_path(&mut self.window, &orbit_path, &body.info.color);
         }
+
+        // Draw orbits for ships
+        for (id, ship) in self.universe.ships.iter() {
+            let parent_id = ship.parent_id;
+            // Get the parent's position within the camera frame
+            let parent_position = convert_f32(
+                self.universe
+                    .get_body_position(parent_id, self.camera_frame()),
+            );
+            let orbit_path: Vec<_> = self.ship_paths[id]
+                .iter()
+                .map(|x| parent_position + x)
+                .collect();
+            draw_path(&mut self.window, &orbit_path, &Point3::new(1.0, 1.0, 1.0));
+        }
+
         // Draw text
         let focused_body = match self.camera_frame() {
             Frame::Root => panic!("shouldn't happen, bad hack bit me"),
@@ -183,6 +240,7 @@ Orbit:
             o.map_or(0.0, |o| o.long_asc_node().to_degrees()),
             o.map_or(0.0, |o| o.arg_periapse().to_degrees()),
         );
+
         // TODO remove...
         let mut asc_node: Vector3<f32> =
             na::convert(o.map_or(Vector3::zeros(), |o| o.asc_node_vector()));
@@ -207,6 +265,7 @@ Orbit:
             &kiss3d::text::Font::default(),
             &Point3::new(1.0, 1.0, 1.0),
         );
+
         // Render
         return self.window.render_with_camera(&mut self.camera);
     }
