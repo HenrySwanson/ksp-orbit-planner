@@ -8,9 +8,8 @@ use na::{Point3, Translation3, Vector3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
+use crate::body::BodyState;
 use crate::camera::CustomCamera;
-use crate::orbit::Orbit;
-use crate::state::State;
 use crate::universe::{BodyID, Frame, ShipID, Universe};
 
 pub struct Scene {
@@ -48,7 +47,7 @@ impl Scene {
             sphere.set_color(color.x, color.y, color.z);
 
             // Compute the path to draw for the orbit
-            let path: Vec<Vector3<f32>> = match body.state.get_orbit() {
+            let path: Vec<Vector3<f32>> = match body.get_orbit() {
                 Some(orbit) => {
                     (0..=100_usize)
                         // start at -180 so that open orbits work right
@@ -73,11 +72,7 @@ impl Scene {
             cube.set_color(1.0, 1.0, 1.0);
 
             // Compute the path to draw for the orbit
-            let orbit = Orbit::from_cartesian(
-                ship.state.get_position(),
-                ship.state.get_velocity(),
-                ship.state.get_mu(),
-            );
+            let orbit = ship.state.get_orbit();
             let path: Vec<Vector3<f32>> = (0..=100_usize)
                 // start at -180 so that open orbits work right
                 .map(|i| -PI + (2.0 * PI) * (i as f64) / 100.0)
@@ -153,13 +148,7 @@ impl Scene {
 
     pub fn update_state(&mut self) {
         if !self.paused {
-            for body in self.universe.bodies.values_mut() {
-                body.state.advance_t(self.timestep);
-            }
-
-            for ship in self.universe.ships.values_mut() {
-                ship.state.advance_t(self.timestep);
-            }
+            self.universe.advance_t(self.timestep);
         }
     }
 
@@ -183,8 +172,8 @@ impl Scene {
         // Draw orbits
         for (id, body) in self.universe.bodies.iter() {
             let parent_id = match &body.state {
-                State::FixedAtOrigin => continue,
-                State::Orbiting(parent_id, _) => *parent_id,
+                BodyState::FixedAtOrigin => continue,
+                BodyState::Orbiting { parent_id, .. } => *parent_id,
             };
             // Get the parent's position within the camera frame
             let parent_position = convert_f32(
@@ -218,46 +207,37 @@ impl Scene {
             Frame::Root => panic!("shouldn't happen, bad hack bit me"),
             Frame::BodyInertial(id) => &self.universe.bodies[&id],
         };
-        let orbit = focused_body.state.get_orbit();
-        let o = orbit.as_ref();
+        let (radius, speed) = match &focused_body.state {
+            BodyState::FixedAtOrigin => (0.0, 0.0),
+            BodyState::Orbiting { state, .. } => {
+                (state.get_position().norm(), state.get_velocity().norm())
+            }
+        };
+        let (sma, ecc, incl, lan, argp) = match focused_body.get_orbit() {
+            None => (0.0, 0.0, 0.0, 0.0, 0.0),
+            Some(o) => (
+                o.semimajor_axis(),
+                o.eccentricity(),
+                o.inclination().to_degrees(),
+                o.long_asc_node().to_degrees(),
+                o.arg_periapse().to_degrees(),
+            ),
+        };
+
         let body_text = format!(
             "Focused on: {}
 State:
     Radius: {:.0} m
-    Velocity: {:.0} m/s
+    Speed: {:.0} m/s
 Orbit:
     SMA: {:.0}
     Eccentricity: {:.3}
     Inclination: {:.3}
     LAN: {:.1}
     Arg PE: {:.1}",
-            focused_body.info.name,
-            focused_body.state.get_position().0.coords.norm(),
-            focused_body.state.get_velocity().0.norm(),
-            o.map_or(0.0, |o| o.semimajor_axis()),
-            o.map_or(0.0, |o| o.eccentricity()),
-            o.map_or(0.0, |o| o.inclination().to_degrees()),
-            o.map_or(0.0, |o| o.long_asc_node().to_degrees()),
-            o.map_or(0.0, |o| o.arg_periapse().to_degrees()),
+            focused_body.info.name, radius, speed, sma, ecc, incl, lan, argp
         );
 
-        // TODO remove...
-        let mut asc_node: Vector3<f32> =
-            na::convert(o.map_or(Vector3::zeros(), |o| o.asc_node_vector()));
-        asc_node *= focused_body.info.radius * 2.0;
-        draw_path(
-            &mut self.window,
-            &[Point3::origin(), Point3::origin() + asc_node],
-            &Point3::new(1.0, 0.0, 0.0),
-        );
-        let mut periapse_dir: Vector3<f32> =
-            na::convert(o.map_or(Vector3::zeros(), |o| o.periapse_vector()));
-        periapse_dir *= focused_body.info.radius * 2.0;
-        draw_path(
-            &mut self.window,
-            &[Point3::origin(), Point3::origin() + periapse_dir],
-            &Point3::new(0.0, 1.0, 0.0),
-        );
         self.window.draw_text(
             &body_text,
             &na::Point2::origin(),

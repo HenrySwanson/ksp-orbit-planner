@@ -1,15 +1,9 @@
 use kiss3d::nalgebra as na;
-use na::{Point3, Vector3};
+use na::Vector3;
 
 use crate::orbit::Orbit;
 use crate::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::stumpff::stumpff_G;
-use crate::universe::{BodyID, Frame};
-
-pub enum State {
-    FixedAtOrigin,
-    Orbiting(BodyID, CartesianState),
-}
 
 pub struct CartesianState {
     position: Vector3<f64>,
@@ -18,47 +12,6 @@ pub struct CartesianState {
     // TODO: maybe track time that we couldn't account for in advance_s?
 }
 
-impl State {
-    pub fn get_position(&self) -> (Point3<f64>, Frame) {
-        match self {
-            State::FixedAtOrigin => (Point3::origin(), Frame::Root),
-            State::Orbiting(parent_id, state) => {
-                let position = state.get_position().clone();
-                (Point3::from(position), Frame::BodyInertial(*parent_id))
-            }
-        }
-    }
-
-    pub fn get_velocity(&self) -> (Vector3<f64>, Frame) {
-        match self {
-            State::FixedAtOrigin => (Vector3::zeros(), Frame::Root),
-            State::Orbiting(parent_id, state) => {
-                let velocity = state.get_velocity().clone();
-                (velocity, Frame::BodyInertial(*parent_id))
-            }
-        }
-    }
-
-    pub fn get_orbit(&self) -> Option<Orbit> {
-        match &self {
-            State::FixedAtOrigin => None,
-            State::Orbiting(_, state) => Some(Orbit::from_cartesian(
-                state.get_position(),
-                state.get_velocity(),
-                state.get_mu(),
-            )),
-        }
-    }
-
-    pub fn advance_t(&mut self, delta_t: f64) {
-        match self {
-            State::FixedAtOrigin => {}
-            State::Orbiting(_, state) => state.advance_t(delta_t),
-        }
-    }
-}
-
-#[allow(non_snake_case)]
 impl CartesianState {
     pub fn new(position: Vector3<f64>, velocity: Vector3<f64>, parent_mu: f64) -> Self {
         CartesianState {
@@ -80,11 +33,16 @@ impl CartesianState {
         self.parent_mu
     }
 
+    pub fn get_orbit(&self) -> Orbit {
+        Orbit::from_cartesian(self.get_position(), self.get_velocity(), self.get_mu())
+    }
+
     pub fn get_energy(&self) -> f64 {
         // KE = 1/2 v^2, PE = - mu/r
         self.velocity.norm_squared() / 2.0 - self.parent_mu / self.position.norm()
     }
 
+    #[allow(non_snake_case)]
     pub fn advance_s(&mut self, delta_s: f64) -> f64 {
         let beta = -2.0 * self.get_energy();
         let mu = self.parent_mu;
@@ -112,6 +70,7 @@ impl CartesianState {
         delta_t
     }
 
+    #[allow(non_snake_case)]
     pub fn advance_t(&mut self, delta_t: f64) {
         // We find the delta_s corresponding to the given delta_t, and advance using that.
         // Since ds/dt = 1/r, s and t are monotonically related, so there's a unique solution.

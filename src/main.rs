@@ -4,6 +4,7 @@ extern crate kiss3d;
 mod consts;
 
 mod anomaly;
+mod body;
 mod camera;
 mod geometry;
 mod maneuver;
@@ -24,9 +25,10 @@ use na::{Point3, Vector3};
 use std::collections::HashMap;
 use std::fs;
 
+use crate::body::BodyInfo;
 use crate::maneuver::Maneuver;
 use crate::orbit::Orbit;
-use crate::universe::{BodyID, BodyInfo, Universe};
+use crate::universe::{BodyID, Universe};
 
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");
@@ -59,13 +61,13 @@ fn read_file(filename: &str) -> Universe {
             () => {
                 fields.next().unwrap()
             };
-        };
+        }
 
         macro_rules! next_f64 {
             () => {
                 fields.next().unwrap().parse::<f64>().unwrap()
             };
-        };
+        }
 
         // Get name
         let name = next_string!();

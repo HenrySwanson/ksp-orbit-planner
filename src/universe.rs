@@ -3,28 +3,16 @@ use na::{Isometry3, Point3, Translation3, Vector3};
 
 use std::collections::HashMap;
 
+use crate::body::{Body, BodyInfo, BodyState};
 use crate::maneuver::Maneuver;
 use crate::ship::Ship;
-use crate::state::{CartesianState, State};
+use crate::state::CartesianState;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyID(pub usize);
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ShipID(pub usize);
-
-// All the immutable info about a body
-pub struct BodyInfo {
-    pub name: String,
-    pub mu: f64,
-    pub radius: f32,
-    pub color: Point3<f32>,
-}
-
-pub struct Body {
-    pub info: BodyInfo,
-    pub state: State,
-}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
@@ -61,12 +49,15 @@ impl Universe {
         parent_id: BodyID,
     ) -> BodyID {
         let parent_mu = self.bodies[&parent_id].info.mu;
-        let state = CartesianState::new(position, velocity, parent_mu);
-        self.insert_new_body(body_info, State::Orbiting(parent_id, state))
+        let state = BodyState::Orbiting {
+            parent_id,
+            state: CartesianState::new(position, velocity, parent_mu),
+        };
+        self.insert_new_body(body_info, state)
     }
 
     pub fn add_fixed_body(&mut self, body_info: BodyInfo) -> BodyID {
-        self.insert_new_body(body_info, State::FixedAtOrigin)
+        self.insert_new_body(body_info, BodyState::FixedAtOrigin)
     }
 
     pub fn add_ship(
@@ -90,7 +81,7 @@ impl Universe {
         new_id
     }
 
-    fn insert_new_body(&mut self, info: BodyInfo, state: State) -> BodyID {
+    fn insert_new_body(&mut self, info: BodyInfo, state: BodyState) -> BodyID {
         let body = Body { info, state };
 
         let new_id = BodyID(self.next_body_id);
@@ -101,7 +92,7 @@ impl Universe {
     }
 
     pub fn get_body_position(&self, id: BodyID, desired_frame: Frame) -> Point3<f64> {
-        let (position, original_frame) = self.bodies[&id].state.get_position();
+        let (position, original_frame) = self.bodies[&id].get_position_with_frame();
         self.convert_frames(original_frame, desired_frame)
             .transform_point(&position)
     }
@@ -125,11 +116,11 @@ impl Universe {
             Frame::Root => Isometry3::identity(),
             Frame::BodyInertial(k) => {
                 match &self.bodies[&k].state {
-                    State::FixedAtOrigin => {
+                    BodyState::FixedAtOrigin => {
                         // This is equivalent to the root frame; return the identity
                         Isometry3::identity()
                     }
-                    State::Orbiting(parent_id, state) => {
+                    BodyState::Orbiting { parent_id, state } => {
                         // Get the parent and compute the transform from its reference frame to root
                         let parent_frame = Frame::BodyInertial(*parent_id);
                         let parent_transform = self.convert_frame_to_root(parent_frame);
@@ -138,6 +129,19 @@ impl Universe {
                     }
                 }
             }
+        }
+    }
+
+    pub fn advance_t(&mut self, delta_t: f64) {
+        for body in self.bodies.values_mut() {
+            match &mut body.state {
+                BodyState::FixedAtOrigin => {}
+                BodyState::Orbiting { state, .. } => state.advance_t(delta_t),
+            }
+        }
+
+        for ship in self.ships.values_mut() {
+            ship.state.advance_t(delta_t);
         }
     }
 }
