@@ -3,7 +3,7 @@ use na::{Rotation3, Vector3};
 
 use std::f64::consts::PI;
 
-use crate::geometry::{always_find_rotation, directed_angle};
+use crate::math::geometry::{always_find_rotation, directed_angle};
 
 #[derive(Debug)]
 pub struct Orbit {

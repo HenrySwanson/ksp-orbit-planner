@@ -1,9 +1,9 @@
 use kiss3d::nalgebra as na;
 use na::Point3;
 
-use crate::orbit::Orbit;
-use crate::state::CartesianState;
-use crate::universe::{BodyID, Frame};
+use super::orbit::Orbit;
+use super::state::CartesianState;
+use super::universe::{BodyID, Frame};
 
 // All the immutable info about a body
 pub struct BodyInfo {

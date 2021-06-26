@@ -1,6 +1,6 @@
-use crate::maneuver::Maneuver;
-use crate::state::CartesianState;
-use crate::universe::BodyID;
+use super::maneuver::Maneuver;
+use super::state::CartesianState;
+use super::universe::BodyID;
 
 // TODO un-pub fields
 pub struct Ship {

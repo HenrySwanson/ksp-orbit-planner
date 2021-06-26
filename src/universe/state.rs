@@ -1,9 +1,10 @@
 use kiss3d::nalgebra as na;
 use na::Vector3;
 
-use crate::orbit::Orbit;
-use crate::root_finding::{find_root_bracket, newton_plus_bisection};
-use crate::stumpff::stumpff_G;
+use super::orbit::Orbit;
+
+use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
+use crate::math::stumpff::stumpff_G;
 
 pub struct CartesianState {
     position: Vector3<f64>,

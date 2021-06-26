@@ -3,18 +3,9 @@ extern crate kiss3d;
 #[allow(dead_code)]
 mod consts;
 
-mod anomaly;
-mod body;
-mod camera;
-mod geometry;
-mod maneuver;
-mod orbit;
-mod root_finding;
-mod ship;
-mod simple_render;
-mod state;
-mod stumpff;
+mod gui;
 mod universe;
+mod math;
 
 use kiss3d::light::Light;
 use kiss3d::window::Window;
@@ -25,9 +16,9 @@ use na::{Point3, Vector3};
 use std::collections::HashMap;
 use std::fs;
 
-use crate::body::BodyInfo;
-use crate::maneuver::Maneuver;
-use crate::orbit::Orbit;
+use crate::universe::BodyInfo;
+use crate::universe::Maneuver;
+use crate::universe::Orbit;
 use crate::universe::{BodyID, Universe};
 
 fn main() {
@@ -43,7 +34,7 @@ fn main() {
         BodyID(4),
     );
 
-    simple_render::Scene::new(window, universe).draw_loop();
+    gui::Scene::new(window, universe).draw_loop();
 }
 
 fn read_file(filename: &str) -> Universe {
@@ -102,7 +93,7 @@ fn read_file(filename: &str) -> Universe {
             assert!(ecc < 1.0, "Currently can only load elliptic orbits");
 
             let orbit = Orbit::from_kepler(a, ecc, incl, lan, argp, parent_mu);
-            let theta = anomaly::mean_to_true(maae, ecc);
+            let theta = math::anomaly::mean_to_true(maae, ecc);
             let (position, velocity) = orbit.get_state_at_theta(theta);
 
             universe.add_body(body_info, position, velocity, parent_id)

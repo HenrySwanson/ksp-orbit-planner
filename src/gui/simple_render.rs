@@ -8,10 +8,9 @@ use na::{Point3, Translation3, Vector3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
-use crate::body::BodyState;
-use crate::camera::CustomCamera;
-use crate::orbit::Orbit;
-use crate::universe::{BodyID, Frame, ShipID, Universe};
+use super::camera::CustomCamera;
+
+use crate::universe::{BodyID, BodyState, Frame, Orbit, ShipID, Universe};
 
 pub struct Path {
     nodes: Vec<Point3<f32>>,

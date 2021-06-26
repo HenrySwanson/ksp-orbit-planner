@@ -3,10 +3,10 @@ use na::{Isometry3, Point3, Translation3, Vector3};
 
 use std::collections::HashMap;
 
-use crate::body::{Body, BodyInfo, BodyState};
-use crate::maneuver::Maneuver;
-use crate::ship::Ship;
-use crate::state::CartesianState;
+use super::body::{Body, BodyInfo, BodyState};
+use super::maneuver::Maneuver;
+use super::ship::Ship;
+use super::state::CartesianState;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyID(pub usize);

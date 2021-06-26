@@ -1,6 +1,7 @@
+use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
+
 pub fn mean_to_ecc(mean_anomaly: f64, ecc: f64) -> f64 {
     // This doesn't have a closed form, so let's do some rootfinding
-    use crate::root_finding::{find_root_bracket, newton_plus_bisection};
     let kepler = |x: f64| -> f64 { x - ecc * x.sin() - mean_anomaly };
     let kepler_der = |x: f64| -> f64 { 1.0 - ecc * x.cos() };
 
