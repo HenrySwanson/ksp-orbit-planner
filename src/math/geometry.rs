@@ -47,7 +47,7 @@ pub fn always_find_rotation(
 
     let (new_z, new_x) = match (z_large_enough, x_large_enough) {
         // Both are good; the easy case
-        (true, true) => (new_z.clone(), new_x.clone()),
+        (true, true) => (*new_z, *new_x),
         // z is too small
         (false, true) => {
             // Rejecting the z axis from new_x gives us the most-z-like vector
@@ -57,7 +57,7 @@ pub fn always_find_rotation(
             if best_new_z.norm() < tolerance {
                 best_new_z = Vector3::y();
             };
-            (best_new_z, new_x.clone())
+            (best_new_z, *new_x)
         }
         // x is too small
         (true, false) => {
@@ -66,7 +66,7 @@ pub fn always_find_rotation(
             if best_new_x.norm() < tolerance {
                 best_new_x = -Vector3::y();
             };
-            (new_z.clone(), best_new_x)
+            (*new_z, best_new_x)
         }
         // Easy case, early return here.
         (false, false) => return Rotation3::identity(),
@@ -75,7 +75,7 @@ pub fn always_find_rotation(
     // Unfortunately, the Rotation::face_towards call takes new-z and new-y as arguments,
     // so we prepend a 90-degree rotation around z (e.g., one taking x to y).
     let mut rotation = Rotation3::face_towards(&new_z, &new_x);
-    rotation = rotation * Rotation3::from_axis_angle(&Vector3::z_axis(), PI / 2.0);
+    rotation *= Rotation3::from_axis_angle(&Vector3::z_axis(), PI / 2.0);
     rotation.renormalize();
     rotation
 }

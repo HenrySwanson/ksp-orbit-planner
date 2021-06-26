@@ -330,8 +330,8 @@ Orbit:
             &Point3::new(1.0, 1.0, 1.0),
         );
 
-        // Render
-        return self.window.render_with_camera(&mut self.camera);
+        // Render and return bool
+        self.window.render_with_camera(&mut self.camera)
     }
 
     fn focused_object(&self) -> FocusPoint {

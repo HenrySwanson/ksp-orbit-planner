@@ -71,8 +71,8 @@ impl<'u> BodyRef<'u> {
         let (p, v, frame) = match &self.body.state {
             BodyState::FixedAtOrigin => (Vector3::zeros(), Vector3::zeros(), Frame::Root),
             BodyState::Orbiting { state, parent_id } => (
-                *state.get_position(),
-                *state.get_velocity(),
+                state.get_position(),
+                state.get_velocity(),
                 Frame::BodyInertial(*parent_id),
             ),
         };
@@ -106,8 +106,8 @@ impl<'u> ShipRef<'u> {
 
         FramedState {
             universe: self.universe,
-            position: Point3::from(*state.get_position()),
-            velocity: state.get_velocity().clone(),
+            position: Point3::from(state.get_position()),
+            velocity: state.get_velocity(),
             native_frame: Frame::BodyInertial(self.ship.parent_id),
         }
     }
@@ -222,7 +222,7 @@ impl Universe {
                         // Get the parent and compute the transform from its reference frame to root
                         let parent_frame = Frame::BodyInertial(*parent_id);
                         let parent_transform = self.convert_frame_to_root(parent_frame);
-                        let vector_from_parent = state.get_position().clone();
+                        let vector_from_parent = state.get_position();
                         parent_transform * Translation3::from(vector_from_parent)
                     }
                 }
@@ -231,7 +231,7 @@ impl Universe {
                 let ship = &self.ships[&k];
                 let parent_transform =
                     self.convert_frame_to_root(Frame::BodyInertial(ship.parent_id));
-                let vector_from_parent = ship.state.get_position().clone();
+                let vector_from_parent = ship.state.get_position();
                 parent_transform * Translation3::from(vector_from_parent)
             }
             Frame::ShipOrbital(k) => {
@@ -242,7 +242,7 @@ impl Universe {
                 // things in the same code. let's pick one and unify
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
-                    ship.state.get_velocity(),
+                    &ship.state.get_velocity(),
                     1e-20,
                 );
                 parent_transform * na::UnitQuaternion::from_rotation_matrix(&orientation)

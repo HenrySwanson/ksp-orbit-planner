@@ -22,12 +22,12 @@ impl CartesianState {
         }
     }
 
-    pub fn get_position(&self) -> &Vector3<f64> {
-        &self.position
+    pub fn get_position(&self) -> Vector3<f64> {
+        self.position
     }
 
-    pub fn get_velocity(&self) -> &Vector3<f64> {
-        &self.velocity
+    pub fn get_velocity(&self) -> Vector3<f64> {
+        self.velocity
     }
 
     pub fn get_mu(&self) -> f64 {
@@ -35,7 +35,7 @@ impl CartesianState {
     }
 
     pub fn get_orbit(&self) -> Orbit {
-        Orbit::from_cartesian(self.get_position(), self.get_velocity(), self.get_mu())
+        Orbit::from_cartesian(&self.get_position(), &self.get_velocity(), self.get_mu())
     }
 
     pub fn get_energy(&self) -> f64 {
@@ -153,8 +153,8 @@ mod tests {
         elapsed_time += state.advance_s(s);
 
         // We expect these to be extremely close, since we got s from the orbit itself
-        assert_vectors_close(&initial_position, state.get_position(), 1e-14);
-        assert_vectors_close(&initial_velocity, state.get_velocity(), 1e-14);
+        assert_vectors_close(&initial_position, &state.get_position(), 1e-14);
+        assert_vectors_close(&initial_velocity, &state.get_velocity(), 1e-14);
 
         // Time is a little fuzzier, because the velocity constant (and thus this orbit) isn't
         // perfect.
@@ -193,7 +193,7 @@ mod tests {
 
             let theta = 2.0 * PI * (i + 1) as f64 / num_points;
             let expected = radius * Vector3::new(theta.cos(), 0.0, theta.sin());
-            assert_vectors_close(&expected, state.get_position(), 1e-14);
+            assert_vectors_close(&expected, &state.get_position(), 1e-14);
         }
 
         // Check that the expected amount of time has elapsed. Not sure why we get slightly

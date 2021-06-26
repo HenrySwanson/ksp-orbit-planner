@@ -23,26 +23,27 @@ impl std::fmt::Debug for Bracket {
     }
 }
 
-pub fn find_root_bracket(f: impl Fn(f64) -> f64, x: f64, mut r: f64) -> Bracket {
+pub fn find_root_bracket(f: impl Fn(f64) -> f64, center: f64, mut radius: f64) -> Bracket {
     for _ in 0..100 {
-        let a = x - r;
-        let b = x + r;
+        let a = center - radius;
+        let b = center + radius;
 
         if f(a) * f(b) < 0.0 {
             return Bracket::new(a, b);
         }
 
         // Double the search radius
-        r *= 2.0;
+        radius *= 2.0;
     }
 
     panic!(
         "Unable to find two points of opposite sign, starting at {} with radius {}",
-        x, r
+        center, radius
     );
 }
 
-// Adapted from `rtsafe` in http://www.grad.hr/nastava/gs/prg/NumericalRecipesinC.pdf
+// Adapted from `rtsafe` in http://www.grad.hr/nastava/gs/prg/NumericalRecipesinC.pdf\
+#[allow(clippy::float_cmp)]
 pub fn newton_plus_bisection(
     f_and_f_prime: impl Fn(f64) -> (f64, f64),
     mut bracket: Bracket,
