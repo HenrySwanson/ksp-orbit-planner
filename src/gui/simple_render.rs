@@ -10,7 +10,7 @@ use std::f64::consts::PI;
 
 use super::camera::CustomCamera;
 
-use crate::universe::{BodyID, BodyState, Frame, Orbit, ShipID, Universe};
+use crate::universe::{BodyID, Frame, Orbit, ShipID, Universe};
 
 pub struct Path {
     nodes: Vec<Point3<f32>>,
@@ -18,6 +18,7 @@ pub struct Path {
     color: Point3<f32>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum FocusPoint {
     Body(BodyID),
     // TODO add ship focus once you add ship frames...
@@ -53,35 +54,40 @@ impl Scene {
         let mut paths = vec![];
 
         // Collect planetary bodies
-        let mut body_spheres = HashMap::with_capacity(universe.bodies.len());
-        for (id, body) in universe.bodies.iter() {
+        let mut body_spheres = HashMap::new();
+        for id in universe.body_ids().copied() {
+            // TODO make iterator for ids + bodyrefs (same with ships)
+            let body = universe.get_body(id);
+            let body_info = body.info();
+
             // Make the sphere that represents the body
-            let mut sphere = window.add_sphere(body.info.radius);
-            let color = &body.info.color;
+            let mut sphere = window.add_sphere(body_info.radius);
+            let color = &body_info.color;
             sphere.set_color(color.x, color.y, color.z);
-            body_spheres.insert(*id, sphere);
+            body_spheres.insert(id, sphere);
 
             // Compute the path to draw for the orbit, if relevant
-            let (parent_id, state) = match &body.state {
-                BodyState::FixedAtOrigin => continue,
-                BodyState::Orbiting { parent_id, state } => (parent_id, state),
+            let orbit = match body.get_orbit() {
+                Some(orbit) => orbit,
+                None => continue,
             };
-            let orbit = state.get_orbit();
+            let parent_id = body.get_parent_id().unwrap();
+
             paths.push(Path {
                 nodes: get_path_for_orbit(&orbit, 100),
-                frame: Frame::BodyInertial(*parent_id),
-                color: body.info.color,
+                frame: Frame::BodyInertial(parent_id),
+                color: body_info.color,
             });
 
             // TODO remove, or somehow make optional
             // Make axes that show the planet's orbits orientation
             let make_axis_path = |v, color| -> Path {
                 let v: Vector3<f32> = na::convert(v);
-                let v = 2.0 * body.info.radius * v;
+                let v = 2.0 * body_info.radius * v;
                 let pt: Point3<f32> = Point3::from(v);
                 Path {
                     nodes: vec![Point3::origin(), pt],
-                    frame: Frame::BodyInertial(*id),
+                    frame: Frame::BodyInertial(id),
                     color,
                 }
             };
@@ -100,18 +106,20 @@ impl Scene {
         }
 
         // Collect ships
-        let mut ship_objects = HashMap::with_capacity(universe.ships.len());
-        for (id, ship) in universe.ships.iter() {
+        let mut ship_objects = HashMap::new();
+        for id in universe.ship_ids().copied() {
+            let ship = universe.get_ship(id);
+
             // Make the cube that represents the ship
             let mut cube = window.add_cube(1e6, 1e6, 1e6);
             cube.set_color(1.0, 1.0, 1.0);
-            ship_objects.insert(*id, cube);
+            ship_objects.insert(id, cube);
 
             // Compute the path to draw for the orbit
-            let nodes = get_path_for_orbit(&ship.state.get_orbit(), 100);
+            let nodes = get_path_for_orbit(&ship.get_orbit(), 100);
             paths.push(Path {
                 nodes,
-                frame: Frame::BodyInertial(ship.parent_id),
+                frame: Frame::BodyInertial(ship.get_parent_id()),
                 color: Point3::new(1.0, 1.0, 1.0),
             });
         }
@@ -186,12 +194,22 @@ impl Scene {
     pub fn update_scene_objects(&mut self) {
         let camera_frame = self.camera_frame();
         for (id, sphere) in self.body_spheres.iter_mut() {
-            let position = convert_f32(self.universe.get_body_position(*id, camera_frame));
+            let position = self
+                .universe
+                .get_body(*id)
+                .state()
+                .get_position(camera_frame);
+            let position = convert_f32(position);
             sphere.set_local_translation(Translation3::from(position.coords));
         }
 
         for (id, cube) in self.ship_objects.iter_mut() {
-            let position = convert_f32(self.universe.get_ship_position(*id, camera_frame));
+            let position = self
+                .universe
+                .get_ship(*id)
+                .state()
+                .get_position(camera_frame);
+            let position = convert_f32(position);
             cube.set_local_translation(Translation3::from(position.coords));
         }
     }
@@ -216,25 +234,41 @@ impl Scene {
         }
 
         // Draw text
-        let focused_body = match self.camera_frame() {
-            Frame::Root => panic!("shouldn't happen, bad hack bit me"),
-            Frame::BodyInertial(id) => &self.universe.bodies[&id],
-        };
-        let (radius, speed) = match &focused_body.state {
-            BodyState::FixedAtOrigin => (0.0, 0.0),
-            BodyState::Orbiting { state, .. } => {
-                (state.get_position().norm(), state.get_velocity().norm())
+        let (name, state, orbit, parent_id) = match self.focused_object() {
+            FocusPoint::Body(id) => {
+                let body = self.universe.get_body(id);
+                (
+                    body.info().name.to_owned(),
+                    body.state(),
+                    body.get_orbit(),
+                    body.get_parent_id(),
+                )
             }
         };
-        let (sma, ecc, incl, lan, argp) = match focused_body.get_orbit() {
-            None => (0.0, 0.0, 0.0, 0.0, 0.0),
-            Some(o) => (
-                o.semimajor_axis(),
-                o.eccentricity(),
-                o.inclination().to_degrees(),
-                o.long_asc_node().to_degrees(),
-                o.arg_periapse().to_degrees(),
-            ),
+
+        // Use the frame of the parent body if it exists
+        let frame = match parent_id {
+            Some(x) => Frame::BodyInertial(x),
+            None => Frame::Root,
+        };
+
+        // Orbit needs to be handled specially, because the Sun has no orbit
+        let orbit_text = match orbit {
+            Some(o) => {
+                format!(
+                    "SMA: {:.0}
+Eccentricity: {:.3}
+Inclination: {:.3}
+LAN: {:.1}
+Arg PE: {:.1}",
+                    o.semimajor_axis(),
+                    o.eccentricity(),
+                    o.inclination().to_degrees(),
+                    o.long_asc_node().to_degrees(),
+                    o.arg_periapse().to_degrees(),
+                )
+            }
+            None => String::from("N/A"),
         };
 
         let body_text = format!(
@@ -243,12 +277,11 @@ State:
     Radius: {:.0} m
     Speed: {:.0} m/s
 Orbit:
-    SMA: {:.0}
-    Eccentricity: {:.3}
-    Inclination: {:.3}
-    LAN: {:.1}
-    Arg PE: {:.1}",
-            focused_body.info.name, radius, speed, sma, ecc, incl, lan, argp
+    {}",
+            name,
+            state.get_position(frame).coords.norm(),
+            state.get_velocity(frame).norm(),
+            orbit_text
         );
 
         self.window.draw_text(
@@ -263,8 +296,12 @@ Orbit:
         return self.window.render_with_camera(&mut self.camera);
     }
 
+    fn focused_object(&self) -> FocusPoint {
+        self.camera_focus_order[self.camera_focus_idx]
+    }
+
     fn camera_frame(&self) -> Frame {
-        match self.camera_focus_order[self.camera_focus_idx] {
+        match self.focused_object() {
             FocusPoint::Body(id) => Frame::BodyInertial(id),
         }
     }

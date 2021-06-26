@@ -4,8 +4,8 @@ extern crate kiss3d;
 mod consts;
 
 mod gui;
-mod universe;
 mod math;
+mod universe;
 
 use kiss3d::light::Light;
 use kiss3d::window::Window;
