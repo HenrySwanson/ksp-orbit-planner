@@ -19,6 +19,8 @@ pub struct ShipID(pub usize);
 pub enum Frame {
     Root,
     BodyInertial(BodyID),
+    ShipInertial(ShipID),
+    ShipOrbital(ShipID),
 }
 
 pub struct FramedState<'u> {
@@ -224,6 +226,26 @@ impl Universe {
                         parent_transform * Translation3::from(vector_from_parent)
                     }
                 }
+            }
+            Frame::ShipInertial(k) => {
+                let ship = &self.ships[&k];
+                let parent_transform =
+                    self.convert_frame_to_root(Frame::BodyInertial(ship.parent_id));
+                let vector_from_parent = ship.state.get_position().clone();
+                parent_transform * Translation3::from(vector_from_parent)
+            }
+            Frame::ShipOrbital(k) => {
+                let ship = &self.ships[&k];
+                let orbit = ship.state.get_orbit();
+                let parent_transform = self.convert_frame_to_root(Frame::ShipInertial(k));
+                // TODO oops! I've been using quaternion-based (Isometry3) and matrix-based (Rotation3)
+                // things in the same code. let's pick one and unify
+                let orientation = crate::math::geometry::always_find_rotation(
+                    &orbit.normal_vector(),
+                    ship.state.get_velocity(),
+                    1e-20,
+                );
+                parent_transform * na::UnitQuaternion::from_rotation_matrix(&orientation)
             }
         }
     }

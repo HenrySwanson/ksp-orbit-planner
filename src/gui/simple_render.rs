@@ -21,7 +21,7 @@ pub struct Path {
 #[derive(Debug, Clone, Copy)]
 pub enum FocusPoint {
     Body(BodyID),
-    // TODO add ship focus once you add ship frames...
+    Ship(ShipID),
 }
 
 pub struct Scene {
@@ -34,9 +34,32 @@ pub struct Scene {
     camera: CustomCamera,
     camera_focus_order: Vec<FocusPoint>,
     camera_focus_idx: usize,
+    ship_camera_inertial: bool,
 
     timestep: f64,
     paused: bool,
+}
+
+// TODO sort focus points in a more systematic way
+fn get_focus_points(universe: &Universe) -> Vec<FocusPoint> {
+    let mut bodies: Vec<_> = universe.body_ids().copied().collect();
+    bodies.sort();
+    let mut ships: Vec<_> = universe.ship_ids().copied().collect();
+    ships.sort();
+
+    let mut focus_pts = vec![];
+    for body_id in bodies.iter().copied() {
+        focus_pts.push(FocusPoint::Body(body_id));
+        // Now put in all ships orbiting that body
+        for ship_id in ships.iter().copied() {
+            // TODO hmm, better expose parent_id better
+            if universe.get_ship(ship_id).get_parent_id() == body_id {
+                focus_pts.push(FocusPoint::Ship(ship_id));
+            }
+        }
+    }
+
+    focus_pts
 }
 
 impl Scene {
@@ -44,12 +67,8 @@ impl Scene {
         // Set up camera
         let camera = CustomCamera::new(2.0e9);
         let camera_focus_idx: usize = 0;
-        // TODO sort focus points in a more systematic way
-        let mut camera_focus_order: Vec<FocusPoint> =
-            universe.body_ids().map(|x| FocusPoint::Body(*x)).collect();
-        camera_focus_order.sort_by_key(|f| match f {
-            FocusPoint::Body(x) => *x,
-        });
+        let camera_focus_order = get_focus_points(&universe);
+        let ship_camera_inertial = true;
 
         let mut paths = vec![];
 
@@ -136,6 +155,7 @@ impl Scene {
             camera,
             camera_focus_order,
             camera_focus_idx,
+            ship_camera_inertial,
             timestep: 21600.0 / 60.0, // one Kerbin-day
             paused: true,
         }
@@ -179,6 +199,9 @@ impl Scene {
                 }
                 WindowEvent::Key(Key::P, Action::Press, _) => {
                     self.paused = !self.paused;
+                }
+                WindowEvent::Key(Key::C, Action::Press, _) => {
+                    self.ship_camera_inertial = !self.ship_camera_inertial;
                 }
                 _ => {}
             }
@@ -244,6 +267,21 @@ impl Scene {
                     body.get_parent_id(),
                 )
             }
+            FocusPoint::Ship(id) => {
+                let ship = self.universe.get_ship(id);
+                let name = if self.ship_camera_inertial {
+                    "<Ship> (inertial)"
+                } else {
+                    "<Ship> (orbital)"
+                };
+
+                (
+                    name.to_owned(),
+                    ship.state(),
+                    Some(ship.get_orbit()),
+                    Some(ship.get_parent_id()),
+                )
+            }
         };
 
         // Use the frame of the parent body if it exists
@@ -303,6 +341,10 @@ Orbit:
     fn camera_frame(&self) -> Frame {
         match self.focused_object() {
             FocusPoint::Body(id) => Frame::BodyInertial(id),
+            FocusPoint::Ship(id) => match self.ship_camera_inertial {
+                true => Frame::ShipInertial(id),
+                false => Frame::ShipOrbital(id),
+            },
         }
     }
 }
