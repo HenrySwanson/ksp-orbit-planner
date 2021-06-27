@@ -330,6 +330,29 @@ Orbit:
             &Point3::new(1.0, 1.0, 1.0),
         );
 
+        // Draw sphere of influence
+        let soi_body_id = match self.focused_object() {
+            FocusPoint::Body(id) => id,
+            FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),
+        };
+        if let Some(soi_radius) = self.universe.get_soi_radius(soi_body_id) {
+            // Transform the screen x and y vectors into whatever frame we're currently focused on
+            use crate::kiss3d::camera::Camera;
+            let camera_transform = self.camera.view_transform().inverse();
+            let x_vec = camera_transform.transform_vector(&Vector3::x()).normalize();
+            let y_vec = camera_transform.transform_vector(&Vector3::y()).normalize();
+
+            let pts: Vec<_> = (0..100)
+                .map(|i| 2.0 * std::f32::consts::PI * (i as f32) / 100.0)
+                .map(|theta| x_vec * theta.cos() + y_vec * theta.sin())
+                .map(|v| Point3::from((soi_radius as f32) * v))
+                .collect();
+
+            let body_color = self.universe.get_body(soi_body_id).info().color;
+            let soi_color = Point3::from(body_color.coords * 0.5);
+            draw_loop(&mut self.window, &pts, &soi_color);
+        }
+
         // Render and return bool
         self.window.render_with_camera(&mut self.camera)
     }

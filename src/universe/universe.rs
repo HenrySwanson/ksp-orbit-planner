@@ -170,6 +170,7 @@ impl Universe {
         self.bodies.insert(new_id, body);
         new_id
     }
+
     pub fn ship_ids(&self) -> impl Iterator<Item = &ShipID> {
         self.ships.keys()
     }
@@ -260,6 +261,31 @@ impl Universe {
 
         for ship in self.ships.values_mut() {
             ship.state.advance_t(delta_t);
+        }
+    }
+
+    // TODO what if it's on an elliptical orbit?
+    pub fn get_soi_radius(&self, id: BodyID) -> Option<f64> {
+        // it's given by a (m/M)^(2/5)
+        let body = &self.bodies[&id];
+
+        match &body.state {
+            BodyState::FixedAtOrigin => None,
+            BodyState::Orbiting { parent_id, state } => {
+                let parent_body = &self.bodies[parent_id];
+
+                let mu_1 = parent_body.info.mu;
+                let mu_2 = body.info.mu;
+
+                let energy = state.get_energy();
+                assert!(
+                    energy < 0.0,
+                    "SOI radius approximation only works with elliptical orbits"
+                );
+                let sma = -mu_1 / (2.0 * energy);
+
+                Some(sma * (mu_2 / mu_1).powf(0.4))
+            }
         }
     }
 }
