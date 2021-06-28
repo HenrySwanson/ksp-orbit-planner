@@ -12,6 +12,8 @@ use super::camera::CustomCamera;
 
 use crate::universe::{BodyID, Frame, Orbit, ShipID, Universe};
 
+const TEST_SHIP_SIZE: f32 = 1e6;
+
 pub struct Path {
     nodes: Vec<Point3<f32>>,
     frame: Frame,
@@ -52,7 +54,6 @@ fn get_focus_points(universe: &Universe) -> Vec<FocusPoint> {
         focus_pts.push(FocusPoint::Body(body_id));
         // Now put in all ships orbiting that body
         for ship_id in ships.iter().copied() {
-            // TODO hmm, better expose parent_id better
             if universe.get_ship(ship_id).get_parent_id() == body_id {
                 focus_pts.push(FocusPoint::Ship(ship_id));
             }
@@ -130,7 +131,7 @@ impl Scene {
             let ship = universe.get_ship(id);
 
             // Make the cube that represents the ship
-            let mut cube = window.add_cube(1e6, 1e6, 1e6);
+            let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
             cube.set_color(1.0, 1.0, 1.0);
             ship_objects.insert(id, cube);
 
@@ -146,7 +147,7 @@ impl Scene {
         // We can't query the fps, so let's just set it
         window.set_framerate_limit(Some(60));
 
-        Scene {
+        let mut scene = Scene {
             universe,
             body_spheres,
             ship_objects,
@@ -158,7 +159,10 @@ impl Scene {
             ship_camera_inertial,
             timestep: 21600.0 / 60.0, // one Kerbin-day
             paused: true,
-        }
+        };
+
+        scene.reset_min_distance();
+        scene
     }
 
     pub fn draw_loop(&mut self) {
@@ -181,9 +185,11 @@ impl Scene {
             match event.value {
                 WindowEvent::Key(Key::E, Action::Press, _) => {
                     self.camera_focus_idx = (self.camera_focus_idx + 1) % num_bodies;
+                    self.reset_min_distance();
                 }
                 WindowEvent::Key(Key::Q, Action::Press, _) => {
                     self.camera_focus_idx = (self.camera_focus_idx + num_bodies - 1) % num_bodies;
+                    self.reset_min_distance();
                 }
                 WindowEvent::Key(Key::Period, Action::Press, _) => {
                     self.timestep *= 2.0;
@@ -369,6 +375,14 @@ Orbit:
                 false => Frame::ShipOrbital(id),
             },
         }
+    }
+
+    fn reset_min_distance(&mut self) {
+        let dist = match self.focused_object() {
+            FocusPoint::Body(id) => self.universe.get_body(id).info().radius * 2.0,
+            FocusPoint::Ship(_) => TEST_SHIP_SIZE * 2.0,
+        };
+        self.camera.set_min_distance(dist);
     }
 }
 

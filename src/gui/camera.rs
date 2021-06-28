@@ -50,7 +50,7 @@ impl CustomCamera {
             phi_step: 0.005,
             scroll_ratio: 1.5,
             phi_limit: 0.001,
-            radius_limits: (1.0, 1e20),
+            radius_limits: (1.0, 2.5e11),
             z_near_multiplier: 0.1,
             z_far_multipler: 1024.0,
         }
@@ -71,6 +71,11 @@ impl CustomCamera {
 
     fn view_matrix(&self) -> Matrix4<f32> {
         self.view_transform().to_homogeneous()
+    }
+
+    pub fn set_min_distance(&mut self, min_dist: f32) {
+        self.radius_limits.0 = min_dist;
+        self.radius = na::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
     }
 }
 

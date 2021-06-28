@@ -264,7 +264,6 @@ impl Universe {
         }
     }
 
-    // TODO what if it's on an elliptical orbit?
     pub fn get_soi_radius(&self, id: BodyID) -> Option<f64> {
         // it's given by a (m/M)^(2/5)
         let body = &self.bodies[&id];
