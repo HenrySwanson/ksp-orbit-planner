@@ -10,7 +10,7 @@ use std::f64::consts::PI;
 
 use super::camera::CustomCamera;
 
-use crate::universe::{BodyID, Frame, Orbit, ShipID, Universe};
+use crate::universe::{BodyID, Frame, FrameTransform, Orbit, ShipID, Universe};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -221,6 +221,9 @@ impl Scene {
     }
 
     pub fn update_scene_objects(&mut self) {
+        // TODO apply rotations too!
+        // Also, you can definitely unify this code somehow...
+        
         let camera_frame = self.camera_frame();
         for (id, sphere) in self.body_spheres.iter_mut() {
             let position = self
@@ -253,11 +256,11 @@ impl Scene {
             let transform = self
                 .universe
                 .convert_frames(path.frame, self.camera_frame());
-            let transform: na::Isometry3<f32> = na::convert(transform);
+            let transform: FrameTransform<f32> = na::convert(transform);
             let transformed_path: Vec<_> = path
                 .nodes
                 .iter()
-                .map(|p| transform.transform_point(p))
+                .map(|p| transform.convert_point(p))
                 .collect();
             draw_path(&mut self.window, &transformed_path, &path.color);
         }
@@ -337,6 +340,8 @@ Orbit:
         );
 
         // Draw sphere of influence
+        // TODO: when you're focused on a ship, this isn't quite right! it's centered on
+        // the ship when it should be centered on the planet
         let soi_body_id = match self.focused_object() {
             FocusPoint::Body(id) => id,
             FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),

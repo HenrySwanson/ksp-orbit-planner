@@ -1531,6 +1531,7 @@ dependencies = [
  "approx",
  "kiss3d",
  "plotters",
+ "simba",
 ]
 
 [[package]]

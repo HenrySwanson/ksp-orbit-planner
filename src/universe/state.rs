@@ -109,6 +109,8 @@ mod tests {
 
     use std::f64::consts::PI;
 
+    // TODO use approx::assert_relative_eq!
+
     fn assert_close(expected: f64, actual: f64, tolerance: f64) {
         let difference = actual - expected;
         if difference.abs() >= tolerance * expected.abs() {

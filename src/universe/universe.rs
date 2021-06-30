@@ -1,9 +1,10 @@
 use kiss3d::nalgebra as na;
-use na::{Isometry3, Point3, Translation3, Vector3};
+use na::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
 use super::body::{Body, BodyInfo, BodyState};
+use super::frame::FrameTransform;
 use super::maneuver::Maneuver;
 use super::orbit::Orbit;
 use super::ship::Ship;
@@ -51,13 +52,13 @@ impl FramedState<'_> {
     pub fn get_position(&self, frame: Frame) -> Point3<f64> {
         self.universe
             .convert_frames(self.native_frame, frame)
-            .transform_point(&self.position)
+            .convert_point(&self.position)
     }
 
     pub fn get_velocity(&self, frame: Frame) -> Vector3<f64> {
         self.universe
             .convert_frames(self.native_frame, frame)
-            .transform_vector(&self.velocity)
+            .convert_vector(&self.velocity)
     }
 }
 
@@ -203,50 +204,69 @@ impl Universe {
         new_id
     }
 
-    pub fn convert_frames(&self, src: Frame, dst: Frame) -> Isometry3<f64> {
+    pub fn convert_frames(&self, src: Frame, dst: Frame) -> FrameTransform<f64> {
         // TODO : do this in a more clever way
-        let transform_to_root = self.convert_frame_to_root(src);
-        let transform_from_root = self.convert_frame_to_root(dst).inverse();
-        transform_from_root * transform_to_root
+        let src_to_root = self.convert_from_root(src).inverse();
+        let root_to_dst = self.convert_from_root(dst);
+        src_to_root.append_transformation(&root_to_dst)
     }
 
-    fn convert_frame_to_root(&self, src: Frame) -> Isometry3<f64> {
-        match src {
-            Frame::Root => Isometry3::identity(),
+    fn convert_from_root(&self, frame: Frame) -> FrameTransform<f64> {
+        match frame {
+            Frame::Root => FrameTransform::identity(),
             Frame::BodyInertial(k) => {
                 match &self.bodies[&k].state {
                     BodyState::FixedAtOrigin => {
                         // This is equivalent to the root frame; return the identity
-                        Isometry3::identity()
+                        FrameTransform::identity()
                     }
                     BodyState::Orbiting { parent_id, state } => {
                         // Get the parent and compute the transform from its reference frame to root
                         let parent_frame = Frame::BodyInertial(*parent_id);
-                        let parent_transform = self.convert_frame_to_root(parent_frame);
-                        let vector_from_parent = state.get_position();
-                        parent_transform * Translation3::from(vector_from_parent)
+                        let root_to_parent = self.convert_from_root(parent_frame);
+
+                        // Get the transform from our frame to the parent's
+                        let parent_to_self = FrameTransform::from_active(
+                            UnitQuaternion::identity(),
+                            state.get_position(),
+                            Vector3::zeros(),
+                            Vector3::zeros(),
+                        );
+                        root_to_parent.append_transformation(&parent_to_self)
                     }
                 }
             }
             Frame::ShipInertial(k) => {
                 let ship = &self.ships[&k];
-                let parent_transform =
-                    self.convert_frame_to_root(Frame::BodyInertial(ship.parent_id));
-                let vector_from_parent = ship.state.get_position();
-                parent_transform * Translation3::from(vector_from_parent)
+                let parent_frame = Frame::BodyInertial(ship.parent_id);
+                let root_to_parent = self.convert_from_root(parent_frame);
+
+                let parent_to_self = FrameTransform::from_active(
+                    UnitQuaternion::identity(),
+                    ship.state.get_position(),
+                    Vector3::zeros(),
+                    Vector3::zeros(),
+                );
+                root_to_parent.append_transformation(&parent_to_self)
             }
             Frame::ShipOrbital(k) => {
                 let ship = &self.ships[&k];
-                let orbit = ship.state.get_orbit();
-                let parent_transform = self.convert_frame_to_root(Frame::ShipInertial(k));
+                let root_to_parent = self.convert_from_root(Frame::ShipInertial(k));
                 // TODO oops! I've been using quaternion-based (Isometry3) and matrix-based (Rotation3)
                 // things in the same code. let's pick one and unify
+                let orbit = ship.state.get_orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
                     &ship.state.get_velocity(),
                     1e-20,
                 );
-                parent_transform * na::UnitQuaternion::from_rotation_matrix(&orientation)
+                let parent_to_self = FrameTransform::from_active(
+                    UnitQuaternion::from_rotation_matrix(&orientation),
+                    Vector3::zeros(),
+                    Vector3::zeros(),
+                    Vector3::zeros(), // TODO: this is wrong but it doesn't matter right now
+                );
+                root_to_parent.append_transformation(&parent_to_self)
             }
         }
     }
