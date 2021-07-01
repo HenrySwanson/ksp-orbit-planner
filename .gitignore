@@ -4,7 +4,7 @@
 *.sublime-workspace
 *.vscode/
 
-latex/kepler-math.*
+latex/*
 !latex/*.tex
 !latex/*.pdf
 

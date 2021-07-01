@@ -8,8 +8,6 @@ use simba::scalar::{RealField, SubsetOf, SupersetOf};
 // a lot of sense for something like a Kerbin-fixed frame, where we'd
 // always want to rotate around z (i.e., the polar axis).
 
-// TODO: type this all up in /latex so you can have a proper derivation
-
 pub struct FrameTransform<T: RealField> {
     /// Isometry taking source coordinates to target coordinates
     isometry: Isometry3<T>, // TODO break this apart? :\

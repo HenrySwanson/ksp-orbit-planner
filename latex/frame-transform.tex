@@ -1,0 +1,79 @@
+\documentclass{article}
+\usepackage{amsmath}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\der}[2]{\frac{\dd #1}{\dd #2}}
+
+\begin{document}
+
+\section*{Transformations}
+
+Consider two orthogonal reference frames, $A$ and $B$, which are displaced by a vector $T_{BA}$ and related by a rotation $R_{BA}$. Additionally, frame $B$ is moving w.r.t. frame $A$, with linear velocity $V_{BA}$ and angular velocity (around its origin) $\Omega_{BA}$.
+
+TODO picture
+
+\subsection*{Positions and Directions}
+
+Even though the two frames are not aligned, and some rotation $R_{BA}$ is needed to convert between the coordinates, we're not going to really worry about it in this document. Vectors are physical objects, and have coordinate-independent existences, and so we will write them without specifying a basis.
+
+For positions, we'll specify them as vector offsets from the origin of the frame. So, given a point, we can measure both $r_A$, the displacement from the origin of $A$, and $r_B$, the displacement from the origin of $B$. They are related by $r_A = r_B + T_{BA}$.
+
+Of course, in the code itself, we'll need to make use of $R_{BA}$ to convert between coordinates. Specifically, if $R_{BA}$ actively transforms the basis vectors of $A$ to those of $B$, it passively converts coordinates from $B$ to $A$. As an example, the above identity, when expressed in $A$'s coordinates, is $[r_A]_A = R_{BA} [r_B]_B + [T_{BA}]_A$, where $[-]_A$ is ``this vector is expressed in $A$'s coordinates''. But we don't have to worry about that except in code.
+
+\subsection*{Derivatives}
+
+These two frames move relative to one another, and so they will disagree on whether objects are moving or not. Let $D_A$ mean "derivative in frame $A$", and likewise for $D_B$. However, they will agree on scalar quantities, and so for those we'll just use the usual $d/dt$.
+
+First, we'd like to determine how the bases move. Let the basis vectors in frame $A$ be $\hat x$, $\hat y$, and $\hat z$, and the ones in frame $B$ be $\hat X$, $\hat Y$, and $\hat Z$. We know from basic geometry that if a vector $u$ is fixed in frame $B$, then $D_A (u) = \Omega_{BA} \times u$. So in particular this is true of the basis vectors.
+
+Now consider some vector, possibly time-dependent, $u(t)$. In frame $A$, it has coordinates $(x, y, z)_A$, where $v = x \hat x + y \hat y + z \hat z$, and in the $B$ frame, it has similar coordinates $(X, Y, Z)_B$.
+
+Let's take the derivative in the $A$ frame. On one hand, it's simply $\der{x}{t} \hat x + \der{y}{t} \hat y + \der{z}{t} \hat z$. But if we expand it in $B$-coordinates, we get:
+\begin{align*}
+D_A (u) &= D_A (X \hat X + Y \hat Y + Z \hat Z) \\
+&= \der{X}{t} \hat X + X D_A (\hat X) + \der{Y}{t} \hat Y + Y D_A (\hat X) + \der{Z}{t} \hat Z + Z D_A (\hat Z) \\
+&= \left( \der{X}{t} \hat X + \der{Y}{t} \hat Y + \der{Z}{t} \hat Z \right) \\
+&\qquad\quad + \left( X (\Omega_{BA} \times \hat X) + Y (\Omega_{BA} \times \hat Y) + Z (\Omega_{BA} \times \hat Z) \right) \\
+&= D_B (u) + (\Omega_{BA} \times u)
+\end{align*}
+
+\subsection*{Velocities}
+
+Now that we know how derivatives work, we're equipped to talk about velocities. As mentioned above, if an object has position $r_A$ in frame $A$, and $r_B$ in frame $B$, then the two vectors are related by $r_A = r_B + T_{BA}$. Taking the derivative in the $A$ frame, we have:
+\[ D_A (r_A) = D_A (r_B) + D_A(T_{BA}) = D_B (r_B) + (\Omega_{BA} \times r_B) + D_A (T_{BA}) \]
+
+The $D_A (r_A)$ and $D_B (r_B)$ terms are the component-wise derivatives of position in their respective frames. By definition, these are the velocities $v_A$ and $v_B$. The last term is the velocity (as measured by $A$) of $B$'s origin, in other words, $V_{BA}$. (Note that there is an asymmetry here; $D_B (T_{BA})$ is \textit{not} $V_{BA}$, because there's extra velocity that $A$'s origin acquires from $B$'s rotation!) So our final result is:
+\[ v_A = v_B + (\Omega_{BA} \times r_B) + V_{BA} \]
+
+\section*{Composition and Inverses}
+
+Let's now try to figure out the inverses by flipping some labels. Since $r_A = r_B + T_{BA}$, it should be the case that $r_B = r_A + T_{AB}$, which would imply that $T_{AB} = -T_{BA}$. Similarly, $D_A(u) = D_B(u) + \Omega_{BA} \times u$ implies that $\Omega_{AB} = \Omega_{BA}$.
+
+The case for velocity is a little trickier, but nothing horrendous. Starting by flipping the labels, and isolating $V_{AB}$:
+\begin{align*}
+v_B &= v_A + (\Omega_{AB} \times r_A) + V_{AB} \\
+V_{AB} &= v_B - v_A - (\Omega_{AB} \times r_A) \\
+V_{AB} &= -v_A + v_B + (\Omega_{BA} \times (r_B + T_{BA})) \\
+V_{AB} &= (v_B + (\Omega_{BA} \times r_B)) - v_A + (\Omega_{BA} \times T_{BA}) \\
+V_{AB} &= -V_{BA} + (\Omega_{BA} \times T_{BA})
+\end{align*}
+
+Physically, what this means is that the velocity of $A$'s origin, w.r.t. $B$, is the negative of the velocity we saw before (as expected), but there's also an additional term that comes from the rotation $\Omega$.
+
+For what it's worth, we could derive this a second way. We know that $D_A(T_{BA}) = V_{BA}$, and so we can use what we already know about derivatives:
+\[ V_{AB} = D_B(T_{AB}) = -D_B(T_{BA}) = -D_A(T_{BA}) - (\Omega_{AB} \times T_{BA}) \]
+\[ = -V_{BA} + (\Omega_{BA} \times T_{BA}) \]
+
+Composition employs some similar tricks. Clearly $T_{CA} = T_{CB} + T_{BA}$ and with some thought, one can justify $\Omega_{CA} = \Omega_{CB} + \Omega{BA}$. As usual, it's the velocity that needs some work.
+
+We can use the fact that $V_{CA} = D_A(T_{CA})$ to derive the correct velocity:
+\begin{align*}
+V_{CA} &= D_A(T_{CA}) \\
+&= D_A(T_{CB}) + D_A(T_{BA}) \\
+&= D_B(T_{CB}) + (\Omega_{BA} \times T_{CB}) + D_A(T_{BA}) \\
+&= V_{CB} + V_{BA} + (\Omega_{BA} \times T_{CB})
+\end{align*}
+
+Another way to read this result is as the conversion of the velocity of $C$'s origin from $B$'s frame to $A$'s frame. (Take the usual velocity transformation from $B$ to $A$, but with $v_B = V_{CB}$ and $r_B = T_{CB}$).
+
+\end{document}
