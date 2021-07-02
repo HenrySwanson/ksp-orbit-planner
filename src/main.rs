@@ -24,13 +24,13 @@ fn main() {
     window.set_light(Light::StickToCamera);
 
     let mut universe = read_file("ksp-bodies.txt");
-    universe.add_ship(Vector3::x() * 9000000.0, Vector3::y() * 500.0, BodyID(4));
+    universe.add_ship(Vector3::x() * 9000000.0, Vector3::y() * 500.0 * 2.0, BodyID(4));
 
     gui::Simulation::new(window, universe).render_loop();
 }
 
 fn read_file(filename: &str) -> Universe {
-    let mut universe = Universe::new();
+    let mut universe = Universe::new(0.0);
 
     let mut name_to_id = HashMap::new();
     let mut name_to_mu = HashMap::new();

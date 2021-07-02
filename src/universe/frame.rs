@@ -203,8 +203,8 @@ mod tests {
         assert_relative_eq!(xfm.convert_point(&pt), expected_pt, max_relative = 1e-15,);
         assert_relative_eq!(xfm.convert_vector(&dir), expected_dir, epsilon = 1e-14,);
 
-        // Adding in a relative velocity won't change the positional data, but it will change
-        // the velocity.
+        // Adding in a relative velocity won't change the positional data (but it will change
+        // the velocity).
         let xfm_with_velocity = FrameTransform {
             isometry: xfm.isometry,
             relative_velocity: Vector3::new(5.0, 0.0, 0.0),

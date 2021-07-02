@@ -189,12 +189,13 @@ impl Orbit {
     pub fn true_to_universal(&self, true_anomaly: f64) -> f64 {
         // TODO what about radial orbits?
         let eccentricity = self.eccentricity();
+        let energy = self.energy();
         if eccentricity < 1.0 {
             let ecc = anomaly::true_to_eccentric(true_anomaly, eccentricity);
-            anomaly::eccentric_to_universal(ecc, eccentricity)
+            anomaly::eccentric_to_universal(ecc, energy)
         } else if eccentricity > 1.0 {
             let hyp = anomaly::true_to_hyperbolic(true_anomaly, eccentricity);
-            anomaly::hyperbolic_to_universal(hyp, eccentricity)
+            anomaly::hyperbolic_to_universal(hyp, energy)
         } else {
             let para = anomaly::true_to_parabolic(true_anomaly);
             anomaly::parabolic_to_universal(para, self.ang_mom, self.mu)
@@ -203,11 +204,12 @@ impl Orbit {
 
     pub fn universal_to_true(&self, universal_anomaly: f64) -> f64 {
         let eccentricity = self.eccentricity();
+        let energy = self.energy();
         if eccentricity < 1.0 {
-            let ecc = anomaly::universal_to_eccentric(universal_anomaly, eccentricity);
+            let ecc = anomaly::universal_to_eccentric(universal_anomaly, energy);
             anomaly::eccentric_to_true(ecc, eccentricity)
         } else if eccentricity > 1.0 {
-            let hyp = anomaly::universal_to_hyperbolic(universal_anomaly, eccentricity);
+            let hyp = anomaly::universal_to_hyperbolic(universal_anomaly, energy);
             anomaly::hyperbolic_to_true(hyp, eccentricity)
         } else {
             let para = anomaly::universal_to_parabolic(universal_anomaly, self.ang_mom, self.mu);

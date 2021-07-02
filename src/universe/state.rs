@@ -2,9 +2,12 @@ use nalgebra::Vector3;
 
 use super::orbit::Orbit;
 
+use crate::math::geometry::directed_angle;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::math::stumpff::stumpff_G;
 
+// TODO pub these fields
+#[derive(Debug, Clone)]
 pub struct CartesianState {
     position: Vector3<f64>,
     velocity: Vector3<f64>,
@@ -95,6 +98,47 @@ impl CartesianState {
         let root = newton_plus_bisection(f_and_f_prime, bracket, 100);
 
         self.advance_s(root);
+    }
+
+    pub fn delta_s_to_t(&self, delta_s: f64) -> f64 {
+        let r_0 = self.position.norm();
+        let r_dot_0 = self.position.dot(&self.velocity) / r_0;
+        let beta = -2.0 * self.get_energy();
+        let mu = self.parent_mu;
+        let G = stumpff_G(beta, delta_s);
+
+        r_0 * G[1] + r_0 * r_dot_0 * G[2] + mu * G[3]
+    }
+
+    pub fn get_theta(&self) -> f64 {
+        // Okay, we gotta find our own s too. Dang.
+        let orbit = self.get_orbit();
+        let x_vec = orbit.periapse_vector();
+        let z_vec = orbit.normal_vector();
+        directed_angle(&x_vec, &self.position, &z_vec)
+    }
+
+    pub fn s_until_soi_escape(&self, soi_radius: f64) -> Option<f64> {
+        // Okay, we gotta find our own s too. Dang.
+        let orbit = self.get_orbit();
+        let my_theta = self.get_theta();
+        let my_s = orbit.true_to_universal(my_theta);
+
+        // Since (h^2/mu) / (1 + e cos theta) = r, we can invert that to get
+        // a desired theta, which will always be in the first or second quadrant
+        let target_cos_theta = (orbit.semilatus_rectum() / soi_radius - 1.0) / orbit.eccentricity();
+        if target_cos_theta.abs() > 1.0 {
+            return None;
+        }
+
+        let target_theta = target_cos_theta.acos();
+        let target_s = orbit.true_to_universal(target_theta);
+        
+        if target_s > my_s {
+            Some(target_s - my_s)
+        } else {
+            None
+        }
     }
 }
 

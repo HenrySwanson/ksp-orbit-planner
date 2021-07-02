@@ -1,3 +1,4 @@
+use super::event::Event;
 use super::state::CartesianState;
 use super::universe::BodyID;
 
@@ -5,4 +6,5 @@ use super::universe::BodyID;
 pub struct Ship {
     pub state: CartesianState,
     pub parent_id: BodyID,
+    pub next_event: Option<Event>,
 }
