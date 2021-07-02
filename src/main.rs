@@ -26,7 +26,7 @@ fn main() {
     let mut universe = read_file("ksp-bodies.txt");
     universe.add_ship(Vector3::x() * 9000000.0, Vector3::y() * 500.0, BodyID(4));
 
-    gui::Scene::new(window, universe).draw_loop();
+    gui::Simulation::new(window, universe).render_loop();
 }
 
 fn read_file(filename: &str) -> Universe {

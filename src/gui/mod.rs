@@ -1,4 +1,5 @@
 mod camera;
-mod simple_render;
+mod scene;
+mod simulation;
 
-pub use simple_render::Scene;
+pub use simulation::Simulation;
