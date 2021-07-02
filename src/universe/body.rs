@@ -1,5 +1,4 @@
-use kiss3d::nalgebra as na;
-use na::Point3;
+use nalgebra::Point3;
 
 use super::state::CartesianState;
 use super::universe::BodyID;

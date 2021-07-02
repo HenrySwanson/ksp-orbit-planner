@@ -2,8 +2,7 @@ use kiss3d::event::{Action, Key, WindowEvent};
 use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
 
-use kiss3d::nalgebra as na;
-use na::{Point3, Translation3, Vector3};
+use nalgebra::{Point3, Translation3, Vector3};
 
 use std::collections::HashMap;
 use std::f64::consts::PI;
@@ -100,7 +99,7 @@ impl Scene {
             // TODO remove, or somehow make optional
             // Make axes that show the planet's orbits orientation
             let make_axis_path = |v, color| -> Path {
-                let v: Vector3<f32> = na::convert(v);
+                let v: Vector3<f32> = nalgebra::convert(v);
                 let v = 2.0 * body_info.radius * v;
                 let pt: Point3<f32> = Point3::from(v);
                 Path {
@@ -240,7 +239,7 @@ impl Scene {
             let transform = self
                 .universe
                 .convert_frames(path.frame, self.focused_object_frame());
-            let transform: FrameTransform<f32> = na::convert(transform);
+            let transform: FrameTransform<f32> = nalgebra::convert(transform);
             let transformed_path: Vec<_> = path
                 .nodes
                 .iter()
@@ -252,7 +251,7 @@ impl Scene {
         // Draw text
         self.window.draw_text(
             &self.orbit_summary_text(),
-            &na::Point2::origin(),
+            &nalgebra::Point2::origin(),
             80.0,
             &kiss3d::text::Font::default(),
             &Point3::new(1.0, 1.0, 1.0),
@@ -386,7 +385,7 @@ Orbit:
 
 // Helpful for avoiding ambiguous typing
 fn convert_f32(p: Point3<f64>) -> Point3<f32> {
-    na::convert(p)
+    nalgebra::convert(p)
 }
 
 fn draw_grid(window: &mut Window, num_squares: i32, square_size: f32, color: &Point3<f32>) {
@@ -430,7 +429,7 @@ fn get_path_for_orbit(orbit: &Orbit, num_points: usize) -> Vec<Point3<f32>> {
             Some(v) => Point3::from(v),
             None => continue,
         };
-        pts.push(na::convert(pt));
+        pts.push(nalgebra::convert(pt));
     }
     pts
 }

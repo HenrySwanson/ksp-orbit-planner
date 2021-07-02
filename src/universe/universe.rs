@@ -1,11 +1,9 @@
-use kiss3d::nalgebra as na;
-use na::{Point3, UnitQuaternion, Vector3};
+use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
 use super::body::{Body, BodyInfo, BodyState};
 use super::frame::FrameTransform;
-use super::maneuver::Maneuver;
 use super::orbit::Orbit;
 use super::ship::Ship;
 use super::state::CartesianState;
@@ -206,7 +204,6 @@ impl<'u> Universe {
 
     pub fn add_ship(
         &mut self,
-        schedule: Vec<Maneuver>,
         position: Vector3<f64>,
         velocity: Vector3<f64>,
         parent_id: BodyID,
@@ -215,7 +212,6 @@ impl<'u> Universe {
         let ship = Ship {
             state: CartesianState::new(position, velocity, parent_mu),
             parent_id,
-            schedule,
         };
 
         let new_id = ShipID(self.next_ship_id);

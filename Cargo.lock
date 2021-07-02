@@ -1530,6 +1530,7 @@ version = "0.1.0"
 dependencies = [
  "approx",
  "kiss3d",
+ "nalgebra",
  "plotters",
  "simba",
 ]

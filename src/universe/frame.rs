@@ -1,5 +1,4 @@
-use kiss3d::nalgebra as na;
-use na::{Isometry3, Point3, Translation3, UnitQuaternion, Vector3};
+use nalgebra::{Isometry3, Point3, Translation3, UnitQuaternion, Vector3};
 use simba::scalar::{RealField, SubsetOf, SupersetOf};
 
 // See /latex/frame-transform.tex for the derivation of these formulas, and also
@@ -146,9 +145,9 @@ where
 
     #[inline]
     fn is_in_subset(transform: &FrameTransform<T2>) -> bool {
-        na::is_convertible::<_, Isometry3<T1>>(&transform.isometry)
-            && na::is_convertible::<_, Vector3<T1>>(&transform.relative_velocity)
-            && na::is_convertible::<_, Vector3<T1>>(&transform.angular_velocity)
+        nalgebra::is_convertible::<_, Isometry3<T1>>(&transform.isometry)
+            && nalgebra::is_convertible::<_, Vector3<T1>>(&transform.relative_velocity)
+            && nalgebra::is_convertible::<_, Vector3<T1>>(&transform.angular_velocity)
     }
 
     #[inline]

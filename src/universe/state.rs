@@ -1,5 +1,4 @@
-use kiss3d::nalgebra as na;
-use na::Vector3;
+use nalgebra::Vector3;
 
 use super::orbit::Orbit;
 

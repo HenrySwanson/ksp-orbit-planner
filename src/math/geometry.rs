@@ -1,5 +1,4 @@
-use kiss3d::nalgebra as na;
-use na::{Rotation3, Vector3};
+use nalgebra::{Rotation3, Vector3};
 
 use std::f64::consts::PI;
 

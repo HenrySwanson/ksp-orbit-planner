@@ -10,14 +10,12 @@ mod universe;
 use kiss3d::light::Light;
 use kiss3d::window::Window;
 
-use kiss3d::nalgebra as na;
-use na::{Point3, Vector3};
+use nalgebra::{Point3, Vector3};
 
 use std::collections::HashMap;
 use std::fs;
 
 use crate::universe::BodyInfo;
-use crate::universe::Maneuver;
 use crate::universe::Orbit;
 use crate::universe::{BodyID, Universe};
 
@@ -26,13 +24,7 @@ fn main() {
     window.set_light(Light::StickToCamera);
 
     let mut universe = read_file("ksp-bodies.txt");
-    let schedule: Vec<Maneuver> = vec![];
-    universe.add_ship(
-        schedule,
-        Vector3::x() * 9000000.0,
-        Vector3::y() * 500.0,
-        BodyID(4),
-    );
+    universe.add_ship(Vector3::x() * 9000000.0, Vector3::y() * 500.0, BodyID(4));
 
     gui::Scene::new(window, universe).draw_loop();
 }

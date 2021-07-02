@@ -3,8 +3,7 @@ use kiss3d::event::{Action, MouseButton, WindowEvent};
 use kiss3d::resource::ShaderUniform;
 use kiss3d::window::Canvas;
 
-use kiss3d::nalgebra as na;
-use na::{Isometry3, Matrix4, Perspective3, Point3, Vector2, Vector3};
+use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector2, Vector3};
 
 use std::f32::consts::PI;
 
@@ -75,7 +74,7 @@ impl CustomCamera {
 
     pub fn set_min_distance(&mut self, min_dist: f32) {
         self.radius_limits.0 = min_dist;
-        self.radius = na::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
+        self.radius = nalgebra::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
     }
 }
 
@@ -93,7 +92,7 @@ impl Camera for CustomCamera {
 
                     // Restrict angles
                     self.theta %= 2.0 * PI;
-                    self.phi = na::clamp(self.phi, self.phi_limit, PI - self.phi_limit);
+                    self.phi = nalgebra::clamp(self.phi, self.phi_limit, PI - self.phi_limit);
                 }
 
                 self.last_cursor_pos = curr_pos;
@@ -106,7 +105,8 @@ impl Camera for CustomCamera {
                     self.radius /= self.scroll_ratio;
                 }
 
-                self.radius = na::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
+                self.radius =
+                    nalgebra::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
             }
             WindowEvent::FramebufferSize(w, h) => {
                 self.aspect = w as f32 / h as f32;
