@@ -59,21 +59,13 @@ impl Scene {
             sphere.set_color(color.x, color.y, color.z);
             body_spheres.insert(body.id, sphere);
 
-            // Compute the path to draw for the orbit, if relevant
+            // TODO remove, or somehow make optional
+            // Make axes that show the planet's orbits orientation
             let orbit = match body.get_orbit() {
                 Some(orbit) => orbit,
                 None => continue,
             };
-            let parent_id = body.get_parent_id().unwrap();
 
-            paths.push(Path {
-                nodes: get_path_for_orbit(&orbit, 100),
-                frame: Frame::BodyInertial(parent_id),
-                color: body_info.color,
-            });
-
-            // TODO remove, or somehow make optional
-            // Make axes that show the planet's orbits orientation
             let make_axis_path = |v, color| -> Path {
                 let v: Vector3<f32> = nalgebra::convert(v);
                 let v = 2.0 * body_info.radius * v;
@@ -105,14 +97,6 @@ impl Scene {
             let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
             cube.set_color(1.0, 1.0, 1.0);
             ship_objects.insert(ship.id, cube);
-
-            // Compute the path to draw for the orbit
-            let nodes = get_path_for_orbit(&ship.get_orbit(), 100);
-            paths.push(Path {
-                nodes,
-                frame: Frame::BodyInertial(ship.get_parent_id()),
-                color: Point3::new(1.0, 1.0, 1.0),
-            });
         }
 
         Scene {
@@ -155,9 +139,23 @@ impl Scene {
         // Draw grid
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
+        // Draw orbits
+        for body in universe.bodies() {
+            let orbit = match body.get_orbit() {
+                Some(o) => o,
+                None => continue,
+            };
+            let parent_id = body.get_parent_id().unwrap();
+            let color = body.info().color;
+            self.render_orbit(window, &universe, &orbit, parent_id, &color);
+        }
+        for ship in universe.ships() {
+            let orbit = ship.get_orbit();
+            let color = Point3::new(1.0, 1.0, 1.0);
+            self.render_orbit(window, &universe, &orbit, ship.get_parent_id(), &color);
+        }
+
         // Draw paths
-        // TODO this is hard to inline, because passing a reference into the contents
-        // of self.paths to a function with &mut self doesn't work
         for path in self.paths.iter() {
             self.draw_path_object(window, universe, path);
         }
@@ -194,6 +192,29 @@ impl Scene {
             let state = universe.get_ship(*id).state();
             set_object_position(cube, state.get_position(camera_frame));
         }
+    }
+
+    fn render_orbit(
+        &self,
+        window: &mut Window,
+        universe: &Universe,
+        orbit: &Orbit,
+        parent_id: BodyID,
+        color: &Point3<f32>,
+    ) {
+        // Get the transform into the focused frame
+        let transform =
+            universe.convert_frames(Frame::BodyInertial(parent_id), self.focused_object_frame());
+
+        // Get some points around the orbit
+        let num_points = 100;
+        let pts = (0..num_points + 1)
+            .map(|i| -PI + (2.0 * PI) * (i as f64) / (num_points as f64))
+            .filter_map(|theta| orbit.get_position_at_theta(theta))
+            .map(|v| transform.convert_point(&Point3::from(v)))
+            .map(convert_f32);
+
+        draw_path_raw(window, pts, &color);
     }
 
     fn draw_path_object(&self, window: &mut Window, universe: &Universe, path: &Path) {
@@ -342,19 +363,6 @@ fn get_focus_points(universe: &Universe) -> Vec<FocusPoint> {
 // Helpful for avoiding ambiguous typing
 fn convert_f32(p: Point3<f64>) -> Point3<f32> {
     nalgebra::convert(p)
-}
-
-fn get_path_for_orbit(orbit: &Orbit, num_points: usize) -> Vec<Point3<f32>> {
-    let mut pts = vec![];
-    for i in 0..=num_points {
-        let theta = -PI + (2.0 * PI) * (i as f64) / (num_points as f64);
-        let pt = match orbit.get_position_at_theta(theta) {
-            Some(v) => Point3::from(v),
-            None => continue,
-        };
-        pts.push(nalgebra::convert(pt));
-    }
-    pts
 }
 
 fn set_object_position(obj: &mut SceneNode, position: Point3<f64>) {
