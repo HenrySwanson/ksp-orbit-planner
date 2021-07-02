@@ -44,18 +44,18 @@ pub struct Scene {
 
 // TODO sort focus points in a more systematic way
 fn get_focus_points(universe: &Universe) -> Vec<FocusPoint> {
-    let mut bodies: Vec<_> = universe.body_ids().copied().collect();
-    bodies.sort();
-    let mut ships: Vec<_> = universe.ship_ids().copied().collect();
-    ships.sort();
+    let mut body_ids: Vec<_> = universe.body_ids().copied().collect();
+    body_ids.sort();
+    let mut ships: Vec<_> = universe.ships().collect();
+    ships.sort_by_key(|s| s.id);
 
     let mut focus_pts = vec![];
-    for body_id in bodies.iter().copied() {
+    for body_id in body_ids.into_iter() {
         focus_pts.push(FocusPoint::Body(body_id));
         // Now put in all ships orbiting that body
-        for ship_id in ships.iter().copied() {
-            if universe.get_ship(ship_id).get_parent_id() == body_id {
-                focus_pts.push(FocusPoint::Ship(ship_id));
+        for ship in ships.iter() {
+            if ship.get_parent_id() == body_id {
+                focus_pts.push(FocusPoint::Ship(ship.id));
             }
         }
     }
@@ -75,16 +75,14 @@ impl Scene {
 
         // Collect planetary bodies
         let mut body_spheres = HashMap::new();
-        for id in universe.body_ids().copied() {
-            // TODO make iterator for ids + bodyrefs (same with ships)
-            let body = universe.get_body(id);
+        for body in universe.bodies() {
             let body_info = body.info();
 
             // Make the sphere that represents the body
             let mut sphere = window.add_sphere(body_info.radius);
             let color = &body_info.color;
             sphere.set_color(color.x, color.y, color.z);
-            body_spheres.insert(id, sphere);
+            body_spheres.insert(body.id, sphere);
 
             // Compute the path to draw for the orbit, if relevant
             let orbit = match body.get_orbit() {
@@ -107,7 +105,7 @@ impl Scene {
                 let pt: Point3<f32> = Point3::from(v);
                 Path {
                     nodes: vec![Point3::origin(), pt],
-                    frame: Frame::BodyInertial(id),
+                    frame: Frame::BodyInertial(body.id),
                     color,
                 }
             };
@@ -127,13 +125,11 @@ impl Scene {
 
         // Collect ships
         let mut ship_objects = HashMap::new();
-        for id in universe.ship_ids().copied() {
-            let ship = universe.get_ship(id);
-
+        for ship in universe.ships() {
             // Make the cube that represents the ship
             let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
             cube.set_color(1.0, 1.0, 1.0);
-            ship_objects.insert(id, cube);
+            ship_objects.insert(ship.id, cube);
 
             // Compute the path to draw for the orbit
             let nodes = get_path_for_orbit(&ship.get_orbit(), 100);

@@ -33,11 +33,13 @@ pub struct FramedState<'u> {
 
 pub struct BodyRef<'u> {
     universe: &'u Universe,
+    pub id: BodyID,
     body: &'u Body,
 }
 
 pub struct ShipRef<'u> {
     universe: &'u Universe,
+    pub id: ShipID,
     ship: &'u Ship,
 }
 
@@ -67,7 +69,8 @@ impl<'u> BodyRef<'u> {
         &self.body.info
     }
 
-    // note -- the FramedState can outlive the BodyRef!
+    // note -- the FramedState can outlive the BodyRef! But it can't outlive the
+    // universe (lifetime 'u)
     pub fn state(&self) -> FramedState<'u> {
         let (p, v, frame) = match &self.body.state {
             BodyState::FixedAtOrigin => (Vector3::zeros(), Vector3::zeros(), Frame::Root),
@@ -122,7 +125,7 @@ impl<'u> ShipRef<'u> {
     }
 }
 
-impl Universe {
+impl<'u> Universe {
     pub fn new() -> Self {
         Universe {
             bodies: HashMap::new(),
@@ -136,9 +139,18 @@ impl Universe {
         self.bodies.keys()
     }
 
+    pub fn bodies(&'u self) -> impl Iterator<Item = BodyRef<'u>> {
+        self.bodies.iter().map(move |(id, body)| BodyRef {
+            universe: self,
+            id: *id,
+            body,
+        })
+    }
+
     pub fn get_body(&self, id: BodyID) -> BodyRef {
         BodyRef {
             universe: self,
+            id,
             body: &self.bodies[&id],
         }
     }
@@ -176,9 +188,18 @@ impl Universe {
         self.ships.keys()
     }
 
+    pub fn ships(&'u self) -> impl Iterator<Item = ShipRef<'u>> {
+        self.ships.iter().map(move |(id, ship)| ShipRef {
+            universe: self,
+            id: *id,
+            ship,
+        })
+    }
+
     pub fn get_ship(&self, id: ShipID) -> ShipRef {
         ShipRef {
             universe: self,
+            id,
             ship: &self.ships[&id],
         }
     }
