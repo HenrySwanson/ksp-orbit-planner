@@ -222,27 +222,15 @@ impl Scene {
 
     pub fn update_scene_objects(&mut self) {
         // TODO apply rotations too!
-        // Also, you can definitely unify this code somehow...
-        
-        let camera_frame = self.camera_frame();
+        let camera_frame = self.focused_object_frame();
         for (id, sphere) in self.body_spheres.iter_mut() {
-            let position = self
-                .universe
-                .get_body(*id)
-                .state()
-                .get_position(camera_frame);
-            let position = convert_f32(position);
-            sphere.set_local_translation(Translation3::from(position.coords));
+            let state = self.universe.get_body(*id).state();
+            set_object_position(sphere, state.get_position(camera_frame));
         }
 
         for (id, cube) in self.ship_objects.iter_mut() {
-            let position = self
-                .universe
-                .get_ship(*id)
-                .state()
-                .get_position(camera_frame);
-            let position = convert_f32(position);
-            cube.set_local_translation(Translation3::from(position.coords));
+            let state = self.universe.get_ship(*id).state();
+            set_object_position(cube, state.get_position(camera_frame));
         }
     }
 
@@ -255,7 +243,7 @@ impl Scene {
             // Get the reference position for the path you're about to draw
             let transform = self
                 .universe
-                .convert_frames(path.frame, self.camera_frame());
+                .convert_frames(path.frame, self.focused_object_frame());
             let transform: FrameTransform<f32> = na::convert(transform);
             let transformed_path: Vec<_> = path
                 .nodes
@@ -266,14 +254,65 @@ impl Scene {
         }
 
         // Draw text
-        let (name, state, orbit, parent_id) = match self.focused_object() {
+        self.window.draw_text(
+            &self.orbit_summary_text(),
+            &na::Point2::origin(),
+            80.0,
+            &kiss3d::text::Font::default(),
+            &Point3::new(1.0, 1.0, 1.0),
+        );
+
+        // Draw sphere of influence
+        let soi_body_id = match self.focused_object() {
+            FocusPoint::Body(id) => id,
+            FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),
+        };
+        self.render_soi(soi_body_id);
+
+        // Render and return bool
+        self.window.render_with_camera(&mut self.camera)
+    }
+
+    fn render_soi(&mut self, id: BodyID) {
+        if let Some(soi_radius) = self.universe.get_soi_radius(id) {
+            // Transform the screen x and y vectors into whatever frame we're currently focused on
+            use crate::kiss3d::camera::Camera;
+            let camera_transform = self.camera.view_transform().inverse();
+            let x_vec = camera_transform.transform_vector(&Vector3::x()).normalize();
+            let y_vec = camera_transform.transform_vector(&Vector3::y()).normalize();
+
+            // Get the position of the body in our current frame (may be non-zero if we're
+            // focused on a ship).
+            let body_pt = self
+                .universe
+                .convert_frames(Frame::BodyInertial(id), self.focused_object_frame())
+                .convert_point(&Point3::origin());
+
+            let pts: Vec<_> = (0..100)
+                .map(|i| 2.0 * std::f32::consts::PI * (i as f32) / 100.0)
+                .map(|theta| x_vec * theta.cos() + y_vec * theta.sin())
+                .map(|v| convert_f32(body_pt) + (soi_radius as f32) * v)
+                .collect();
+
+            let body_color = self.universe.get_body(id).info().color;
+            let soi_color = Point3::from(body_color.coords * 0.5);
+            draw_loop(&mut self.window, &pts, &soi_color);
+        }
+    }
+
+    fn orbit_summary_text(&self) -> String {
+        let (name, state, orbit, frame) = match self.focused_object() {
             FocusPoint::Body(id) => {
                 let body = self.universe.get_body(id);
+                let frame = match body.get_parent_id() {
+                    Some(id) => Frame::BodyInertial(id),
+                    None => Frame::Root,
+                };
                 (
                     body.info().name.to_owned(),
                     body.state(),
                     body.get_orbit(),
-                    body.get_parent_id(),
+                    frame,
                 )
             }
             FocusPoint::Ship(id) => {
@@ -288,15 +327,9 @@ impl Scene {
                     name.to_owned(),
                     ship.state(),
                     Some(ship.get_orbit()),
-                    Some(ship.get_parent_id()),
+                    Frame::BodyInertial(ship.get_parent_id()),
                 )
             }
-        };
-
-        // Use the frame of the parent body if it exists
-        let frame = match parent_id {
-            Some(x) => Frame::BodyInertial(x),
-            None => Frame::Root,
         };
 
         // Orbit needs to be handled specially, because the Sun has no orbit
@@ -318,7 +351,7 @@ Arg PE: {:.1}",
             None => String::from("N/A"),
         };
 
-        let body_text = format!(
+        format!(
             "Focused on: {}
 State:
     Radius: {:.0} m
@@ -329,50 +362,14 @@ Orbit:
             state.get_position(frame).coords.norm(),
             state.get_velocity(frame).norm(),
             orbit_text
-        );
-
-        self.window.draw_text(
-            &body_text,
-            &na::Point2::origin(),
-            80.0,
-            &kiss3d::text::Font::default(),
-            &Point3::new(1.0, 1.0, 1.0),
-        );
-
-        // Draw sphere of influence
-        // TODO: when you're focused on a ship, this isn't quite right! it's centered on
-        // the ship when it should be centered on the planet
-        let soi_body_id = match self.focused_object() {
-            FocusPoint::Body(id) => id,
-            FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),
-        };
-        if let Some(soi_radius) = self.universe.get_soi_radius(soi_body_id) {
-            // Transform the screen x and y vectors into whatever frame we're currently focused on
-            use crate::kiss3d::camera::Camera;
-            let camera_transform = self.camera.view_transform().inverse();
-            let x_vec = camera_transform.transform_vector(&Vector3::x()).normalize();
-            let y_vec = camera_transform.transform_vector(&Vector3::y()).normalize();
-
-            let pts: Vec<_> = (0..100)
-                .map(|i| 2.0 * std::f32::consts::PI * (i as f32) / 100.0)
-                .map(|theta| x_vec * theta.cos() + y_vec * theta.sin())
-                .map(|v| Point3::from((soi_radius as f32) * v))
-                .collect();
-
-            let body_color = self.universe.get_body(soi_body_id).info().color;
-            let soi_color = Point3::from(body_color.coords * 0.5);
-            draw_loop(&mut self.window, &pts, &soi_color);
-        }
-
-        // Render and return bool
-        self.window.render_with_camera(&mut self.camera)
+        )
     }
 
     fn focused_object(&self) -> FocusPoint {
         self.camera_focus_order[self.camera_focus_idx]
     }
 
-    fn camera_frame(&self) -> Frame {
+    fn focused_object_frame(&self) -> Frame {
         match self.focused_object() {
             FocusPoint::Body(id) => Frame::BodyInertial(id),
             FocusPoint::Ship(id) => match self.ship_camera_inertial {
@@ -440,4 +437,8 @@ fn get_path_for_orbit(orbit: &Orbit, num_points: usize) -> Vec<Point3<f32>> {
         pts.push(na::convert(pt));
     }
     pts
+}
+
+fn set_object_position(obj: &mut SceneNode, position: Point3<f64>) {
+    obj.set_local_translation(Translation3::from(convert_f32(position).coords));
 }

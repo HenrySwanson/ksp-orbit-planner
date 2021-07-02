@@ -2,6 +2,9 @@ use kiss3d::nalgebra as na;
 use na::{Isometry3, Point3, Translation3, UnitQuaternion, Vector3};
 use simba::scalar::{RealField, SubsetOf, SupersetOf};
 
+// See /latex/frame-transform.tex for the derivation of these formulas, and also
+// for the variable names.
+
 // TODO: would it make more sense for `angular_velocity` to measure
 // the rotation of the target frame in its own basis?
 // It breaks the analogy with `relative_velocity`, but it'd make
@@ -24,7 +27,7 @@ impl<T: RealField> FrameTransform<T> {
     /// they do in the struct.
     pub fn from_active(
         rotation: UnitQuaternion<T>,
-        translation: Vector3<T>, // TODO should this be translation?
+        translation: Vector3<T>, // TODO should this be a Translation3?
         relative_velocity: Vector3<T>,
         angular_velocity: Vector3<T>,
     ) -> Self {
@@ -50,8 +53,7 @@ impl<T: RealField> FrameTransform<T> {
         // just convert from what it is in the source frame (e.g., zero).
         let relative_velocity = self.convert_velocity(&Point3::origin(), &Vector3::zeros());
 
-        // The angular velocity of the source frame wrt the target frame is just the
-        // negative, converted to the appropriate frame.
+        // Angular velocity transforms like a vector, and we need to reverse it.
         let angular_velocity = -self.convert_vector(&self.angular_velocity);
 
         FrameTransform {
@@ -64,15 +66,14 @@ impl<T: RealField> FrameTransform<T> {
     pub fn append_transformation(&self, other: &Self) -> Self {
         // Say `self` transforms from frame A to B, and `other` from B to C.
 
-        // Then we want to find the velocity of C's origin in A's coordinates. We can do
-        // this with the existing functions we have.
+        // The relative velocity is the velocity of C's origin in A's coordinates, and this
+        // can be delegated to our helper functions.
         let relative_velocity = self.inverse_convert_velocity(
             &other.inverse_convert_point(&Point3::origin()),
             &other.relative_velocity,
         );
 
-        // We also want to find the angular velocity of C's frame in A's coordinates, and
-        // that's not too bad either.
+        // Angular velocities add, but first we have to convert both vectors to A's coordinates.
         let angular_velocity =
             self.angular_velocity + self.inverse_convert_vector(&other.angular_velocity);
 
@@ -111,14 +112,9 @@ impl<T: RealField> FrameTransform<T> {
     /// Given an object's position and velocity in source coordinates, returns the velocity
     /// converted to target coordinates.
     pub fn convert_velocity(&self, position: &Point3<T>, velocity: &Vector3<T>) -> Vector3<T> {
-        // First, we convert into a frame that's co-moving with the target. This saps some
-        // of our velocity, as it gets incorporated into the frame itself.
-        let displ_from_target_origin = position - self.inverse_convert_point(&Point3::origin());
-        let dampened_velocity = velocity
-            - self.relative_velocity
-            - self.angular_velocity.cross(&displ_from_target_origin);
-        // Then, we rotate our basis so that it lines up with the target
-        self.convert_vector(&dampened_velocity)
+        let rb_src = position - self.inverse_convert_point(&Point3::origin());
+        let vb_src = velocity - self.relative_velocity - self.angular_velocity.cross(&rb_src);
+        self.convert_vector(&vb_src)
     }
 
     /// Given an object's position and velocity in target coordinates, returns the velocity
@@ -128,16 +124,9 @@ impl<T: RealField> FrameTransform<T> {
         position: &Point3<T>,
         velocity: &Vector3<T>,
     ) -> Vector3<T> {
-        // Convert into a frame that's aligned with the source, but still moving
-        // and rotating like the target.
-        let realigned_velocity = self.inverse_convert_vector(&velocity);
-        // The movement and spinning of this intermediate frame gives us some
-        // extra velocity.
-        // (this would be M^-1(p) - M^-1(0), but that collapses nicely...)
-        let displ_from_target_origin = self.inverse_convert_vector(&position.coords);
-        realigned_velocity
-            + self.relative_velocity
-            + self.angular_velocity.cross(&displ_from_target_origin)
+        let vb_src = self.inverse_convert_vector(&velocity);
+        let rb_src = self.inverse_convert_vector(&position.coords);
+        vb_src + self.relative_velocity + self.angular_velocity.cross(&rb_src)
     }
 }
 
