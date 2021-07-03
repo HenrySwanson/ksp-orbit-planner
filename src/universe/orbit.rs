@@ -2,6 +2,7 @@ use nalgebra::{Rotation3, Vector3};
 
 use std::f64::consts::PI;
 
+use crate::math::anomaly;
 use crate::math::geometry::{always_find_rotation, directed_angle};
 
 #[derive(Debug)]
@@ -183,6 +184,35 @@ impl Orbit {
         let velocity = (mu / p).sqrt() * Vector3::new(-theta.sin(), ecc + theta.cos(), 0.0);
 
         (rotation * position, rotation * velocity)
+    }
+
+    pub fn true_to_universal(&self, true_anomaly: f64) -> f64 {
+        // TODO what about radial orbits?
+        let eccentricity = self.eccentricity();
+        if eccentricity < 1.0 {
+            let ecc = anomaly::true_to_eccentric(true_anomaly, eccentricity);
+            anomaly::eccentric_to_universal(ecc, eccentricity)
+        } else if eccentricity > 1.0 {
+            let hyp = anomaly::true_to_hyperbolic(true_anomaly, eccentricity);
+            anomaly::hyperbolic_to_universal(hyp, eccentricity)
+        } else {
+            let para = anomaly::true_to_parabolic(true_anomaly);
+            anomaly::parabolic_to_universal(para, self.ang_mom, self.mu)
+        }
+    }
+
+    pub fn universal_to_true(&self, universal_anomaly: f64) -> f64 {
+        let eccentricity = self.eccentricity();
+        if eccentricity < 1.0 {
+            let ecc = anomaly::universal_to_eccentric(universal_anomaly, eccentricity);
+            anomaly::eccentric_to_true(ecc, eccentricity)
+        } else if eccentricity > 1.0 {
+            let hyp = anomaly::universal_to_hyperbolic(universal_anomaly, eccentricity);
+            anomaly::hyperbolic_to_true(hyp, eccentricity)
+        } else {
+            let para = anomaly::universal_to_parabolic(universal_anomaly, self.ang_mom, self.mu);
+            anomaly::parabolic_to_true(para)
+        }
     }
 }
 
