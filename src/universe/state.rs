@@ -1,6 +1,7 @@
-use nalgebra::Vector3;
+use nalgebra::{Vector3, Point3};
 
 use super::orbit::Orbit;
+use super::event::{Event, EventKind};
 
 use crate::math::geometry::directed_angle;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
@@ -40,7 +41,14 @@ impl CartesianState {
         Orbit::from_cartesian(&self.get_position(), &self.get_velocity(), self.get_mu())
     }
 
-    pub fn get_energy(&self) -> f64 {
+    pub fn get_universal_anomaly(&self) -> f64 {
+        // TODO make this work for radial orbits too!
+        let orbit = self.get_orbit();
+        let my_theta = self.get_theta();
+        orbit.true_to_universal(my_theta)
+    }
+
+    fn get_energy(&self) -> f64 {
         // KE = 1/2 v^2, PE = - mu/r
         self.velocity.norm_squared() / 2.0 - self.parent_mu / self.position.norm()
     }
@@ -100,6 +108,7 @@ impl CartesianState {
         self.advance_s(root);
     }
 
+    #[allow(non_snake_case)]
     pub fn delta_s_to_t(&self, delta_s: f64) -> f64 {
         let r_0 = self.position.norm();
         let r_dot_0 = self.position.dot(&self.velocity) / r_0;
@@ -118,11 +127,10 @@ impl CartesianState {
         directed_angle(&x_vec, &self.position, &z_vec)
     }
 
-    pub fn s_until_soi_escape(&self, soi_radius: f64) -> Option<f64> {
-        // Okay, we gotta find our own s too. Dang.
+    // TODO move out of state?
+    pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<Event> {
         let orbit = self.get_orbit();
-        let my_theta = self.get_theta();
-        let my_s = orbit.true_to_universal(my_theta);
+        let current_s = self.get_universal_anomaly();
 
         // Since (h^2/mu) / (1 + e cos theta) = r, we can invert that to get
         // a desired theta, which will always be in the first or second quadrant
@@ -133,12 +141,20 @@ impl CartesianState {
 
         let target_theta = target_cos_theta.acos();
         let target_s = orbit.true_to_universal(target_theta);
-        
-        if target_s > my_s {
-            Some(target_s - my_s)
-        } else {
-            None
+        let delta_s = target_s - current_s;
+
+        if delta_s < 0.0 {
+            return None;
         }
+
+        let delta_t = self.delta_s_to_t(delta_s);
+        let new_state = orbit.get_state(target_s);
+        let event = Event {
+            kind: EventKind::ExitingSOI,
+            time: current_time + delta_t,
+            location: Point3::from(new_state.get_position()),
+        };
+        Some(event)
     }
 }
 

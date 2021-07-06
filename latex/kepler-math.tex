@@ -158,8 +158,7 @@ g(s) = \frac{r_0 \dot{r}_0}{\beta} + C G_0(\beta, s) + D G_1(\beta, s)
 \end{equation}
 for some constants $A$, $B$, $C$, and $D$, determined by the initial conditions.
 
-%TODO maybe this should be s = s_0?
-Our initial conditions are in terms of $\bm x$, but they can be converted into initial conditions on $f$ and $g$ without much fuss. By evaluating $\bm x = f \bm x_0 + g \bm v_0$ at $s = 0$, we immediately see that $f(0) = 1$ and $g(0) = 0$. Likewise, evaluating $\dot{\bm x} = \dot{f} \bm x_0 + \dot{g} \bm v_0$ at zero gives $\dot f(0) = 0$ and $\dot g(0) = 1$. Converting to $s$-derivatives, we get our initial conditions:
+Our initial conditions are in terms of $\bm x$, but they can be converted into initial conditions on $f$ and $g$ without much fuss. Since $s$ is defined as an integral, we have total freedom to pick the initial value, and so we'll just say $s = 0$ at the start. By evaluating $\bm x = f \bm x_0 + g \bm v_0$ at $s = 0$, we immediately see that $f(0) = 1$ and $g(0) = 0$. Likewise, evaluating $\dot{\bm x} = \dot{f} \bm x_0 + \dot{g} \bm v_0$ at zero gives $\dot f(0) = 0$ and $\dot g(0) = 1$. Converting to $s$-derivatives, we get our initial conditions:
 \begin{equation}
 f(0) = 1 \qquad\qquad g(0) = 0
 \end{equation}
@@ -233,7 +232,7 @@ Integrating this with respect to $s$ bumps up the subscript on the $G_i$, giving
 t = \int r(s)~\dd s = r_0 G_1(\beta, s) + r_0 \dot{r}_0 G_2(\beta, s) + \mu G_3(\beta, s) + C
 \end{equation}
 
-Since we only know $ds/dt$, we have total freedom to pick the initial value of $s$. It's convenient to pick $s = 0$ at $t = 0$, giving $C = 0$. So if we want to advance the system by some $s$, we can update position and velocity using (\ref{solution-for-position}) and (\ref{solution-for-velocity}), and update time using (\ref{solution-for-time}).
+Since we pegged $s$ to zero at our initial conditions, we have that $C = t_0$, or the time at start. So if we want to advance the system by some $s$, we can update position and velocity using (\ref{solution-for-position}) and (\ref{solution-for-velocity}), and update time using (\ref{solution-for-time}).
 
 As a side note, we can use this to simplify the $\dot g$ expression in (\ref{solution-for-velocity}):
 \begin{equation}
@@ -316,5 +315,61 @@ s = \frac{h}{\mu} D = \frac{h}{\mu} \tan \frac{\theta}{2}
 \end{equation}
 
 In summary, when converting from true to universal anomaly, we first convert to eccentric/hyperbolic anomaly, using (\ref{eccentric-anomaly}) and (\ref{hyperbolic-anomaly}). Then we divide through by $\sqrt{\pm \beta}$ to get $s$. Parabolas are a special case, and are simply handled by (\ref{parabolic-anomaly}).
+
+\subsection*{Anchoring to Zero}
+
+Given an initial position and velocity, we can then advance the state forward by $s$, with $s = 0$ representing our initial state. However, we would also like to represent points on an orbit, in some uniform way. Much like with propagation, the classical approach involves treating parabolic, elliptic, and hyperbolic orbits differently. We will try to leverage our $s$ in this way.
+
+A natural point, present on all orbits, is the periapsis. Other than on a circular orbit, this point is unique, so we'll use it for the initial conditions, at $s = 0$, and describe all other points on the orbit from there. There are simple formulas for the radius and velocity at periapsis, and this would give the following parameterization:
+\[ f(s) = 1 - \frac{\mu}{r_p} G_2(\beta, s) \]
+\[ g(s) = r_p G_1(\beta, s) + r_p \dot r_p G_2(\beta, s) = r_p G_1(\beta, s) \]
+
+But there's a major problem lurking here: collision orbits. For those orbits, $r_p = 0$ and $v_p = \infty$, and conversely, $f(s) = \infty$ and $g(s) = 0$. Since $\bm x(s) = f(s) \bm x_p + g(s) \bm v_p$, these $0 \times \infty$ terms resolve to something finite, so this isn't an irresolvable problem, but it does mean that we cannot use $r_p$ and $v_p$ themselves as the parameterizing constants.
+
+Instead, we'll fall back to some of the classic orbital elements: $E$, $h$, and $e$. Technically only two are needed, but using three makes some of the algebra easier, and we'll reduce to two at the end.
+
+We'll switch to a coordinate system where the $x$-axis points toward periapsis, and the $y$ axis points along the velocity vector. Then:
+\[ x = r_p f(s) = r_p - \mu G_2(\beta, s) = \frac{h^2}{\mu (1+e)} - \mu G_2(\beta, s) \]
+\[ y = v_p g(s) = r_p v_p G_1(\beta, s) = h G_1(\beta, s) \]
+%TODO velocity
+\[ \dot x = r_p \dot{f}(s) = - \frac{\mu}{r} G_1(\beta, s) \]
+\[ \dot y = v_p \dot{g}(s) = \frac{v_p r_p}{r} (G_0(\beta, s) + \dot{r}_p G_1(\beta, s)) = \frac{h}{r} G_0(\beta, s) \]
+
+By taking $x^2 + y^2$, we could find a formula for $r$ as a function of $s$, but there's an easier way. Since $r = a(1 - e \cos E)$, for elliptical orbits, we can convert that into an expression with Stumpff functions, and it should work out for all orbits:
+\begin{align*}
+r &= a(1 - e \cos E) \\
+&= a(1-e) + ae(1 - \cos E) \\
+&= r_p + ae (1 - c_0(s \sqrt{\beta})) \\
+&= r_p + ae (1 - G_0(\beta s^2)) \\
+&= r_p + ae \beta G_2(\beta s^2) \\
+&= \frac{h^2}{\mu(1+e)} + \mu e G_2(\beta s^2)
+\end{align*}
+
+%TODO apparently the G functions have addition formulas?
+% G_3(β,s+t) = G_3(β,s) + G_2(β,s) G_1(β,t) + G_1(β,s) G_2(β,t) + G_3(β,t)
+% try comparing to cosine formulas???
+% also try squared formulas
+
+%TODO add the tan (theta/2) = (...s...) formula
+
+%TODO add the recurrence relation for G, also clean up that section with "we can simplify g-dot"
+
+%TODO I gotta find a way to get s from position and velocity... :|
+
+\subsection*{Various Orbital Element Relations}
+
+\[ e^2 - 2E \frac{h^2}{\mu^2} = 1 \qquad e = \sqrt{1 + 2E \frac{h^2}{\mu^2}} \qquad E = (e^2 - 1) \frac{\mu^2}{2h^2} \]
+
+\[ \beta = -2E = \frac{\mu}{a} \]
+
+\[ r_p = a(1-e) = \frac{-\mu}{2E}(1-e) = \frac{h^2}{\mu (1+e)} \]
+\[ v_p = \frac{h}{r_p} = \frac{\mu(1+e)}{h} \qquad v_p^2 = \frac{h^2}{r_p^2} = \frac{\mu}{a} \frac{1+e}{1-e} \]
+
+\[ r = \frac{h^2/\mu}{1 + e \cos \theta} = a (1 - e \cos E) = a (1 - e \cosh H) \]
+
+For a parabola:
+\[ E = 0 \quad e = 1 \quad h = \textrm{anything} \quad r_p = \frac{h^2}{2\mu} \quad v_p = \frac{2\mu}{h} \]
+
+% TODO anomaly
 
 \end{document}

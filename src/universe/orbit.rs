@@ -4,8 +4,11 @@ use std::f64::consts::PI;
 
 use crate::math::anomaly;
 use crate::math::geometry::{always_find_rotation, directed_angle};
+use crate::math::stumpff::stumpff_G;
 
-#[derive(Debug)]
+use super::state::CartesianState;
+
+#[derive(Debug, Clone)]
 pub struct Orbit {
     // encodes the orientation of the orbit: it moves the xy plane to the orbital
     // plane, and x to point towards periapsis
@@ -215,6 +218,37 @@ impl Orbit {
             let para = anomaly::universal_to_parabolic(universal_anomaly, self.ang_mom, self.mu);
             anomaly::parabolic_to_true(para)
         }
+    }
+
+    #[allow(non_snake_case)]
+    pub fn get_state(&self, s: f64) -> CartesianState {
+        let beta = -2.0 * self.energy;
+        let mu = self.mu;
+        let G: [f64; 4] = stumpff_G(beta, s);
+
+        // Get the position at s
+        let x = self.periapsis() - mu * G[2];
+        let y = self.ang_mom * G[1];
+        let r = (x * x + y * y).sqrt();
+        let vx = -mu / r * G[1];
+        let vy = self.ang_mom / r * G[0];
+
+        let position = self.rotation * Vector3::new(x, y, 0.0);
+        let velocity = self.rotation * Vector3::new(vx, vy, 0.0);
+
+        CartesianState::new(position, velocity, self.mu)
+    }
+
+    #[allow(non_snake_case)]
+    pub fn get_time_since_periapsis(&self, s: f64) -> f64 {
+        // Identical to the one in CartesianState, but we can simplify a bit
+        // because \dot{r}_p = 0
+        let r_p = self.periapsis();
+        let beta = -2.0 * self.energy;
+        let mu = self.mu;
+        let G = stumpff_G(beta, s);
+
+        r_p * G[1] + mu * G[3]
     }
 }
 

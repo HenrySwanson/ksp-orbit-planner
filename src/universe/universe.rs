@@ -304,12 +304,11 @@ impl<'u> Universe {
                 let mu_1 = parent_body.info.mu;
                 let mu_2 = body.info.mu;
 
-                let energy = state.get_energy();
+                let sma = state.get_orbit().semimajor_axis();
                 assert!(
-                    energy < 0.0,
+                    sma > 0.0,
                     "SOI radius approximation only works with elliptical orbits"
                 );
-                let sma = -mu_1 / (2.0 * energy);
 
                 Some(sma * (mu_2 / mu_1).powf(0.4))
             }
@@ -364,21 +363,7 @@ impl<'u> Universe {
         let ship = &self.ships[&ship_id];
         let body_id = ship.parent_id;
         let soi_escape = match self.get_soi_radius(body_id) {
-            Some(soi_radius) => match ship.state.s_until_soi_escape(soi_radius) {
-                Some(s) => {
-                    let t = ship.state.delta_s_to_t(s);
-                    let mut state_clone = ship.state.clone();
-                    state_clone.advance_s(s);
-                    let pos = state_clone.get_position();
-                    let event = Event {
-                        kind: EventKind::ExitingSOI,
-                        time: t,
-                        location: Point3::from(pos),
-                    };
-                    Some(event)
-                }
-                None => None,
-            },
+            Some(soi_radius) => ship.state.find_soi_escape_event(soi_radius, self.time),
             None => None,
         };
 
