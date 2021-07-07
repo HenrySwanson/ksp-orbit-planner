@@ -42,6 +42,14 @@ pub struct ShipRef<'u> {
     ship: &'u Ship,
 }
 
+#[derive(Debug, Clone)]
+pub struct OrbitPatch {
+    pub orbit: Orbit,
+    pub start_anomaly: f64,
+    pub end_anomaly: Option<f64>,
+    pub parent_id: BodyID,
+}
+
 pub struct Universe {
     bodies: HashMap<BodyID, Body>,
     next_body_id: usize,
@@ -89,11 +97,24 @@ impl<'u> BodyRef<'u> {
         }
     }
 
-    pub fn get_orbit(&self) -> Option<Orbit> {
-        match &self.body.state {
-            BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting { state, .. } => Some(state.get_orbit()),
-        }
+    pub fn get_orbit(&self) -> Option<OrbitPatch> {
+        let (state, parent_id) = match &self.body.state {
+            BodyState::FixedAtOrigin => return None,
+            BodyState::Orbiting { state, parent_id } => (state, *parent_id),
+        };
+
+        let orbit = state.get_orbit();
+        let beta = -2.0 * orbit.energy();
+        let start_anomaly = state.get_universal_anomaly();
+
+        let patch = OrbitPatch {
+            orbit,
+            start_anomaly,
+            end_anomaly: None,
+            parent_id,
+        };
+        
+        Some(patch)
     }
 
     pub fn get_parent_id(&self) -> Option<BodyID> {
@@ -116,8 +137,17 @@ impl<'u> ShipRef<'u> {
         }
     }
 
-    pub fn get_orbit(&self) -> Orbit {
-        self.ship.state.get_orbit()
+    pub fn get_orbit(&self) -> OrbitPatch {
+        let orbit = self.ship.state.get_orbit();
+        let start_anomaly = self.ship.state.get_universal_anomaly();
+        let end_anomaly = self.ship.next_event.as_ref().map(|ev| ev.anomaly);
+
+        OrbitPatch {
+            orbit,
+            start_anomaly,
+            end_anomaly,
+            parent_id: self.ship.parent_id,
+        }
     }
 
     pub fn get_parent_id(&self) -> BodyID {

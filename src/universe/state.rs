@@ -152,6 +152,7 @@ impl CartesianState {
         let event = Event {
             kind: EventKind::ExitingSOI,
             time: current_time + delta_t,
+            anomaly: target_s,
             location: Point3::from(new_state.get_position()),
         };
         Some(event)

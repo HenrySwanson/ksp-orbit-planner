@@ -9,4 +9,4 @@ mod universe;
 pub use body::BodyInfo;
 pub use frame::FrameTransform;
 pub use orbit::Orbit;
-pub use universe::{BodyID, BodyRef, Frame, FramedState, ShipID, ShipRef, Universe};
+pub use universe::{BodyID, BodyRef, Frame, FramedState, OrbitPatch, ShipID, ShipRef, Universe};

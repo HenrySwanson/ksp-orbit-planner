@@ -6,7 +6,7 @@ use nalgebra::{Point3, Translation3, Vector3};
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
-use crate::universe::{BodyID, Frame, FrameTransform, Orbit, ShipID, Universe};
+use crate::universe::{BodyID, Frame, FrameTransform, OrbitPatch, ShipID, Universe};
 
 use super::camera::CustomCamera;
 
@@ -77,15 +77,15 @@ impl Scene {
                 }
             };
             paths.push(make_axis_path(
-                orbit.periapse_vector(),
+                orbit.orbit.periapse_vector(),
                 Point3::new(1.0, 0.0, 0.0),
             ));
             paths.push(make_axis_path(
-                orbit.asc_node_vector(),
+                orbit.orbit.asc_node_vector(),
                 Point3::new(0.0, 1.0, 0.0),
             ));
             paths.push(make_axis_path(
-                orbit.normal_vector(),
+                orbit.orbit.normal_vector(),
                 Point3::new(0.0, 0.0, 1.0),
             ));
         }
@@ -145,14 +145,13 @@ impl Scene {
                 Some(o) => o,
                 None => continue,
             };
-            let parent_id = body.get_parent_id().unwrap();
             let color = body.info().color;
-            self.render_orbit(window, &universe, &orbit, parent_id, &color);
+            self.render_orbit_patch(window, &universe, &orbit, &color);
         }
         for ship in universe.ships() {
             let orbit = ship.get_orbit();
             let color = Point3::new(1.0, 1.0, 1.0);
-            self.render_orbit(window, &universe, &orbit, ship.get_parent_id(), &color);
+            self.render_orbit_patch(window, &universe, &orbit, &color);
         }
 
         // Draw paths
@@ -194,23 +193,41 @@ impl Scene {
         }
     }
 
-    fn render_orbit(
+    fn render_orbit_patch(
         &self,
         window: &mut Window,
         universe: &Universe,
-        orbit: &Orbit,
-        parent_id: BodyID,
+        orbit: &OrbitPatch,
         color: &Point3<f32>,
     ) {
+        // Find the starting and ending anomalies
+        let start_s = orbit.start_anomaly;
+        let end_s = match orbit.end_anomaly {
+            Some(s) => s,
+            None => {
+                let beta = -2.0 * orbit.orbit.energy();
+                if beta > 0.0 {
+                    // Since this is an ellipse, the eccentric anomaly makes sense.
+                    // We want E to increase by 2pi, and s = E / sqrt(beta)
+                    start_s + 2.0 * PI / beta.sqrt()
+                } else {
+                    start_s + 1.0 // TODO: or whatever
+                }
+            }
+        };
+        let delta_s = end_s - start_s;
+
         // Get the transform into the focused frame
-        let transform =
-            universe.convert_frames(Frame::BodyInertial(parent_id), self.focused_object_frame());
+        let transform = universe.convert_frames(
+            Frame::BodyInertial(orbit.parent_id),
+            self.focused_object_frame(),
+        );
 
         // Get some points around the orbit
-        let num_points = 100;
-        let pts = (0..num_points + 1)
-            .map(|i| -PI + (2.0 * PI) * (i as f64) / (num_points as f64))
-            .filter_map(|theta| orbit.get_position_at_theta(theta))
+        let num_segments = 180;
+        let pts = (0..num_segments + 1)
+            .map(|i| start_s + (i as f64) / (num_segments as f64) * delta_s)
+            .map(|s| orbit.orbit.get_state(s).get_position())
             .map(|v| transform.convert_point(&Point3::from(v)))
             .map(convert_f32);
 
@@ -270,7 +287,7 @@ impl Scene {
                 (
                     body.info().name.to_owned(),
                     body.state(),
-                    body.get_orbit(),
+                    body.get_orbit().map(|x| x.orbit),
                     frame,
                 )
             }
@@ -285,7 +302,7 @@ impl Scene {
                 (
                     name.to_owned(),
                     ship.state(),
-                    Some(ship.get_orbit()),
+                    Some(ship.get_orbit().orbit),
                     Frame::BodyInertial(ship.get_parent_id()),
                 )
             }

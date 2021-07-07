@@ -6,6 +6,7 @@ use super::universe::BodyID;
 pub struct Event {
     pub kind: EventKind,
     pub time: f64,
+    pub anomaly: f64,
     pub location: Point3<f64>,
 }
 
