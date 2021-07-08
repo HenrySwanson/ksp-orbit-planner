@@ -104,7 +104,6 @@ impl<'u> BodyRef<'u> {
         };
 
         let orbit = state.get_orbit();
-        let beta = -2.0 * orbit.energy();
         let start_anomaly = state.get_universal_anomaly();
 
         let patch = OrbitPatch {
@@ -164,6 +163,10 @@ impl<'u> Universe {
             next_ship_id: 0,
             time: start_time,
         }
+    }
+
+    pub fn get_time(&self) -> f64 {
+        self.time
     }
 
     pub fn body_ids(&self) -> impl Iterator<Item = &BodyID> {
@@ -348,7 +351,6 @@ impl<'u> Universe {
     pub fn advance_t(&mut self, delta_t: f64) {
         // TODO this only works in forward mode!
 
-        // TODO determine next events for all ships
         // TODO wow i really gotta figure out how to not make a vector
         // every time :\ borrow checker hard lol
         // Maybe separate body collection and ship collection into separate things?

@@ -167,12 +167,23 @@ impl Scene {
         self.draw_soi(window, universe, soi_body_id);
 
         // Draw text
+        use nalgebra::Point2;
+        let default_font = kiss3d::text::Font::default();
+        let text_color = Point3::new(1.0, 1.0, 1.0);
         window.draw_text(
             &self.orbit_summary_text(universe),
-            &nalgebra::Point2::origin(),
-            80.0,
-            &kiss3d::text::Font::default(),
-            &Point3::new(1.0, 1.0, 1.0),
+            &Point2::origin(),
+            60.0,
+            &default_font,
+            &text_color,
+        );
+        window.draw_text(
+            &self.time_summary_text(universe),
+            // no idea why i have to multiply by 2.0, but there it is
+            &Point2::new(window.width() as f32 * 2.0 - 600.0, 0.0),
+            60.0,
+            &default_font,
+            &text_color,
         );
 
         // Render and return bool
@@ -287,7 +298,7 @@ impl Scene {
                 (
                     body.info().name.to_owned(),
                     body.state(),
-                    body.get_orbit().map(|x| x.orbit),
+                    body.get_orbit(),
                     frame,
                 )
             }
@@ -302,7 +313,7 @@ impl Scene {
                 (
                     name.to_owned(),
                     ship.state(),
-                    Some(ship.get_orbit().orbit),
+                    Some(ship.get_orbit()),
                     Frame::BodyInertial(ship.get_parent_id()),
                 )
             }
@@ -312,16 +323,18 @@ impl Scene {
         let orbit_text = match orbit {
             Some(o) => {
                 format!(
-                    "SMA: {:.0}
-Eccentricity: {:.3}
-Inclination: {:.3}
-LAN: {:.1}
-Arg PE: {:.1}",
-                    o.semimajor_axis(),
-                    o.eccentricity(),
-                    o.inclination().to_degrees(),
-                    o.long_asc_node().to_degrees(),
-                    o.arg_periapse().to_degrees(),
+                    "{}
+    SMA: {:.0}
+    Eccentricity: {:.3}
+    Inclination: {:.3}
+    LAN: {:.1}
+    Arg PE: {:.1}",
+                    universe.get_body(o.parent_id).info().name,
+                    o.orbit.semimajor_axis(),
+                    o.orbit.eccentricity(),
+                    o.orbit.inclination().to_degrees(),
+                    o.orbit.long_asc_node().to_degrees(),
+                    o.orbit.arg_periapse().to_degrees(),
                 )
             }
             None => String::from("N/A"),
@@ -332,13 +345,16 @@ Arg PE: {:.1}",
 State:
     Radius: {:.0} m
     Speed: {:.0} m/s
-Orbit:
-    {}",
+Orbiting: {}",
             name,
             state.get_position(frame).coords.norm(),
             state.get_velocity(frame).norm(),
             orbit_text
         )
+    }
+
+    fn time_summary_text(&self, universe: &Universe) -> String {
+        format!("Time: {}", format_seconds(universe.get_time()))
     }
 
     fn focused_object(&self) -> FocusPoint {
@@ -417,4 +433,29 @@ fn draw_path_raw<I: Iterator<Item = Point3<f32>>>(
         }
         prev_pt = Some(pt);
     }
+}
+
+fn format_seconds(seconds: f64) -> String {
+    let mut total_seconds = seconds as u64;
+    let n_minutes = 60;
+    let n_hours = n_minutes * 60;
+    let n_days = n_hours * 24;
+    let n_years = 365 * n_days;
+
+    macro_rules! count_and_remainder {
+        ($variable:ident, $divisor:expr) => {
+            let $variable = total_seconds / $divisor;
+            total_seconds %= $divisor;
+        };
+    }
+
+    count_and_remainder!(years, n_years);
+    count_and_remainder!(days, n_days);
+    count_and_remainder!(hours, n_hours);
+    count_and_remainder!(minutes, n_minutes);
+
+    format!(
+        "{}y, {}d, {:02}:{:02}:{:02}",
+        years, days, hours, minutes, total_seconds
+    )
 }
