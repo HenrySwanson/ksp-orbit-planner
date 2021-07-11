@@ -3,7 +3,7 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 use std::collections::HashMap;
 
 use super::body::{Body, BodyInfo, BodyState};
-use super::event::{Event, EventKind};
+use super::event::{Event, EventKind, ReverseEvent};
 use super::frame::FrameTransform;
 use super::orbit::Orbit;
 use super::ship::Ship;
@@ -56,6 +56,7 @@ pub struct Universe {
     ships: HashMap<ShipID, Ship>,
     next_ship_id: usize,
     time: f64,
+    event_stack: Vec<ReverseEvent>,
 }
 
 impl FramedState<'_> {
@@ -112,7 +113,6 @@ impl<'u> BodyRef<'u> {
             end_anomaly: None,
             parent_id,
         };
-        
         Some(patch)
     }
 
@@ -162,6 +162,7 @@ impl<'u> Universe {
             ships: HashMap::new(),
             next_ship_id: 0,
             time: start_time,
+            event_stack: vec![],
         }
     }
 
@@ -348,8 +349,16 @@ impl<'u> Universe {
         }
     }
 
-    pub fn advance_t(&mut self, delta_t: f64) {
-        // TODO this only works in forward mode!
+    pub fn update_time(&mut self, delta_t: f64) {
+        if delta_t > 0.0 {
+            self.advance_t(delta_t);
+        } else {
+            self.rewind_t(-delta_t);
+        }
+    }
+
+    fn advance_t(&mut self, delta_t: f64) {
+        assert!(delta_t > 0.0);
 
         // TODO wow i really gotta figure out how to not make a vector
         // every time :\ borrow checker hard lol
@@ -368,24 +377,49 @@ impl<'u> Universe {
         let end_time = self.time + delta_t;
         match self.get_next_event() {
             Some((ship_id, event)) if event.time < end_time => {
-                self.advance_t_no_events(event.time - self.time);
-                self.process_event(ship_id, &event);
-                self.advance_t(end_time - event.time);
+                let event_time = event.time;
+                self.update_t_no_events(event_time - self.time);
+                self.process_event(ship_id, event);
+                self.advance_t(end_time - event_time);
             }
-            _ => self.advance_t_no_events(delta_t),
+            _ => self.update_t_no_events(delta_t),
         }
     }
 
-    fn advance_t_no_events(&mut self, delta_t: f64) {
+    fn rewind_t(&mut self, delta_t: f64) {
+        assert!(delta_t >= 0.0);
+
+        // Don't rewind past zero
+        let delta_t = nalgebra::clamp(delta_t, 0.0, self.time);
+        let new_time = self.time - delta_t;
+
+        // Find the most recent event we processed, and if we need to, revert it
+        match self.event_stack.last() {
+            Some(reverse_event) if reverse_event.event.time >= new_time => {
+                let reverse_event = reverse_event.clone();
+                let event_time = reverse_event.event.time;
+
+                self.update_t_no_events(event_time - self.time);
+                self.revert_event(reverse_event);
+                self.event_stack.pop();
+                self.rewind_t(event_time - new_time);
+            }
+            _ => self.update_t_no_events(-delta_t),
+        }
+    }
+
+    fn update_t_no_events(&mut self, delta_t: f64) {
+        // here, delta_t can be positive, negative, or zero
+
         for body in self.bodies.values_mut() {
             match &mut body.state {
                 BodyState::FixedAtOrigin => {}
-                BodyState::Orbiting { state, .. } => state.advance_t(delta_t),
+                BodyState::Orbiting { state, .. } => state.update_t(delta_t),
             }
         }
 
         for ship in self.ships.values_mut() {
-            ship.state.advance_t(delta_t);
+            ship.state.update_t(delta_t);
         }
 
         self.time += delta_t;
@@ -420,10 +454,18 @@ impl<'u> Universe {
         next_event
     }
 
-    fn process_event(&mut self, ship_id: ShipID, event: &Event) {
+    fn process_event(&mut self, ship_id: ShipID, event: Event) {
         // Dispatch to the appropriate handler
-        match event.kind {
-            EventKind::EnteringSOI(body_id) => self.change_soi(ship_id, body_id),
+        let reverse_event = match event.kind {
+            EventKind::EnteringSOI(body_id) => {
+                let prev_body_id = self.ships[&ship_id].parent_id;
+                self.change_soi(ship_id, body_id);
+                ReverseEvent {
+                    event,
+                    ship_id,
+                    previous_soi_body: Some(prev_body_id),
+                }
+            }
             EventKind::ExitingSOI => {
                 let current_body = self.ships[&ship_id].parent_id;
                 let parent_id = match self.bodies[&current_body].state {
@@ -431,11 +473,43 @@ impl<'u> Universe {
                     BodyState::Orbiting { parent_id, .. } => parent_id,
                 };
                 self.change_soi(ship_id, parent_id);
+                ReverseEvent {
+                    event,
+                    ship_id,
+                    previous_soi_body: Some(current_body),
+                }
+            }
+        };
+
+        // Clear the event from the ship, and put it on the event stack
+        self.ships.get_mut(&ship_id).unwrap().next_event = None;
+        self.event_stack.push(reverse_event);
+    }
+
+    fn revert_event(&mut self, reverse_event: ReverseEvent) {
+        // Dispatch to the appropriate handler
+        let ship_id = reverse_event.ship_id;
+        match reverse_event.event.kind {
+            EventKind::EnteringSOI(_) => {
+                self.change_soi(
+                    ship_id,
+                    reverse_event
+                        .previous_soi_body
+                        .expect("Reverse event for EnteringSOI must have a previous body id"),
+                );
+            }
+            EventKind::ExitingSOI => {
+                self.change_soi(
+                    ship_id,
+                    reverse_event
+                        .previous_soi_body
+                        .expect("Reverse event for ExitingSOI must have a previous body id"),
+                );
             }
         }
 
-        // Clear the event from the ship
-        self.ships.get_mut(&ship_id).unwrap().next_event = None;
+        // Put the event back on the ship
+        self.ships.get_mut(&ship_id).unwrap().next_event = Some(reverse_event.event);
     }
 
     fn change_soi(&mut self, ship_id: ShipID, new_body: BodyID) {

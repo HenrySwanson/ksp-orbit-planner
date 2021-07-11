@@ -54,7 +54,7 @@ impl CartesianState {
     }
 
     #[allow(non_snake_case)]
-    pub fn advance_s(&mut self, delta_s: f64) -> f64 {
+    pub fn update_s(&mut self, delta_s: f64) -> f64 {
         let beta = -2.0 * self.get_energy();
         let mu = self.parent_mu;
         let G: [f64; 4] = stumpff_G(beta, delta_s);
@@ -82,9 +82,12 @@ impl CartesianState {
     }
 
     #[allow(non_snake_case)]
-    pub fn advance_t(&mut self, delta_t: f64) {
+    pub fn update_t(&mut self, delta_t: f64) {
         // We find the delta_s corresponding to the given delta_t, and advance using that.
         // Since ds/dt = 1/r, s and t are monotonically related, so there's a unique solution.
+        if delta_t == 0.0 {
+            return;
+        }
 
         // Grab some constants
         let beta = -2.0 * self.get_energy();
@@ -105,7 +108,7 @@ impl CartesianState {
         let bracket = find_root_bracket(|x| f_and_f_prime(x).0, delta_t / r_0, delta_t / r_0);
         let root = newton_plus_bisection(f_and_f_prime, bracket, 100);
 
-        self.advance_s(root);
+        self.update_s(root);
     }
 
     #[allow(non_snake_case)]
@@ -212,7 +215,7 @@ mod tests {
         // s = theta / sqrt(beta).
         let beta = -2.0 * state.get_energy();
         let s = 2.0 * PI / beta.sqrt();
-        elapsed_time += state.advance_s(s);
+        elapsed_time += state.update_s(s);
 
         // We expect these to be extremely close, since we got s from the orbit itself
         assert_vectors_close(&initial_position, &state.get_position(), 1e-14);
@@ -251,7 +254,7 @@ mod tests {
         for i in 0..num_points {
             let num_points = num_points as f64;
 
-            elapsed_time += state.advance_s(s / num_points);
+            elapsed_time += state.update_s(s / num_points);
 
             let theta = 2.0 * PI * (i + 1) as f64 / num_points;
             let expected = radius * Vector3::new(theta.cos(), 0.0, theta.sin());

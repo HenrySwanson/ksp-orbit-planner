@@ -1,6 +1,6 @@
 use nalgebra::Point3;
 
-use super::universe::BodyID;
+use super::universe::{BodyID, ShipID};
 
 #[derive(Debug, Clone)]
 pub struct Event {
@@ -14,4 +14,11 @@ pub struct Event {
 pub enum EventKind {
     EnteringSOI(BodyID),
     ExitingSOI,
+}
+
+#[derive(Debug, Clone)]
+pub struct ReverseEvent {
+    pub event: Event,
+    pub ship_id: ShipID,
+    pub previous_soi_body: Option<BodyID>,
 }

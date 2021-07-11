@@ -87,7 +87,7 @@ impl Simulation {
 
     fn update_state(&mut self) {
         if !self.paused {
-            self.universe.advance_t(self.timestep);
+            self.universe.update_time(self.timestep);
         }
     }
 
