@@ -24,7 +24,7 @@ fn main() {
     window.set_light(Light::StickToCamera);
 
     let mut universe = read_file("ksp-bodies.txt");
-    universe.add_ship(
+    universe.orrery.add_ship(
         Vector3::x() * 9000000.0,
         Vector3::y() * 500.0 * 2.0,
         BodyID(4),
@@ -72,7 +72,7 @@ fn read_file(filename: &str) -> Universe {
         let parent = next_string!();
 
         let id = if parent == "-" {
-            universe.add_fixed_body(body_info)
+            universe.orrery.add_fixed_body(body_info)
         } else {
             let parent_id = name_to_id[parent];
             let parent_mu = name_to_mu[parent];
@@ -92,7 +92,9 @@ fn read_file(filename: &str) -> Universe {
             let theta = math::anomaly::mean_to_true(maae, ecc);
             let (position, velocity) = orbit.get_state_at_theta(theta);
 
-            universe.add_body(body_info, position, velocity, parent_id)
+            universe
+                .orrery
+                .add_body(body_info, position, velocity, parent_id)
         };
         name_to_id.insert(name, id);
         name_to_mu.insert(name, mu);

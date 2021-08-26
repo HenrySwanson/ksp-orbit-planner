@@ -229,7 +229,7 @@ impl Scene {
         let delta_s = end_s - start_s;
 
         // Get the transform into the focused frame
-        let transform = universe.convert_frames(
+        let transform = universe.orrery.convert_frames(
             Frame::BodyInertial(orbit.parent_id),
             self.focused_object_frame(),
         );
@@ -247,7 +247,9 @@ impl Scene {
 
     fn draw_path_object(&self, window: &mut Window, universe: &Universe, path: &Path) {
         // Transform points into the right frame before drawing them
-        let transform = universe.convert_frames(path.frame, self.focused_object_frame());
+        let transform = universe
+            .orrery
+            .convert_frames(path.frame, self.focused_object_frame());
         let transform: FrameTransform<f32> = nalgebra::convert(transform);
 
         draw_path_raw(
@@ -258,7 +260,7 @@ impl Scene {
     }
 
     fn draw_soi(&self, window: &mut Window, universe: &Universe, id: BodyID) {
-        let soi_radius = match universe.get_soi_radius(id) {
+        let soi_radius = match universe.orrery.get_soi_radius(id) {
             Some(r) => r,
             None => return, // early return if Sun
         };
@@ -272,6 +274,7 @@ impl Scene {
         // Get the position of the body in our current frame (may be non-zero if we're
         // focused on a ship).
         let body_pt = universe
+            .orrery
             .convert_frames(Frame::BodyInertial(id), self.focused_object_frame())
             .convert_point(&Point3::origin());
 
@@ -354,7 +357,7 @@ Orbiting: {}",
     }
 
     fn time_summary_text(&self, universe: &Universe) -> String {
-        format!("Time: {}", format_seconds(universe.get_time()))
+        format!("Time: {}", format_seconds(universe.orrery.get_time()))
     }
 
     fn focused_object(&self) -> FocusPoint {
