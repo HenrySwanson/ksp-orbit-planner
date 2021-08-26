@@ -22,6 +22,7 @@ pub enum BodyState {
 }
 
 pub struct Body {
+    pub id: BodyID,
     pub info: BodyInfo,
     pub state: BodyState,
 }

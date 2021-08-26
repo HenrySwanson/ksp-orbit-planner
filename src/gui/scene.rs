@@ -57,7 +57,7 @@ impl Scene {
             let mut sphere = window.add_sphere(body_info.radius);
             let color = &body_info.color;
             sphere.set_color(color.x, color.y, color.z);
-            body_spheres.insert(body.id, sphere);
+            body_spheres.insert(body.id(), sphere);
 
             // TODO remove, or somehow make optional
             // Make axes that show the planet's orbits orientation
@@ -72,7 +72,7 @@ impl Scene {
                 let pt: Point3<f32> = Point3::from(v);
                 Path {
                     nodes: vec![Point3::origin(), pt],
-                    frame: Frame::BodyInertial(body.id),
+                    frame: Frame::BodyInertial(body.id()),
                     color,
                 }
             };
@@ -96,7 +96,7 @@ impl Scene {
             // Make the cube that represents the ship
             let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
             cube.set_color(1.0, 1.0, 1.0);
-            ship_objects.insert(ship.id, cube);
+            ship_objects.insert(ship.id(), cube);
         }
 
         Scene {
@@ -377,18 +377,18 @@ Orbiting: {}",
 
 // TODO sort focus points in a more systematic way
 fn get_focus_points(universe: &Universe) -> Vec<FocusPoint> {
-    let mut body_ids: Vec<_> = universe.body_ids().copied().collect();
-    body_ids.sort();
+    let mut bodies: Vec<_> = universe.bodies().collect();
+    bodies.sort_by_key(|b| b.id());
     let mut ships: Vec<_> = universe.ships().collect();
-    ships.sort_by_key(|s| s.id);
+    ships.sort_by_key(|s| s.id());
 
     let mut focus_pts = vec![];
-    for body_id in body_ids.into_iter() {
-        focus_pts.push(FocusPoint::Body(body_id));
+    for body in bodies.into_iter() {
+        focus_pts.push(FocusPoint::Body(body.id()));
         // Now put in all ships orbiting that body
         for ship in ships.iter() {
-            if ship.get_parent_id() == body_id {
-                focus_pts.push(FocusPoint::Ship(ship.id));
+            if ship.get_parent_id() == body.id() {
+                focus_pts.push(FocusPoint::Ship(ship.id()));
             }
         }
     }

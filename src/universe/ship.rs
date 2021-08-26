@@ -6,6 +6,7 @@ pub struct ShipID(pub usize);
 
 // TODO un-pub fields
 pub struct Ship {
+    pub id: ShipID,
     pub state: CartesianState,
     pub parent_id: BodyID,
 }

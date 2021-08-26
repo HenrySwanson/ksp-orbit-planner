@@ -1,6 +1,6 @@
 use nalgebra::{Point3, Vector3};
 
-use super::event::{Event, EventKind};
+use super::event::EventPoint;
 use super::orbit::Orbit;
 
 use crate::math::geometry::directed_angle;
@@ -131,7 +131,7 @@ impl CartesianState {
     }
 
     // TODO move out of state?
-    pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<Event> {
+    pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<EventPoint> {
         let orbit = self.get_orbit();
         let current_s = self.get_universal_anomaly();
 
@@ -152,13 +152,12 @@ impl CartesianState {
 
         let delta_t = self.delta_s_to_t(delta_s);
         let new_state = orbit.get_state(target_s);
-        let event = Event {
-            kind: EventKind::ExitingSOI,
+        let event_pt = EventPoint {
             time: current_time + delta_t,
             anomaly: target_s,
             location: Point3::from(new_state.get_position()),
         };
-        Some(event)
+        Some(event_pt)
     }
 }
 

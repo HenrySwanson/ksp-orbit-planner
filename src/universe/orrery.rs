@@ -60,13 +60,8 @@ impl<'orr> Orrery {
         self.time
     }
 
-    // TODO put id into body (and ship) so you don't need methods like this
-    pub fn body_ids(&self) -> impl Iterator<Item = &BodyID> {
-        self.bodies.keys()
-    }
-
-    pub fn bodies(&self) -> impl Iterator<Item = (&BodyID, &Body)> {
-        self.bodies.iter()
+    pub fn bodies(&self) -> impl Iterator<Item = &Body> {
+        self.bodies.values()
     }
 
     pub fn get_body(&self, id: BodyID) -> &Body {
@@ -93,21 +88,17 @@ impl<'orr> Orrery {
     }
 
     fn insert_new_body(&mut self, info: BodyInfo, state: BodyState) -> BodyID {
-        let body = Body { info, state };
-
-        let new_id = BodyID(self.next_body_id);
+        let id = BodyID(self.next_body_id);
         self.next_body_id += 1;
 
-        self.bodies.insert(new_id, body);
-        new_id
+        let body = Body { id, info, state };
+
+        self.bodies.insert(id, body);
+        id
     }
 
-    pub fn ship_ids(&self) -> impl Iterator<Item = &ShipID> {
-        self.ships.keys()
-    }
-
-    pub fn ships(&self) -> impl Iterator<Item = (&ShipID, &Ship)> {
-        self.ships.iter()
+    pub fn ships(&self) -> impl Iterator<Item = &Ship> {
+        self.ships.values()
     }
 
     pub fn get_ship(&self, id: ShipID) -> &Ship {
@@ -120,14 +111,14 @@ impl<'orr> Orrery {
         velocity: Vector3<f64>,
         parent_id: BodyID,
     ) -> ShipID {
+        let new_id = ShipID(self.next_ship_id);
+        self.next_ship_id += 1;
         let parent_mu = self.bodies[&parent_id].info.mu;
         let ship = Ship {
+            id: new_id,
             state: CartesianState::new(position, velocity, parent_mu),
             parent_id,
         };
-
-        let new_id = ShipID(self.next_ship_id);
-        self.next_ship_id += 1;
 
         self.ships.insert(new_id, ship);
         new_id
@@ -295,7 +286,15 @@ impl<'orr> Orrery {
         let ship = &self.ships[&ship_id];
         let body_id = ship.parent_id;
         let soi_escape = match self.get_soi_radius(body_id) {
-            Some(soi_radius) => ship.state.find_soi_escape_event(soi_radius, self.time),
+            Some(soi_radius) => {
+                ship.state
+                    .find_soi_escape_event(soi_radius, self.time)
+                    .map(|point| Event {
+                        ship_id,
+                        kind: EventKind::ExitingSOI,
+                        point,
+                    })
+            }
             None => None,
         };
 
@@ -303,15 +302,15 @@ impl<'orr> Orrery {
         soi_escape
     }
 
-    pub fn process_event(&mut self, ship_id: ShipID, event: Event) -> ReverseEvent {
+    pub fn process_event(&mut self, event: Event) -> ReverseEvent {
         // Dispatch to the appropriate handler
+        let ship_id = event.ship_id;
         match event.kind {
             EventKind::EnteringSOI(body_id) => {
                 let prev_body_id = self.ships[&ship_id].parent_id;
                 self.change_soi(ship_id, body_id);
                 ReverseEvent {
                     event,
-                    ship_id,
                     previous_soi_body: Some(prev_body_id),
                 }
             }
@@ -324,7 +323,6 @@ impl<'orr> Orrery {
                 self.change_soi(ship_id, parent_id);
                 ReverseEvent {
                     event,
-                    ship_id,
                     previous_soi_body: Some(current_body),
                 }
             }
@@ -333,7 +331,7 @@ impl<'orr> Orrery {
 
     pub fn revert_event(&mut self, reverse_event: &ReverseEvent) {
         // Dispatch to the appropriate handler
-        let ship_id = reverse_event.ship_id;
+        let ship_id = reverse_event.event.ship_id;
         match reverse_event.event.kind {
             EventKind::EnteringSOI(_) => {
                 self.change_soi(

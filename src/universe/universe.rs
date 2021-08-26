@@ -8,13 +8,11 @@ use super::ship::{Ship, ShipID};
 
 pub struct BodyRef<'u> {
     universe: &'u Universe,
-    pub id: BodyID,
     body: &'u Body,
 }
 
 pub struct ShipRef<'u> {
     universe: &'u Universe,
-    pub id: ShipID,
     ship: &'u Ship,
 }
 
@@ -25,6 +23,10 @@ pub struct Universe {
 }
 
 impl<'u> BodyRef<'u> {
+    pub fn id(&self) -> BodyID {
+        self.body.id
+    }
+
     pub fn info(&self) -> &BodyInfo {
         &self.body.info
     }
@@ -32,7 +34,7 @@ impl<'u> BodyRef<'u> {
     // note -- the FramedState can outlive the BodyRef! But it can't outlive the
     // universe (lifetime 'u)
     pub fn state(&self) -> FramedState<'u> {
-        self.universe.orrery.get_body_state(self.id)
+        self.universe.orrery.get_body_state(self.body.id)
     }
 
     pub fn get_orbit(&self) -> Option<OrbitPatch> {
@@ -62,8 +64,12 @@ impl<'u> BodyRef<'u> {
 }
 
 impl<'u> ShipRef<'u> {
+    pub fn id(&self) -> ShipID {
+        self.ship.id
+    }
+
     pub fn state(&self) -> FramedState<'u> {
-        self.universe.orrery.get_ship_state(self.id)
+        self.universe.orrery.get_ship_state(self.ship.id)
     }
 
     pub fn get_orbit(&self) -> OrbitPatch {
@@ -72,9 +78,9 @@ impl<'u> ShipRef<'u> {
         let end_anomaly = self
             .universe
             .upcoming_events
-            .get(&self.id)
+            .get(&self.ship.id)
             .as_ref()
-            .map(|ev| ev.anomaly);
+            .map(|ev| ev.point.anomaly);
 
         OrbitPatch {
             orbit,
@@ -98,42 +104,30 @@ impl<'u> Universe {
         }
     }
 
-    pub fn body_ids(&self) -> impl Iterator<Item = &BodyID> {
-        self.orrery.body_ids()
-    }
-
     pub fn get_body(&self, id: BodyID) -> BodyRef {
         BodyRef {
             universe: self,
-            id,
             body: &self.orrery.get_body(id),
         }
     }
 
     pub fn bodies(&'u self) -> impl Iterator<Item = BodyRef<'u>> {
-        self.orrery.bodies().map(move |(id, body)| BodyRef {
+        self.orrery.bodies().map(move |body| BodyRef {
             universe: self,
-            id: *id,
             body,
         })
-    }
-
-    pub fn ship_ids(&self) -> impl Iterator<Item = &ShipID> {
-        self.orrery.ship_ids()
     }
 
     pub fn get_ship(&self, id: ShipID) -> ShipRef {
         ShipRef {
             universe: self,
-            id,
             ship: &self.orrery.get_ship(id),
         }
     }
 
     pub fn ships(&'u self) -> impl Iterator<Item = ShipRef<'u>> {
-        self.orrery.ships().map(move |(id, ship)| ShipRef {
+        self.orrery.ships().map(move |ship| ShipRef {
             universe: self,
-            id: *id,
             ship,
         })
     }
@@ -155,15 +149,19 @@ impl<'u> Universe {
         // See if there's an event we need to process
         let end_time = self.orrery.get_time() + delta_t;
         match self.get_next_event() {
-            Some((ship_id, event)) if event.time < end_time => {
-                let event_time = event.time;
+            Some(event) if event.point.time < end_time => {
+                let ship_id = event.ship_id;
+                let event_time = event.point.time;
 
+                // Fast-forward time up until the event
                 self.orrery.update_time(event_time - self.orrery.get_time());
-                // Apply the event, clear it from the ship, and push it onto the event stack
-                let reverse_event = self.orrery.process_event(ship_id, event);
+
+                // Apply the event, clear it from "upcoming", and push it onto the revevent stack
+                let reverse_event = self.orrery.process_event(event);
                 self.rev_event_stack.push(reverse_event);
                 self.upcoming_events.remove(&ship_id);
 
+                // Advance for the remaining amount of time (recursive!)
                 self.advance_t(end_time - event_time);
             }
             _ => self.orrery.update_time(delta_t),
@@ -179,15 +177,15 @@ impl<'u> Universe {
 
         // Find the most recent event we processed, and if we need to, revert it
         match self.rev_event_stack.last() {
-            Some(reverse_event) if reverse_event.event.time >= new_time => {
+            Some(reverse_event) if reverse_event.event.point.time >= new_time => {
                 let reverse_event = reverse_event.clone();
-                let event_time = reverse_event.event.time;
+                let event_time = reverse_event.event.point.time;
 
                 self.orrery.update_time(event_time - self.orrery.get_time());
                 self.orrery.revert_event(&reverse_event);
                 self.rev_event_stack.pop();
                 self.upcoming_events
-                    .insert(reverse_event.ship_id, reverse_event.event);
+                    .insert(reverse_event.event.ship_id, reverse_event.event);
                 self.rewind_t(event_time - new_time);
             }
             _ => self.orrery.update_time(-delta_t),
@@ -195,7 +193,7 @@ impl<'u> Universe {
     }
 
     fn set_upcoming_events(&mut self) {
-        for id in self.orrery.ship_ids().copied() {
+        for id in self.orrery.ships().map(|s| s.id) {
             if self.upcoming_events.contains_key(&id) {
                 continue;
             }
@@ -206,13 +204,11 @@ impl<'u> Universe {
         }
     }
 
-    fn get_next_event(&self) -> Option<(ShipID, Event)> {
+    fn get_next_event(&self) -> Option<Event> {
         // Note: can't easily use Iterator::min_by_key because f64 doesn't implement Ord.
-        let event = self
-            .upcoming_events
-            .iter()
-            .min_by(|a, b| a.1.compare_time(&b.1));
-
-        event.map(|(id, event)| (*id, event.clone()))
+        self.upcoming_events
+            .values()
+            .min_by(|a, b| a.point.compare_time(&b.point))
+            .cloned()
     }
 }
