@@ -2,18 +2,12 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
-use super::body::{Body, BodyInfo, BodyState};
+use super::body::{Body, BodyID, BodyInfo, BodyState};
 use super::event::{Event, EventKind, ReverseEvent};
 use super::frame::FrameTransform;
-use super::orbit::Orbit;
-use super::ship::Ship;
+use super::orbit::OrbitPatch;
+use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct BodyID(pub usize);
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ShipID(pub usize);
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
@@ -40,14 +34,6 @@ pub struct ShipRef<'u> {
     universe: &'u Universe,
     pub id: ShipID,
     ship: &'u Ship,
-}
-
-#[derive(Debug, Clone)]
-pub struct OrbitPatch {
-    pub orbit: Orbit,
-    pub start_anomaly: f64,
-    pub end_anomaly: Option<f64>,
-    pub parent_id: BodyID,
 }
 
 pub struct Universe {
@@ -360,18 +346,8 @@ impl<'u> Universe {
     fn advance_t(&mut self, delta_t: f64) {
         assert!(delta_t > 0.0);
 
-        // TODO wow i really gotta figure out how to not make a vector
-        // every time :\ borrow checker hard lol
-        // Maybe separate body collection and ship collection into separate things?
-        // After all, the body calcs will never depend on the ships, ever.
-        let ship_ids: Vec<_> = self.ship_ids().copied().collect();
-        for id in ship_ids.into_iter() {
-            if self.ships.get_mut(&id).unwrap().next_event.is_some() {
-                continue;
-            }
-            let ev = self.determine_next_event(id);
-            self.ships.get_mut(&id).unwrap().next_event = ev;
-        }
+        // Figure out the next events
+        self.set_next_events();
 
         // See if there's an event we need to process
         let end_time = self.time + delta_t;
@@ -425,7 +401,26 @@ impl<'u> Universe {
         self.time += delta_t;
     }
 
-    fn determine_next_event(&self, ship_id: ShipID) -> Option<Event> {
+    fn set_next_events(&mut self) {
+        let mut events = HashMap::with_capacity(self.ships.len());
+        for (id, ship) in self.ships.iter() {
+            if ship.next_event.is_some() {
+                continue;
+            }
+            let ev = self.compute_next_event(*id);
+            events.insert(*id, ev);
+        }
+
+        // Note: couldn't do this before, because self.ships holds a reference
+        // to self, and so we can't mutate
+        for (id, event) in events.into_iter() {
+            let mut ship = self.ships.get_mut(&id).unwrap();
+            ship.next_event = event;
+        }
+    }
+
+    // TODO add search distance
+    fn compute_next_event(&self, ship_id: ShipID) -> Option<Event> {
         let ship = &self.ships[&ship_id];
         let body_id = ship.parent_id;
         let soi_escape = match self.get_soi_radius(body_id) {
@@ -439,19 +434,13 @@ impl<'u> Universe {
 
     fn get_next_event(&self) -> Option<(ShipID, Event)> {
         // Note: can't easily use Iterator::min_by_key because f64 doesn't implement Ord.
-        let mut next_event: Option<(ShipID, Event)> = None;
-        for (id, ship) in self.ships.iter() {
-            let event = match &ship.next_event {
-                Some(e) => e,
-                None => continue,
-            };
+        let event = self
+            .ships
+            .iter()
+            .filter_map(|(id, ship)| ship.next_event.as_ref().map(|ev| (*id, ev)))
+            .min_by(|a, b| a.1.compare_time(&b.1));
 
-            match next_event {
-                Some((_, ref best_event)) if best_event.time < event.time => {} // keep it
-                _ => next_event = Some((*id, event.clone())),                   // replace it
-            }
-        }
-        next_event
+        event.map(|(id, event)| (id, event.clone()))
     }
 
     fn process_event(&mut self, ship_id: ShipID, event: Event) {

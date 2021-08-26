@@ -6,7 +6,8 @@ mod ship;
 mod state;
 mod universe;
 
-pub use body::BodyInfo;
+pub use body::{BodyID, BodyInfo};
 pub use frame::FrameTransform;
-pub use orbit::Orbit;
-pub use universe::{BodyID, BodyRef, Frame, FramedState, OrbitPatch, ShipID, ShipRef, Universe};
+pub use orbit::{Orbit, OrbitPatch};
+pub use ship::ShipID;
+pub use universe::{BodyRef, Frame, FramedState, ShipRef, Universe};

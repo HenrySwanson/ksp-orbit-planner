@@ -1,6 +1,9 @@
+use super::body::BodyID;
 use super::event::Event;
 use super::state::CartesianState;
-use super::universe::BodyID;
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ShipID(pub usize);
 
 // TODO un-pub fields
 pub struct Ship {

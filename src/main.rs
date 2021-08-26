@@ -24,7 +24,11 @@ fn main() {
     window.set_light(Light::StickToCamera);
 
     let mut universe = read_file("ksp-bodies.txt");
-    universe.add_ship(Vector3::x() * 9000000.0, Vector3::y() * 500.0 * 2.0, BodyID(4));
+    universe.add_ship(
+        Vector3::x() * 9000000.0,
+        Vector3::y() * 500.0 * 2.0,
+        BodyID(4),
+    );
 
     gui::Simulation::new(window, universe).render_loop();
 }

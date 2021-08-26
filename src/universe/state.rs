@@ -1,7 +1,7 @@
-use nalgebra::{Vector3, Point3};
+use nalgebra::{Point3, Vector3};
 
-use super::orbit::Orbit;
 use super::event::{Event, EventKind};
+use super::orbit::Orbit;
 
 use crate::math::geometry::directed_angle;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};

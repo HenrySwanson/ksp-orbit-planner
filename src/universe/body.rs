@@ -1,7 +1,9 @@
 use nalgebra::Point3;
 
 use super::state::CartesianState;
-use super::universe::BodyID;
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct BodyID(pub usize);
 
 // All the immutable info about a body
 pub struct BodyInfo {

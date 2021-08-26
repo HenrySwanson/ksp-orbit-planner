@@ -6,6 +6,7 @@ use crate::math::anomaly;
 use crate::math::geometry::{always_find_rotation, directed_angle};
 use crate::math::stumpff::stumpff_G;
 
+use super::body::BodyID;
 use super::state::CartesianState;
 
 #[derive(Debug, Clone)]
@@ -16,6 +17,14 @@ pub struct Orbit {
     energy: f64,
     ang_mom: f64,
     mu: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct OrbitPatch {
+    pub orbit: Orbit,
+    pub start_anomaly: f64,
+    pub end_anomaly: Option<f64>,
+    pub parent_id: BodyID,
 }
 
 impl Orbit {
