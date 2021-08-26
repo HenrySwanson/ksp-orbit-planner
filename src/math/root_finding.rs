@@ -42,6 +42,36 @@ pub fn find_root_bracket(f: impl Fn(f64) -> f64, center: f64, mut radius: f64) -
     );
 }
 
+#[allow(clippy::float_cmp)]
+pub fn bisection(f: impl Fn(f64) -> f64, mut bracket: Bracket, num_iterations: usize) -> f64 {
+    // We need to determine which way our bracket is oriented.
+    let lo_is_neg = f(bracket.lo) < 0.0;
+
+    for _ in 0..num_iterations {
+        // Check right in the middle of the bracket
+        let guess = (bracket.lo + bracket.hi) / 2.0;
+
+        // If the bracket is too small, we've converged.
+        if guess == bracket.lo || guess == bracket.hi {
+            return guess;
+        }
+
+        // Check the value and update the bracket
+        let value = f(guess);
+        match (lo_is_neg, value < 0.0) {
+            (true, true) => bracket.lo = guess,   // - - +
+            (true, false) => bracket.hi = guess,  // - + +
+            (false, true) => bracket.hi = guess,  // + - -
+            (false, false) => bracket.lo = guess, // + + -
+        }
+    }
+
+    panic!(
+        "Hit max iterations ({}) when trying to find a root in {:?}",
+        num_iterations, bracket
+    );
+}
+
 // Adapted from `rtsafe` in http://www.grad.hr/nastava/gs/prg/NumericalRecipesinC.pdf\
 #[allow(clippy::float_cmp)]
 pub fn newton_plus_bisection(
@@ -96,6 +126,26 @@ mod tests {
     use super::*;
 
     use approx::assert_relative_eq;
+
+    #[test]
+    fn test_bisection() {
+        // Find the root of x^3 - a for several a
+        // TODO: this fails if a = 0, but not for convergence reasons, just
+        // because lots of floats are near zero
+        for a in [2.0, 50.0, -1.0, 0.1].iter() {
+            let root = bisection(|x| x * x * x - a, Bracket::new(-100.0, 100.0), 100);
+            assert_relative_eq!(root, a.cbrt());
+        }
+
+        // There are three roots to x^3 - 4x^2 - 7x + 10: -2, 1, 5
+        let f = |x| 10.0 + x * (-7.0 + x * (-4.0 + x));
+        let x1 = bisection(f, Bracket::new(-3.0, 0.0), 100);
+        assert_relative_eq!(x1, -2.0);
+        let x2 = bisection(f, Bracket::new(0.0, 4.0), 100);
+        assert_relative_eq!(x2, 1.0);
+        let x3 = bisection(f, Bracket::new(4.0, 10.0), 100);
+        assert_relative_eq!(x3, 5.0);
+    }
 
     #[test]
     fn test_cubics() {
