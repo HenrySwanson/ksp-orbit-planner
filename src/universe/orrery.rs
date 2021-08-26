@@ -68,6 +68,17 @@ impl<'orr> Orrery {
         &self.bodies[&id]
     }
 
+    pub fn child_bodies(&self, id: BodyID) -> impl Iterator<Item = &Body> {
+        self.bodies()
+            .filter(move |body| body.parent_id() == Some(id))
+    }
+
+    pub fn sibling_bodies(&self, id: BodyID) -> impl Iterator<Item = &Body> {
+        let parent_id = self.bodies[&id].parent_id();
+        self.bodies()
+            .filter(move |body| body.parent_id() == parent_id && body.id != id)
+    }
+
     pub fn add_body(
         &mut self,
         body_info: BodyInfo,
@@ -316,10 +327,9 @@ impl<'orr> Orrery {
             }
             EventKind::ExitingSOI => {
                 let current_body = self.ships[&ship_id].parent_id;
-                let parent_id = match self.bodies[&current_body].state {
-                    BodyState::FixedAtOrigin => panic!("Cannot leave SOI of root body"),
-                    BodyState::Orbiting { parent_id, .. } => parent_id,
-                };
+                let parent_id = self.bodies[&current_body]
+                    .parent_id()
+                    .expect("Cannot leave SOI of root body");
                 self.change_soi(ship_id, parent_id);
                 ReverseEvent {
                     event,

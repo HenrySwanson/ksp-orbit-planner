@@ -56,10 +56,7 @@ impl<'u> BodyRef<'u> {
     }
 
     pub fn get_parent_id(&self) -> Option<BodyID> {
-        match self.body.state {
-            BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting { parent_id, .. } => Some(parent_id),
-        }
+        self.body.parent_id()
     }
 }
 

@@ -26,3 +26,12 @@ pub struct Body {
     pub info: BodyInfo,
     pub state: BodyState,
 }
+
+impl Body {
+    pub fn parent_id(&self) -> Option<BodyID> {
+        match self.state {
+            BodyState::FixedAtOrigin => None,
+            BodyState::Orbiting { parent_id, .. } => Some(parent_id),
+        }
+    }
+}
