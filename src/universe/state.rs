@@ -111,6 +111,13 @@ impl CartesianState {
         self.update_s(root);
     }
 
+    // TODO: name this better >:(
+    pub fn clone_update_t(&self, time: f64) -> Self {
+        let mut copy = self.clone();
+        copy.update_t(time);
+        copy
+    }
+
     #[allow(non_snake_case)]
     pub fn delta_s_to_t(&self, delta_s: f64) -> f64 {
         let r_0 = self.position.norm();
@@ -123,7 +130,6 @@ impl CartesianState {
     }
 
     pub fn get_theta(&self) -> f64 {
-        // Okay, we gotta find our own s too. Dang.
         let orbit = self.get_orbit();
         let x_vec = orbit.periapse_vector();
         let z_vec = orbit.normal_vector();
@@ -132,6 +138,7 @@ impl CartesianState {
 
     // TODO move out of state?
     pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<EventPoint> {
+        // Okay, we gotta find our own s too. Dang.
         let orbit = self.get_orbit();
         let current_s = self.get_universal_anomaly();
 
