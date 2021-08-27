@@ -295,8 +295,11 @@ impl<'orr> Orrery {
     // TODO add search distance
     pub fn compute_next_event(&self, ship_id: ShipID) -> Option<Event> {
         let ship = &self.ships[&ship_id];
-        let body_id = ship.parent_id;
-        let soi_escape = match self.get_soi_radius(body_id) {
+        let parent_body_id = ship.parent_id;
+        let mut events = vec![];
+
+        // Look for an escape event
+        events.push(match self.get_soi_radius(parent_body_id) {
             Some(soi_radius) => {
                 ship.state
                     .find_soi_escape_event(soi_radius, self.time)
@@ -307,10 +310,30 @@ impl<'orr> Orrery {
                     })
             }
             None => None,
-        };
+        });
 
-        // TODO SOI encounter
-        soi_escape
+        // Look for encounter events with co-orbiting bodies
+        for body in self.bodies.values() {
+            let state = match &body.state {
+                BodyState::Orbiting { parent_id, state } if *parent_id == parent_body_id => state,
+                _ => continue,
+            };
+            let soi_radius = self.get_soi_radius(body.id).unwrap();
+
+            let event_pt = ship
+                .state
+                .find_soi_encounter_event(state, soi_radius, self.time);
+            events.push(event_pt.map(|point| Event {
+                ship_id,
+                kind: EventKind::EnteringSOI(body.id),
+                point,
+            }));
+        }
+
+        events
+            .into_iter()
+            .flatten()
+            .min_by(|a, b| a.point.compare_time(&b.point))
     }
 
     pub fn process_event(&mut self, event: Event) -> ReverseEvent {

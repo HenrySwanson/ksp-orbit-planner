@@ -25,9 +25,9 @@ fn main() {
 
     let mut universe = read_file("ksp-bodies.txt");
     universe.orrery.add_ship(
-        Vector3::x() * 9000000.0,
-        Vector3::y() * 500.0 * 2.0,
-        BodyID(4),
+        Vector3::y() * -13599840256.0,
+        Vector3::x() * -9285.0,
+        BodyID(0),
     );
 
     gui::Simulation::new(window, universe).render_loop();

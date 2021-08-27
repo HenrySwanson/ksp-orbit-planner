@@ -4,7 +4,7 @@ use super::event::EventPoint;
 use super::orbit::Orbit;
 
 use crate::math::geometry::directed_angle;
-use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
+use crate::math::root_finding::{bisection, find_root_bracket, newton_plus_bisection, Bracket};
 use crate::math::stumpff::stumpff_G;
 
 // TODO pub these fields
@@ -136,15 +136,14 @@ impl CartesianState {
         directed_angle(&x_vec, &self.position, &z_vec)
     }
 
-    // TODO move out of state?
-    pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<EventPoint> {
-        // Okay, we gotta find our own s too. Dang.
+    fn get_s_until_radius(&self, radius: f64) -> Option<f64> {
+        // TODO this doesn't work well for radial orbits, try to adjust it so that it does
         let orbit = self.get_orbit();
         let current_s = self.get_universal_anomaly();
 
         // Since (h^2/mu) / (1 + e cos theta) = r, we can invert that to get
         // a desired theta, which will always be in the first or second quadrant
-        let target_cos_theta = (orbit.semilatus_rectum() / soi_radius - 1.0) / orbit.eccentricity();
+        let target_cos_theta = (orbit.semilatus_rectum() / radius - 1.0) / orbit.eccentricity();
         if target_cos_theta.abs() > 1.0 {
             return None;
         }
@@ -153,18 +152,98 @@ impl CartesianState {
         let target_s = orbit.true_to_universal(target_theta);
         let delta_s = target_s - current_s;
 
-        if delta_s < 0.0 {
-            return None;
-        }
+        Some(delta_s)
+    }
+
+    pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<EventPoint> {
+        let delta_s = match self.get_s_until_radius(soi_radius) {
+            Some(s) => s,
+            None => return None,
+        };
 
         let delta_t = self.delta_s_to_t(delta_s);
-        let new_state = orbit.get_state(target_s);
+
+        let target_s = self.get_universal_anomaly() + delta_s;
+        let new_state = self.get_orbit().get_state(target_s);
         let event_pt = EventPoint {
             time: current_time + delta_t,
             anomaly: target_s,
             location: Point3::from(new_state.get_position()),
         };
+
         Some(event_pt)
+    }
+
+    pub fn find_soi_encounter_event(
+        &self,
+        planet_state: &CartesianState,
+        soi_radius: f64,
+        current_time: f64,
+    ) -> Option<EventPoint> {
+        let self_orbit = self.get_orbit();
+        let planet_orbit = planet_state.get_orbit();
+
+        // Quick check: if one orbit is much smaller than the other, then we can skip the rest
+        let pe_ap_check = |o1: &Orbit, o2: &Orbit| {
+            o1.apoapsis() > 0.0 && o1.apoapsis() + soi_radius < o2.periapsis()
+        };
+        if pe_ap_check(&self_orbit, &planet_orbit) || pe_ap_check(&planet_orbit, &self_orbit) {
+            return None;
+        }
+
+        // Method for checking distance between bodies
+        let check_distance = |time| {
+            let new_self_pos = self.clone_update_t(time).get_position();
+            let new_planet_pos = planet_state.clone_update_t(time).get_position();
+            (new_self_pos - new_planet_pos).norm()
+        };
+
+        // If we're in a closed orbit, search over one period. Otherwise,
+        // search until we get too far away.
+        let window = self_orbit.period().unwrap_or_else(|| {
+            let max_distance = planet_orbit.apoapsis();
+            // Second orbit must be closed
+            assert!(max_distance > 0.0);
+            // Unwrap should succeed because this is an open orbit
+            let delta_s = self.get_s_until_radius(max_distance).unwrap();
+            self.delta_s_to_t(delta_s)
+        });
+
+        // TODO have better algorithm than this!
+        // Just step by step look for an intersection
+        let num_slices = 1000;
+        let slice_duration = window / (num_slices as f64);
+        let mut encounter_time = None;
+        for i in 0..num_slices {
+            let t = i as f64 * slice_duration;
+            if check_distance(t) < soi_radius {
+                encounter_time = Some(t);
+                break;
+            }
+        }
+
+        // If we didn't get close enough, return no event
+        let t2 = match encounter_time {
+            Some(t) => t,
+            None => return None,
+        };
+        let t1 = f64::min(0.0, t2 - slice_duration);
+
+        // Now we narrow in on the point using binary search.
+        // Make sure to catch the cases where t2 is zero
+        let entry_time = bisection(
+            |t| check_distance(t) - soi_radius,
+            Bracket::new(t1, t2),
+            100,
+        );
+
+        // Lastly, figure out anomaly and position at that point
+        let new_state = self.clone_update_t(entry_time);
+        Some(EventPoint {
+            time: current_time + entry_time,
+            anomaly: new_state.get_universal_anomaly(),
+            location: Point3::from(new_state.get_position()),
+        })
     }
 }
 

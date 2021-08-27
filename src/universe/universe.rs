@@ -140,8 +140,8 @@ impl<'u> Universe {
     fn advance_t(&mut self, delta_t: f64) {
         assert!(delta_t > 0.0);
 
-        // Figure out the next events
-        self.set_upcoming_events();
+        // Figure out any upcoming events
+        self.search_for_events();
 
         // See if there's an event we need to process
         let end_time = self.orrery.get_time() + delta_t;
@@ -153,7 +153,8 @@ impl<'u> Universe {
                 // Fast-forward time up until the event
                 self.orrery.update_time(event_time - self.orrery.get_time());
 
-                // Apply the event, clear it from "upcoming", and push it onto the revevent stack
+                // Apply the event, clear it from "upcoming", and push it onto
+                // the completed event stack.
                 let reverse_event = self.orrery.process_event(event);
                 self.rev_event_stack.push(reverse_event);
                 self.upcoming_events.remove(&ship_id);
@@ -172,24 +173,29 @@ impl<'u> Universe {
         let delta_t = nalgebra::clamp(delta_t, 0.0, self.orrery.get_time());
         let new_time = self.orrery.get_time() - delta_t;
 
-        // Find the most recent event we processed, and if we need to, revert it
+        // Check the most recent event, and see if we need to revert it
         match self.rev_event_stack.last() {
             Some(reverse_event) if reverse_event.event.point.time >= new_time => {
                 let reverse_event = reverse_event.clone();
                 let event_time = reverse_event.event.point.time;
 
+                // Rewind up until the event
                 self.orrery.update_time(event_time - self.orrery.get_time());
+
+                // Pop the event off of the stack and put it back into upcoming
                 self.orrery.revert_event(&reverse_event);
                 self.rev_event_stack.pop();
                 self.upcoming_events
                     .insert(reverse_event.event.ship_id, reverse_event.event);
+
+                // Rewind the remaining amount of time (recursive!)
                 self.rewind_t(event_time - new_time);
             }
             _ => self.orrery.update_time(-delta_t),
         }
     }
 
-    fn set_upcoming_events(&mut self) {
+    fn search_for_events(&mut self) {
         for id in self.orrery.ships().map(|s| s.id) {
             if self.upcoming_events.contains_key(&id) {
                 continue;
