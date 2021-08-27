@@ -228,6 +228,7 @@ impl Scene {
             }
         };
         let delta_s = end_s - start_s;
+        assert!(delta_s >= 0.0);
 
         // Get the transform into the focused frame
         let transform = universe.orrery.convert_frames(

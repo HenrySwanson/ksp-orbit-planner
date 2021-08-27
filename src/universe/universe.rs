@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use std::f64::consts::PI;
+
 use super::body::{Body, BodyID, BodyInfo, BodyState};
 use super::event::{Event, ReverseEvent};
 use super::orbit::OrbitPatch;
@@ -72,12 +74,20 @@ impl<'u> ShipRef<'u> {
     pub fn get_orbit(&self) -> OrbitPatch {
         let orbit = self.ship.state.get_orbit();
         let start_anomaly = self.ship.state.get_universal_anomaly();
-        let end_anomaly = self
-            .universe
-            .upcoming_events
-            .get(&self.ship.id)
-            .as_ref()
-            .map(|ev| ev.point.anomaly);
+        let end_anomaly = match self.universe.upcoming_events.get(&self.ship.id) {
+            Some(event) => {
+                let mut end_s = event.point.anomaly;
+                if end_s < start_anomaly {
+                    let beta = -2.0 * orbit.energy();
+                    assert!(beta > 0.0);
+                    // Since this is an ellipse, the eccentric anomaly makes sense.
+                    // We want E to increase by 2pi, and s = E / sqrt(beta)
+                    end_s += 2.0 * PI / beta.sqrt()
+                }
+                Some(end_s)
+            }
+            None => None,
+        };
 
         OrbitPatch {
             orbit,

@@ -265,6 +265,7 @@ impl CartesianState {
         );
 
         // Lastly, figure out anomaly and position at that point
+        // TODO: new s can end up less than old s if we're not careful :\
         let new_state = self.clone_update_t(entry_time);
         Some(EventPoint {
             time: current_time + entry_time,
