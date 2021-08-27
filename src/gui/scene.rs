@@ -9,6 +9,7 @@ use std::f64::consts::PI;
 use crate::universe::{BodyID, Frame, FrameTransform, OrbitPatch, ShipID, Universe};
 
 use super::camera::CustomCamera;
+use super::simulation::RenderContext;
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -132,7 +133,7 @@ impl Scene {
         self.ship_camera_inertial = !self.ship_camera_inertial;
     }
 
-    pub fn render(&mut self, window: &mut Window, universe: &Universe) -> bool {
+    pub fn render(&mut self, window: &mut Window, universe: &Universe, ctx: RenderContext) -> bool {
         // Move scene objects to the right places
         self.update_scene_objects(universe);
 
@@ -178,7 +179,7 @@ impl Scene {
             &text_color,
         );
         window.draw_text(
-            &self.time_summary_text(universe),
+            &self.time_summary_text(universe, ctx),
             // no idea why i have to multiply by 2.0, but there it is
             &Point2::new(window.width() as f32 * 2.0 - 600.0, 0.0),
             60.0,
@@ -356,8 +357,15 @@ Orbiting: {}",
         )
     }
 
-    fn time_summary_text(&self, universe: &Universe) -> String {
-        format!("Time: {}", format_seconds(universe.orrery.get_time()))
+    fn time_summary_text(&self, universe: &Universe, ctx: RenderContext) -> String {
+        format!(
+            "Time: {}
+Timestep: {} s/frame
+FPS: {:.0}",
+            format_seconds(universe.orrery.get_time()),
+            ctx.timestep,
+            ctx.fps,
+        )
     }
 
     fn focused_object(&self) -> FocusPoint {

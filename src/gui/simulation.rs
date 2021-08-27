@@ -1,6 +1,8 @@
 use kiss3d::event::{Action, Key, WindowEvent};
 use kiss3d::window::Window;
 
+use std::time::Instant;
+
 use super::scene::Scene;
 
 use crate::universe::Universe;
@@ -14,12 +16,20 @@ const KEY_REWIND: Key = Key::R;
 const KEY_PAUSE: Key = Key::P;
 const KEY_CAMERA_SWAP: Key = Key::C;
 
+pub struct RenderContext {
+    pub timestep: f64,
+    pub fps: f64,
+}
+
 pub struct Simulation {
     universe: Universe,
     window: Window,
     scene: Scene,
     timestep: f64,
     paused: bool,
+    fps_last_time: Instant,
+    fps_num_frames: usize,
+    fps_current: f64,
 }
 
 impl Simulation {
@@ -33,17 +43,33 @@ impl Simulation {
             scene,
             timestep: 21600.0 / 60.0, // one Kerbin-day
             paused: true,
+            fps_last_time: Instant::now(),
+            fps_num_frames: 0,
+            fps_current: 0.0,
         }
     }
 
     pub fn render_loop(&mut self) {
+        self.fps_last_time = Instant::now();
+
         loop {
+            // Compute FPS
+            let elapsed = self.fps_last_time.elapsed();
+            if elapsed.as_secs() > 1 {
+                self.fps_current = 1000.0 * self.fps_num_frames as f64 / elapsed.as_millis() as f64;
+                self.fps_last_time = Instant::now();
+                self.fps_num_frames = 0;
+            }
+
             self.process_user_input();
             self.update_state();
             // This step is when kiss3d detects when the window is exited
+            // TODO create "RenderContext" object that can be passed down
             if !self.render_scene() {
                 break;
             };
+
+            self.fps_num_frames += 1;
         }
     }
 
@@ -92,6 +118,10 @@ impl Simulation {
     }
 
     fn render_scene(&mut self) -> bool {
-        self.scene.render(&mut self.window, &self.universe)
+        let ctx = RenderContext {
+            timestep: self.timestep,
+            fps: self.fps_current,
+        };
+        self.scene.render(&mut self.window, &self.universe, ctx)
     }
 }
