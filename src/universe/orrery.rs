@@ -292,7 +292,6 @@ impl<'orr> Orrery {
         ship.parent_id = new_body;
     }
 
-    // TODO add search distance
     pub fn compute_next_event(&self, ship_id: ShipID) -> Option<Event> {
         let ship = &self.ships[&ship_id];
         let parent_body_id = ship.parent_id;
@@ -313,12 +312,12 @@ impl<'orr> Orrery {
         });
 
         // Look for encounter events with co-orbiting bodies
-        for body in self.bodies.values() {
-            let state = match &body.state {
-                BodyState::Orbiting { parent_id, state } if *parent_id == parent_body_id => state,
-                _ => continue,
-            };
+        for body in self.child_bodies(parent_body_id) {
             let soi_radius = self.get_soi_radius(body.id).unwrap();
+            let state = match &body.state {
+                BodyState::Orbiting { state, .. } => state,
+                _ => panic!("Cannot SOI encounter the sun"),
+            };
 
             let event_pt = ship
                 .state

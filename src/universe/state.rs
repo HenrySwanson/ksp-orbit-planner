@@ -7,6 +7,9 @@ use crate::math::geometry::directed_angle;
 use crate::math::root_finding::{bisection, find_root_bracket, newton_plus_bisection, Bracket};
 use crate::math::stumpff::stumpff_G;
 
+const NUM_ITERATIONS_DELTA_T: usize = 200;
+const NUM_ITERATIONS_SOI_ENCOUNTER: usize = 1000;
+
 // TODO pub these fields
 #[derive(Debug, Clone)]
 pub struct CartesianState {
@@ -105,8 +108,13 @@ impl CartesianState {
         };
 
         // TODO if these fail, we need to log the parameters somewhere :\
-        let bracket = find_root_bracket(|x| f_and_f_prime(x).0, delta_t / r_0, delta_t / r_0);
-        let root = newton_plus_bisection(f_and_f_prime, bracket, 100);
+        let bracket = find_root_bracket(
+            |x| f_and_f_prime(x).0,
+            delta_t / r_0,
+            delta_t / r_0,
+            NUM_ITERATIONS_DELTA_T,
+        );
+        let root = newton_plus_bisection(f_and_f_prime, bracket, NUM_ITERATIONS_DELTA_T);
 
         self.update_s(root);
     }
@@ -210,6 +218,20 @@ impl CartesianState {
         });
 
         // TODO have better algorithm than this!
+
+        // We know their maximum relative velocity
+        let self_max_velocity =
+            self.parent_mu * (1.0 + self_orbit.eccentricity()) / self_orbit.angular_momentum();
+        let planet_max_velocity =
+            self.parent_mu * (1.0 + planet_orbit.eccentricity()) / planet_orbit.angular_momentum();
+        let max_rel_velocity = self_max_velocity.abs() + planet_max_velocity.abs();
+        let current_distance = check_distance(0.0);
+
+        // If we can't possibly catch up, then return no event.
+        if current_distance - soi_radius > max_rel_velocity * window {
+            return None;
+        }
+
         // Just step by step look for an intersection
         let num_slices = 1000;
         let slice_duration = window / (num_slices as f64);
@@ -227,14 +249,19 @@ impl CartesianState {
             Some(t) => t,
             None => return None,
         };
-        let t1 = f64::min(0.0, t2 - slice_duration);
+
+        // Edge case: if t2 is zero, we may have just exited an SOI, and shouldn't
+        // return an event, since we'd then get into a loop
+        if t2 == 0.0 {
+            return None;
+        }
 
         // Now we narrow in on the point using binary search.
-        // Make sure to catch the cases where t2 is zero
+        let t1 = t2 - slice_duration;
         let entry_time = bisection(
             |t| check_distance(t) - soi_radius,
             Bracket::new(t1, t2),
-            100,
+            NUM_ITERATIONS_SOI_ENCOUNTER,
         );
 
         // Lastly, figure out anomaly and position at that point

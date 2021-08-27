@@ -7,7 +7,7 @@ pub fn mean_to_eccentric(mean_anomaly: f64, e: f64) -> f64 {
     let kepler = |x: f64| -> f64 { x - e * x.sin() - mean_anomaly };
     let kepler_der = |x: f64| -> f64 { 1.0 - e * x.cos() };
 
-    let bracket = find_root_bracket(kepler, mean_anomaly, e + 0.1);
+    let bracket = find_root_bracket(kepler, mean_anomaly, e + 0.1, 100);
     newton_plus_bisection(|x| (kepler(x), kepler_der(x)), bracket, 100)
 }
 

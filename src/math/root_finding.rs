@@ -23,8 +23,13 @@ impl std::fmt::Debug for Bracket {
     }
 }
 
-pub fn find_root_bracket(f: impl Fn(f64) -> f64, center: f64, mut radius: f64) -> Bracket {
-    for _ in 0..100 {
+pub fn find_root_bracket(
+    f: impl Fn(f64) -> f64,
+    center: f64,
+    mut radius: f64,
+    num_iterations: usize,
+) -> Bracket {
+    for _ in 0..num_iterations {
         let a = center - radius;
         let b = center + radius;
 
