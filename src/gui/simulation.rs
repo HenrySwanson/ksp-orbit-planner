@@ -35,6 +35,18 @@ pub struct Path {
     color: Point3<f32>,
 }
 
+pub struct FpsCounter {
+    instant: Instant,
+    counter: usize,
+    window_size_millis: usize,
+    previous_fps: f64,
+}
+
+pub struct CameraFocus {
+    focus_points: Vec<FocusPoint>,
+    focus_idx: usize,
+}
+
 pub struct Simulation {
     // Object state
     universe: Universe,
@@ -44,15 +56,80 @@ pub struct Simulation {
     // Timestep
     timestep: f64,
     paused: bool,
-    // FPS measuring data
-    fps_last_time: Instant,
-    fps_num_frames: usize,
-    fps_current: f64,
+    fps_counter: FpsCounter,
     // Camera
     camera: CustomCamera,
-    camera_focus_order: Vec<FocusPoint>,
-    camera_focus_idx: usize,
+    camera_focus: CameraFocus,
     ship_camera_inertial: bool,
+}
+
+impl FpsCounter {
+    pub fn new(window_size_millis: usize) -> Self {
+        FpsCounter {
+            instant: Instant::now(),
+            counter: 0,
+            previous_fps: 0.0,
+            window_size_millis,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.instant = Instant::now();
+        self.counter = 0;
+    }
+
+    pub fn value(&self) -> f64 {
+        self.previous_fps
+    }
+    pub fn increment(&mut self) {
+        self.counter += 1;
+
+        let elapsed = self.instant.elapsed();
+        if elapsed.as_millis() > self.window_size_millis as u128 {
+            self.previous_fps = (1000 * self.counter) as f64 / elapsed.as_millis() as f64;
+            self.reset();
+        }
+    }
+}
+
+impl CameraFocus {
+    pub fn new(universe: &Universe) -> Self {
+        // TODO sort focus points in a more systematic way
+        let mut bodies: Vec<_> = universe.bodies().collect();
+        bodies.sort_by_key(|b| b.id());
+        let mut ships: Vec<_> = universe.ships().collect();
+        ships.sort_by_key(|s| s.id());
+
+        let mut focus_points = vec![];
+        for body in bodies.into_iter() {
+            focus_points.push(FocusPoint::Body(body.id()));
+            // Now put in all ships orbiting that body
+            for ship in ships.iter() {
+                if ship.get_parent_id() == body.id() {
+                    focus_points.push(FocusPoint::Ship(ship.id()));
+                }
+            }
+        }
+
+        CameraFocus {
+            focus_points,
+            focus_idx: 0,
+        }
+    }
+
+    pub fn next(&mut self) {
+        let num_bodies = self.focus_points.len();
+        self.focus_idx = (self.focus_idx + 1) % num_bodies;
+    }
+
+    pub fn prev(&mut self) {
+        let num_bodies = self.focus_points.len();
+        self.focus_idx = (self.focus_idx + num_bodies - 1) % num_bodies;
+    }
+
+    pub fn point(&self) -> FocusPoint {
+        self.focus_points[self.focus_idx]
+    }
 }
 
 impl Simulation {
@@ -60,8 +137,7 @@ impl Simulation {
         // Set up camera
         // TODO figure out what distance to put the camera...
         let camera = CustomCamera::new(2.0e9);
-        let camera_focus_idx: usize = 0;
-        let camera_focus_order = get_focus_points(&universe);
+        let camera_focus = CameraFocus::new(&universe);
         let ship_camera_inertial = true;
 
         let mut paths = vec![];
@@ -124,28 +200,17 @@ impl Simulation {
             paths,
             timestep: 21600.0 / 60.0, // one Kerbin-day
             paused: true,
-            fps_last_time: Instant::now(),
-            fps_num_frames: 0,
-            fps_current: 0.0,
+            fps_counter: FpsCounter::new(1000),
             camera,
-            camera_focus_order,
-            camera_focus_idx,
+            camera_focus,
             ship_camera_inertial,
         }
     }
 
     pub fn render_loop(&mut self, window: &mut Window) {
-        self.fps_last_time = Instant::now();
+        self.fps_counter.reset();
 
         loop {
-            // Compute FPS
-            let elapsed = self.fps_last_time.elapsed();
-            if elapsed.as_secs() > 1 {
-                self.fps_current = 1000.0 * self.fps_num_frames as f64 / elapsed.as_millis() as f64;
-                self.fps_last_time = Instant::now();
-                self.fps_num_frames = 0;
-            }
-
             self.process_user_input(window);
             self.update_state();
             // This step is when kiss3d detects when the window is exited
@@ -154,7 +219,7 @@ impl Simulation {
                 break;
             };
 
-            self.fps_num_frames += 1;
+            self.fps_counter.increment();
         }
     }
 
@@ -163,12 +228,12 @@ impl Simulation {
         for event in window.events().iter() {
             match event.value {
                 WindowEvent::Key(KEY_NEXT_FOCUS, Action::Press, _) => {
-                    self.next_focus();
-                    self.reset_min_distance();
+                    self.camera_focus.next();
+                    self.fix_camera_zoom();
                 }
                 WindowEvent::Key(KEY_PREV_FOCUS, Action::Press, _) => {
-                    self.prev_focus();
-                    self.reset_min_distance();
+                    self.camera_focus.prev();
+                    self.fix_camera_zoom();
                 }
                 WindowEvent::Key(KEY_SPEED_UP, Action::Press, _) => {
                     self.timestep *= 2.0;
@@ -186,10 +251,7 @@ impl Simulation {
                     self.paused = !self.paused;
                 }
                 WindowEvent::Key(KEY_CAMERA_SWAP, Action::Press, _) => {
-                    // TODO it's kinda silly to have a function for this.
-                    // IMO we should be able to pass the unprocessed events down to the
-                    // Scene objects
-                    self.switch_inertial_camera();
+                    self.ship_camera_inertial = !self.ship_camera_inertial;
                 }
                 _ => {}
             }
@@ -202,34 +264,16 @@ impl Simulation {
         }
     }
 
-    fn reset_min_distance(&mut self) {
-        let dist = match self.focused_object() {
+    fn fix_camera_zoom(&mut self) {
+        let dist = match self.camera_focus.point() {
             FocusPoint::Body(id) => self.universe.get_body(id).info().radius * 2.0,
             FocusPoint::Ship(_) => TEST_SHIP_SIZE * 2.0,
         };
         self.camera.set_min_distance(dist);
     }
 
-    fn next_focus(&mut self) {
-        let num_bodies = self.camera_focus_order.len();
-        self.camera_focus_idx = (self.camera_focus_idx + 1) % num_bodies;
-    }
-
-    fn prev_focus(&mut self) {
-        let num_bodies = self.camera_focus_order.len();
-        self.camera_focus_idx = (self.camera_focus_idx + num_bodies - 1) % num_bodies;
-    }
-
-    fn switch_inertial_camera(&mut self) {
-        self.ship_camera_inertial = !self.ship_camera_inertial;
-    }
-
-    fn focused_object(&self) -> FocusPoint {
-        self.camera_focus_order[self.camera_focus_idx]
-    }
-
     fn focused_object_frame(&self) -> Frame {
-        match self.focused_object() {
+        match self.camera_focus.point() {
             FocusPoint::Body(id) => Frame::BodyInertial(id),
             FocusPoint::Ship(id) => match self.ship_camera_inertial {
                 true => Frame::ShipInertial(id),
@@ -267,7 +311,7 @@ impl Simulation {
         }
 
         // Draw sphere of influence
-        let soi_body_id = match self.focused_object() {
+        let soi_body_id = match self.camera_focus.point() {
             FocusPoint::Body(id) => id,
             FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),
         };
@@ -395,7 +439,7 @@ impl Simulation {
     }
 
     fn orbit_summary_text(&self) -> String {
-        let (name, state, orbit, frame) = match self.focused_object() {
+        let (name, state, orbit, frame) = match self.camera_focus.point() {
             FocusPoint::Body(id) => {
                 let body = self.universe.get_body(id);
                 let frame = match body.get_parent_id() {
@@ -467,30 +511,9 @@ Timestep: {} s/frame
 FPS: {:.0}",
             format_seconds(self.universe.orrery.get_time()),
             self.timestep,
-            self.fps_current,
+            self.fps_counter.value(),
         )
     }
-}
-
-// TODO sort focus points in a more systematic way
-pub fn get_focus_points(universe: &Universe) -> Vec<FocusPoint> {
-    let mut bodies: Vec<_> = universe.bodies().collect();
-    bodies.sort_by_key(|b| b.id());
-    let mut ships: Vec<_> = universe.ships().collect();
-    ships.sort_by_key(|s| s.id());
-
-    let mut focus_pts = vec![];
-    for body in bodies.into_iter() {
-        focus_pts.push(FocusPoint::Body(body.id()));
-        // Now put in all ships orbiting that body
-        for ship in ships.iter() {
-            if ship.get_parent_id() == body.id() {
-                focus_pts.push(FocusPoint::Ship(ship.id()));
-            }
-        }
-    }
-
-    focus_pts
 }
 
 // Helpful for avoiding ambiguous typing
