@@ -211,7 +211,7 @@ impl Simulation {
             camera,
             camera_focus,
             ship_camera_inertial,
-            renderer: CompoundRenderer {},
+            renderer: CompoundRenderer::new(),
         }
     }
 
@@ -306,13 +306,6 @@ impl Simulation {
             self.draw_path_object(window, path);
         }
 
-        // Draw sphere of influence
-        let soi_body_id = match self.camera_focus.point() {
-            FocusPoint::Body(id) => id,
-            FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),
-        };
-        self.draw_soi(window, soi_body_id);
-
         // Draw text
         use nalgebra::Point2;
         let default_font = kiss3d::text::Font::default();
@@ -399,37 +392,6 @@ impl Simulation {
         );
     }
 
-    fn draw_soi(&self, window: &mut Window, id: BodyID) {
-        let soi_radius = match self.universe.orrery.get_soi_radius(id) {
-            Some(r) => r,
-            None => return, // early return if Sun
-        };
-
-        // Transform the screen x and y vectors into whatever frame we're currently focused on
-        let camera_transform = self.camera.view_transform().inverse();
-        let x_vec = camera_transform.transform_vector(&Vector3::x()).normalize();
-        let y_vec = camera_transform.transform_vector(&Vector3::y()).normalize();
-
-        // Get the position of the body in our current frame (may be non-zero if we're
-        // focused on a ship).
-        let body_pt = self
-            .universe
-            .orrery
-            .convert_frames(Frame::BodyInertial(id), self.focused_object_frame())
-            .convert_point(&Point3::origin());
-
-        let num_pts = 100;
-        let pts_iter = (0..num_pts + 1)
-            .map(|i| 2.0 * std::f32::consts::PI * (i as f32) / (num_pts as f32))
-            .map(|theta| x_vec * theta.cos() + y_vec * theta.sin())
-            .map(|v| convert_f32(body_pt) + (soi_radius as f32) * v);
-
-        // Make an okayish SOI color
-        let body_color = self.universe.get_body(id).info().color;
-        let soi_color = Point3::from(body_color.coords * 0.5);
-        draw_path_raw(window, pts_iter, &soi_color);
-    }
-
     fn orbit_summary_text(&self) -> String {
         let (name, state, orbit, frame) = match self.camera_focus.point() {
             FocusPoint::Body(id) => {
@@ -506,6 +468,33 @@ FPS: {:.0}",
             self.fps_counter.value(),
         )
     }
+
+    fn prep_soi(&mut self) {
+        let soi_id = match self.camera_focus.point() {
+            FocusPoint::Body(id) => id,
+            FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),
+        };
+
+        let soi_radius = match self.universe.orrery.get_soi_radius(soi_id) {
+            Some(r) => r,
+            None => return, // early return if Sun
+        };
+
+        // Get the position of the body in our current frame (may be non-zero if we're
+        // focused on a ship).
+        let body_pt = self
+            .universe
+            .orrery
+            .convert_frames(Frame::BodyInertial(soi_id), self.focused_object_frame())
+            .convert_point(&Point3::origin());
+
+        // Make an okayish SOI color
+        let body_color = self.universe.get_body(soi_id).info().color;
+        let soi_color = Point3::from(body_color.coords * 0.5);
+
+        self.renderer
+            .draw_soi(convert_f32(body_pt), soi_radius as f32, soi_color);
+    }
 }
 
 impl State for Simulation {
@@ -517,6 +506,7 @@ impl State for Simulation {
         Option<&mut dyn Renderer>,
         Option<&mut dyn PostProcessingEffect>,
     ) {
+        self.prep_soi();
         (Some(&mut self.camera), None, Some(&mut self.renderer), None)
     }
 
