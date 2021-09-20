@@ -7,8 +7,8 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-kiss3d = "0.24"
-nalgebra = "*"
-approx = "*"
+kiss3d = "0.31"
+nalgebra = "0.26.2"  # Must match that in kiss3d
+simba = "0.4.0"  # Must match that in nalgebra
+approx = "0.4.0"
 plotters = "*"
-simba = "*"
