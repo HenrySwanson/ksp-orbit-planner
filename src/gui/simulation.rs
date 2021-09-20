@@ -1,4 +1,4 @@
-use kiss3d::event::{Action, Key, WindowEvent};
+use kiss3d::event::{Action, Event, EventManager, Key, WindowEvent};
 use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
 
@@ -211,7 +211,7 @@ impl Simulation {
         self.fps_counter.reset();
 
         loop {
-            self.process_user_input(window);
+            self.process_user_input(window.events());
             self.update_state();
             // This step is when kiss3d detects when the window is exited
             // TODO create "RenderContext" object that can be passed down
@@ -223,45 +223,52 @@ impl Simulation {
         }
     }
 
-    fn process_user_input(&mut self, window: &mut Window) {
+    fn process_user_input(&mut self, mut events: EventManager) {
         // Process events
-        for event in window.events().iter() {
-            match event.value {
-                WindowEvent::Key(KEY_NEXT_FOCUS, Action::Press, _) => {
-                    self.camera_focus.next();
-                    self.fix_camera_zoom();
-                }
-                WindowEvent::Key(KEY_PREV_FOCUS, Action::Press, _) => {
-                    self.camera_focus.prev();
-                    self.fix_camera_zoom();
-                }
-                WindowEvent::Key(KEY_SPEED_UP, Action::Press, _) => {
-                    self.timestep *= 2.0;
-                    println!("Timestep is {} s / s", (60.0 * self.timestep).round())
-                }
-                WindowEvent::Key(KEY_SLOW_DOWN, Action::Press, _) => {
-                    self.timestep /= 2.0;
-                    println!("Timestep is {} s / s", (60.0 * self.timestep).round())
-                }
-                WindowEvent::Key(KEY_REWIND, Action::Press, _) => {
-                    self.timestep *= -1.0;
-                    self.paused = false;
-                }
-                WindowEvent::Key(KEY_PAUSE, Action::Press, _) => {
-                    self.paused = !self.paused;
-                }
-                WindowEvent::Key(KEY_CAMERA_SWAP, Action::Press, _) => {
-                    self.ship_camera_inertial = !self.ship_camera_inertial;
-                }
-                _ => {}
+        for event in events.iter() {
+            self.process_event(event);
+        }
+    }
+
+    fn process_event(&mut self, event: Event) {
+        match event.value {
+            WindowEvent::Key(KEY_NEXT_FOCUS, Action::Press, _) => {
+                self.camera_focus.next();
+                self.fix_camera_zoom();
             }
+            WindowEvent::Key(KEY_PREV_FOCUS, Action::Press, _) => {
+                self.camera_focus.prev();
+                self.fix_camera_zoom();
+            }
+            WindowEvent::Key(KEY_SPEED_UP, Action::Press, _) => {
+                self.timestep *= 2.0;
+                println!("Timestep is {} s / s", (60.0 * self.timestep).round())
+            }
+            WindowEvent::Key(KEY_SLOW_DOWN, Action::Press, _) => {
+                self.timestep /= 2.0;
+                println!("Timestep is {} s / s", (60.0 * self.timestep).round())
+            }
+            WindowEvent::Key(KEY_REWIND, Action::Press, _) => {
+                self.timestep *= -1.0;
+                self.paused = false;
+            }
+            WindowEvent::Key(KEY_PAUSE, Action::Press, _) => {
+                self.paused = !self.paused;
+            }
+            WindowEvent::Key(KEY_CAMERA_SWAP, Action::Press, _) => {
+                self.ship_camera_inertial = !self.ship_camera_inertial;
+            }
+            _ => {}
         }
     }
 
     fn update_state(&mut self) {
         if !self.paused {
+            // Update the universe, then move scene objects to the right places
             self.universe.update_time(self.timestep);
         }
+        // TODO: should be able to put it inside this branch but apparently not
+        self.update_scene_objects();
     }
 
     fn fix_camera_zoom(&mut self) {
@@ -284,9 +291,6 @@ impl Simulation {
 
     // the big boy
     fn render_scene(&mut self, window: &mut Window) -> bool {
-        // Move scene objects to the right places
-        self.update_scene_objects();
-
         // Draw grid
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
