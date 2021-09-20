@@ -22,13 +22,14 @@ use crate::universe::{BodyID, Universe};
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");
     window.set_light(Light::StickToCamera);
+    window.set_framerate_limit(Some(60));
 
     let mut universe = read_file("ksp-bodies.txt");
     universe
         .orrery
         .add_ship(Vector3::x() * 6000000.0, Vector3::y() * 1000.0, BodyID(4));
 
-    gui::Simulation::new(window, universe).render_loop();
+    gui::Simulation::new(universe, &mut window).render_loop(&mut window);
 }
 
 fn read_file(filename: &str) -> Universe {
