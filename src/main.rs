@@ -29,7 +29,8 @@ fn main() {
         .orrery
         .add_ship(Vector3::x() * 6000000.0, Vector3::y() * 1000.0, BodyID(4));
 
-    gui::Simulation::new(universe, &mut window).render_loop(&mut window);
+    let simulation = gui::Simulation::new(universe, &mut window);
+    window.render_loop(simulation);
 }
 
 fn read_file(filename: &str) -> Universe {

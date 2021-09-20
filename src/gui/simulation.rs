@@ -1,6 +1,10 @@
+use kiss3d::camera::Camera;
 use kiss3d::event::{Action, Event, EventManager, Key, WindowEvent};
+use kiss3d::planar_camera::PlanarCamera;
+use kiss3d::post_processing::PostProcessingEffect;
+use kiss3d::renderer::Renderer;
 use kiss3d::scene::SceneNode;
-use kiss3d::window::Window;
+use kiss3d::window::{State, Window};
 
 use nalgebra::{Point3, Translation3, Vector3};
 
@@ -9,6 +13,7 @@ use std::f64::consts::PI;
 use std::time::Instant;
 
 use super::camera::CustomCamera;
+use super::renderer::CompoundRenderer;
 
 use crate::universe::{BodyID, Frame, FrameTransform, OrbitPatch, ShipID, Universe};
 
@@ -61,6 +66,8 @@ pub struct Simulation {
     camera: CustomCamera,
     camera_focus: CameraFocus,
     ship_camera_inertial: bool,
+    // Misc
+    renderer: CompoundRenderer,
 }
 
 impl FpsCounter {
@@ -204,22 +211,7 @@ impl Simulation {
             camera,
             camera_focus,
             ship_camera_inertial,
-        }
-    }
-
-    pub fn render_loop(&mut self, window: &mut Window) {
-        self.fps_counter.reset();
-
-        loop {
-            self.process_user_input(window.events());
-            self.update_state();
-            // This step is when kiss3d detects when the window is exited
-            // TODO create "RenderContext" object that can be passed down
-            if !self.render_scene(window) {
-                break;
-            };
-
-            self.fps_counter.increment();
+            renderer: CompoundRenderer {},
         }
     }
 
@@ -290,7 +282,7 @@ impl Simulation {
     }
 
     // the big boy
-    fn render_scene(&mut self, window: &mut Window) -> bool {
+    fn prerender_scene(&mut self, window: &mut Window) {
         // Draw grid
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
@@ -340,9 +332,6 @@ impl Simulation {
             &default_font,
             &text_color,
         );
-
-        // Render and return bool
-        window.render_with_camera(&mut self.camera)
     }
 
     fn update_scene_objects(&mut self) {
@@ -417,7 +406,6 @@ impl Simulation {
         };
 
         // Transform the screen x and y vectors into whatever frame we're currently focused on
-        use crate::kiss3d::camera::Camera;
         let camera_transform = self.camera.view_transform().inverse();
         let x_vec = camera_transform.transform_vector(&Vector3::x()).normalize();
         let y_vec = camera_transform.transform_vector(&Vector3::y()).normalize();
@@ -517,6 +505,26 @@ FPS: {:.0}",
             self.timestep,
             self.fps_counter.value(),
         )
+    }
+}
+
+impl State for Simulation {
+    fn cameras_and_effect_and_renderer(
+        &mut self,
+    ) -> (
+        Option<&mut dyn Camera>,
+        Option<&mut dyn PlanarCamera>,
+        Option<&mut dyn Renderer>,
+        Option<&mut dyn PostProcessingEffect>,
+    ) {
+        (Some(&mut self.camera), None, Some(&mut self.renderer), None)
+    }
+
+    fn step(&mut self, window: &mut Window) {
+        self.process_user_input(window.events());
+        self.update_state();
+        self.prerender_scene(window);
+        self.fps_counter.increment();
     }
 }
 
