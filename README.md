@@ -12,3 +12,5 @@ Controls
 - R: reverse direction of time
 - P: pause/unpause
 - Esc: quit
+
+![screenshot](screenshots/mun-encounter.png)
