@@ -19,6 +19,7 @@ pub struct Orbit {
     mu: f64,
 }
 
+// TODO: re-evaluate if we need this
 #[derive(Debug, Clone)]
 pub struct OrbitPatch {
     pub orbit: Orbit,

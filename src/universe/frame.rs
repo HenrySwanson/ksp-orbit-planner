@@ -12,7 +12,7 @@ use simba::scalar::{RealField, SubsetOf, SupersetOf};
 
 pub struct FrameTransform<T: RealField> {
     /// Isometry taking source coordinates to target coordinates
-    isometry: Isometry3<T>, // TODO break this apart? :\
+    isometry: Isometry3<T>,
     /// Relative velocity of target frame wrt source frame
     relative_velocity: Vector3<T>,
     /// Angular velocity of target frame wrt source frame
@@ -126,6 +126,10 @@ impl<T: RealField> FrameTransform<T> {
         let vb_src = self.inverse_convert_vector(&velocity);
         let rb_src = self.inverse_convert_vector(&position.coords);
         vb_src + self.relative_velocity + self.angular_velocity.cross(&rb_src)
+    }
+
+    pub fn isometry(&self) -> &Isometry3<T> {
+        &self.isometry
     }
 }
 

@@ -6,16 +6,15 @@ use kiss3d::renderer::Renderer;
 use kiss3d::scene::SceneNode;
 use kiss3d::window::{State, Window};
 
-use nalgebra::{Point3, Translation3, Vector3};
+use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 
 use std::collections::HashMap;
-use std::f64::consts::PI;
 use std::time::Instant;
 
 use super::camera::CustomCamera;
 use super::renderer::CompoundRenderer;
 
-use crate::universe::{BodyID, Frame, FrameTransform, OrbitPatch, ShipID, Universe};
+use crate::universe::{BodyID, Frame, FrameTransform, ShipID, Universe};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -286,21 +285,6 @@ impl Simulation {
         // Draw grid
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
-        // Draw orbits
-        for body in self.universe.bodies() {
-            let orbit = match body.get_orbit() {
-                Some(o) => o,
-                None => continue,
-            };
-            let color = body.info().color;
-            self.render_orbit_patch(window, &orbit, &color);
-        }
-        for ship in self.universe.ships() {
-            let orbit = ship.get_orbit();
-            let color = Point3::new(1.0, 1.0, 1.0);
-            self.render_orbit_patch(window, &orbit, &color);
-        }
-
         // Draw paths
         for path in self.paths.iter() {
             self.draw_path_object(window, path);
@@ -339,42 +323,6 @@ impl Simulation {
             let state = self.universe.get_ship(*id).state();
             set_object_position(cube, state.get_position(camera_frame));
         }
-    }
-
-    fn render_orbit_patch(&self, window: &mut Window, orbit: &OrbitPatch, color: &Point3<f32>) {
-        // Find the starting and ending anomalies
-        let start_s = orbit.start_anomaly;
-        let end_s = match orbit.end_anomaly {
-            Some(s) => s,
-            None => {
-                let beta = -2.0 * orbit.orbit.energy();
-                if beta > 0.0 {
-                    // Since this is an ellipse, the eccentric anomaly makes sense.
-                    // We want E to increase by 2pi, and s = E / sqrt(beta)
-                    start_s + 2.0 * PI / beta.sqrt()
-                } else {
-                    start_s + 1.0 // TODO: or whatever
-                }
-            }
-        };
-        let delta_s = end_s - start_s;
-        assert!(delta_s >= 0.0);
-
-        // Get the transform into the focused frame
-        let transform = self.universe.orrery.convert_frames(
-            Frame::BodyInertial(orbit.parent_id),
-            self.focused_object_frame(),
-        );
-
-        // Get some points around the orbit
-        let num_segments = 180;
-        let pts = (0..num_segments + 1)
-            .map(|i| start_s + (i as f64) / (num_segments as f64) * delta_s)
-            .map(|s| orbit.orbit.get_state(s).get_position())
-            .map(|v| transform.convert_point(&Point3::from(v)))
-            .map(convert_f32);
-
-        draw_path_raw(window, pts, &color);
     }
 
     fn draw_path_object(&self, window: &mut Window, path: &Path) {
@@ -495,6 +443,33 @@ FPS: {:.0}",
         self.renderer
             .draw_soi(convert_f32(body_pt), soi_radius as f32, soi_color);
     }
+
+    fn prep_orbits(&mut self) {
+        for body in self.universe.bodies() {
+            let orbit = match body.get_orbit() {
+                Some(o) => o,
+                None => continue,
+            };
+            let color = body.info().color;
+            let transform = self.universe.orrery.convert_frames(
+                Frame::BodyInertial(orbit.parent_id),
+                self.focused_object_frame(),
+            );
+            let isometry: Isometry3<f32> = nalgebra::convert(*transform.isometry());
+            self.renderer.draw_orbit(orbit, color, isometry);
+        }
+
+        for ship in self.universe.ships() {
+            let orbit = ship.get_orbit();
+            let color = Point3::new(1.0, 1.0, 1.0);
+            let transform = self.universe.orrery.convert_frames(
+                Frame::BodyInertial(orbit.parent_id),
+                self.focused_object_frame(),
+            );
+            let isometry: Isometry3<f32> = nalgebra::convert(*transform.isometry());
+            self.renderer.draw_orbit(orbit, color, isometry);
+        }
+    }
 }
 
 impl State for Simulation {
@@ -507,6 +482,7 @@ impl State for Simulation {
         Option<&mut dyn PostProcessingEffect>,
     ) {
         self.prep_soi();
+        self.prep_orbits();
         (Some(&mut self.camera), None, Some(&mut self.renderer), None)
     }
 
