@@ -232,7 +232,10 @@ impl Orbit {
     }
 
     #[allow(non_snake_case)]
-    pub fn get_state(&self, s: f64) -> CartesianState {
+    pub fn get_state_native_frame(&self, s: f64) -> CartesianState {
+        // Note: this function is only exposed because it makes rendering faster. Would be
+        // nice to have an alternative... :\
+
         let beta = -2.0 * self.energy;
         let mu = self.mu;
         let G: [f64; 4] = stumpff_G(beta, s);
@@ -244,8 +247,17 @@ impl Orbit {
         let vx = -mu / r * G[1];
         let vy = self.ang_mom / r * G[0];
 
-        let position = self.rotation * Vector3::new(x, y, 0.0);
-        let velocity = self.rotation * Vector3::new(vx, vy, 0.0);
+        let position = Vector3::new(x, y, 0.0);
+        let velocity = Vector3::new(vx, vy, 0.0);
+
+        CartesianState::new(position, velocity, self.mu)
+    }
+
+    pub fn get_state(&self, s: f64) -> CartesianState {
+        let native_state = self.get_state_native_frame(s);
+
+        let position = self.rotation * native_state.get_position();
+        let velocity = self.rotation * native_state.get_velocity();
 
         CartesianState::new(position, velocity, self.mu)
     }
