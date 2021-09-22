@@ -11,10 +11,10 @@ use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use std::collections::HashMap;
 use std::time::Instant;
 
-use super::camera::CustomCamera;
+use super::camera::ZoomableCamera;
 use super::renderer::CompoundRenderer;
 
-use crate::universe::{BodyID, Frame, FrameTransform, ShipID, Universe};
+use crate::universe::{BodyID, BodyRef, Frame, ShipID, ShipRef, Universe};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -33,40 +33,11 @@ pub enum FocusPoint {
     Ship(ShipID),
 }
 
-pub struct Path {
-    nodes: Vec<Point3<f32>>,
-    frame: Frame,
-    color: Point3<f32>,
-}
-
 pub struct FpsCounter {
     instant: Instant,
     counter: usize,
     window_size_millis: usize,
     previous_fps: f64,
-}
-
-pub struct CameraFocus {
-    focus_points: Vec<FocusPoint>,
-    focus_idx: usize,
-}
-
-pub struct Simulation {
-    // Object state
-    universe: Universe,
-    body_spheres: HashMap<BodyID, SceneNode>,
-    ship_objects: HashMap<ShipID, SceneNode>,
-    paths: Vec<Path>,
-    // Timestep
-    timestep: f64,
-    paused: bool,
-    fps_counter: FpsCounter,
-    // Camera
-    camera: CustomCamera,
-    camera_focus: CameraFocus,
-    ship_camera_inertial: bool,
-    // Misc
-    renderer: CompoundRenderer,
 }
 
 impl FpsCounter {
@@ -96,6 +67,11 @@ impl FpsCounter {
             self.reset();
         }
     }
+}
+
+pub struct CameraFocus {
+    focus_points: Vec<FocusPoint>,
+    focus_idx: usize,
 }
 
 impl CameraFocus {
@@ -138,72 +114,49 @@ impl CameraFocus {
     }
 }
 
+pub struct Simulation {
+    // Object state
+    universe: Universe,
+    body_spheres: HashMap<BodyID, SceneNode>,
+    ship_objects: HashMap<ShipID, SceneNode>,
+    // Timestep
+    timestep: f64,
+    paused: bool,
+    fps_counter: FpsCounter,
+    // Camera
+    camera: ZoomableCamera,
+    camera_focus: CameraFocus,
+    ship_camera_inertial: bool,
+    // Misc
+    renderer: CompoundRenderer,
+}
+
 impl Simulation {
     pub fn new(universe: Universe, window: &mut Window) -> Self {
         // Set up camera
         // TODO figure out what distance to put the camera...
-        let camera = CustomCamera::new(2.0e9);
+        let camera = ZoomableCamera::new(2.0e9);
         let camera_focus = CameraFocus::new(&universe);
         let ship_camera_inertial = true;
 
-        let mut paths = vec![];
-
-        // Collect planetary bodies
+        // Create objects for bodies
         let mut body_spheres = HashMap::new();
         for body in universe.bodies() {
-            let body_info = body.info();
-
-            // Make the sphere that represents the body
-            let mut sphere = window.add_sphere(body_info.radius);
-            let color = &body_info.color;
-            sphere.set_color(color.x, color.y, color.z);
+            let sphere = Simulation::create_body_object(window, &body);
             body_spheres.insert(body.id(), sphere);
-
-            // TODO remove, or somehow make optional
-            // Make axes that show the planet's orbits orientation
-            let orbit = match body.get_orbit() {
-                Some(orbit) => orbit,
-                None => continue,
-            };
-
-            let make_axis_path = |v, color| -> Path {
-                let v: Vector3<f32> = nalgebra::convert(v);
-                let v = 2.0 * body_info.radius * v;
-                let pt: Point3<f32> = Point3::from(v);
-                Path {
-                    nodes: vec![Point3::origin(), pt],
-                    frame: Frame::BodyInertial(body.id()),
-                    color,
-                }
-            };
-            paths.push(make_axis_path(
-                orbit.orbit.periapse_vector(),
-                Point3::new(1.0, 0.0, 0.0),
-            ));
-            paths.push(make_axis_path(
-                orbit.orbit.asc_node_vector(),
-                Point3::new(0.0, 1.0, 0.0),
-            ));
-            paths.push(make_axis_path(
-                orbit.orbit.normal_vector(),
-                Point3::new(0.0, 0.0, 1.0),
-            ));
         }
 
-        // Collect ships
+        // Create objects for ships
         let mut ship_objects = HashMap::new();
         for ship in universe.ships() {
-            // Make the cube that represents the ship
-            let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
-            cube.set_color(1.0, 1.0, 1.0);
+            let cube = Simulation::create_ship_object(window, &ship);
             ship_objects.insert(ship.id(), cube);
         }
 
-        Simulation {
+        let mut simulation = Simulation {
             universe,
             body_spheres,
             ship_objects,
-            paths,
             timestep: 21600.0 / 60.0, // one Kerbin-day
             paused: true,
             fps_counter: FpsCounter::new(1000),
@@ -211,7 +164,27 @@ impl Simulation {
             camera_focus,
             ship_camera_inertial,
             renderer: CompoundRenderer::new(),
-        }
+        };
+        simulation.update_scene_objects();
+
+        simulation
+    }
+
+    fn create_body_object(window: &mut Window, body: &BodyRef) -> SceneNode {
+        let body_info = body.info();
+
+        // Make the sphere that represents the body
+        let mut sphere = window.add_sphere(body_info.radius);
+        let color = &body_info.color;
+        sphere.set_color(color.x, color.y, color.z);
+        sphere
+    }
+
+    fn create_ship_object(window: &mut Window, _ship: &ShipRef) -> SceneNode {
+        // Make the cube that represents the ship
+        let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
+        cube.set_color(1.0, 1.0, 1.0);
+        cube
     }
 
     fn process_user_input(&mut self, mut events: EventManager) {
@@ -226,10 +199,12 @@ impl Simulation {
             WindowEvent::Key(KEY_NEXT_FOCUS, Action::Press, _) => {
                 self.camera_focus.next();
                 self.fix_camera_zoom();
+                self.update_scene_objects();
             }
             WindowEvent::Key(KEY_PREV_FOCUS, Action::Press, _) => {
                 self.camera_focus.prev();
                 self.fix_camera_zoom();
+                self.update_scene_objects();
             }
             WindowEvent::Key(KEY_SPEED_UP, Action::Press, _) => {
                 self.timestep *= 2.0;
@@ -248,6 +223,7 @@ impl Simulation {
             }
             WindowEvent::Key(KEY_CAMERA_SWAP, Action::Press, _) => {
                 self.ship_camera_inertial = !self.ship_camera_inertial;
+                self.update_scene_objects();
             }
             _ => {}
         }
@@ -257,9 +233,8 @@ impl Simulation {
         if !self.paused {
             // Update the universe, then move scene objects to the right places
             self.universe.update_time(self.timestep);
+            self.update_scene_objects();
         }
-        // TODO: should be able to put it inside this branch but apparently not
-        self.update_scene_objects();
     }
 
     fn fix_camera_zoom(&mut self) {
@@ -280,14 +255,22 @@ impl Simulation {
         }
     }
 
+    fn transform_to_focus_space(&self, frame: Frame) -> Isometry3<f32> {
+        let transform = self
+            .universe
+            .orrery
+            .convert_frames(frame, self.focused_object_frame());
+        nalgebra::convert(*transform.isometry())
+    }
+
     // the big boy
     fn prerender_scene(&mut self, window: &mut Window) {
         // Draw grid
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
-        // Draw paths
-        for path in self.paths.iter() {
-            self.draw_path_object(window, path);
+        // Draw orbital axes
+        for body in self.universe.bodies() {
+            self.draw_orbital_axes(window, body);
         }
 
         // Draw text
@@ -295,7 +278,7 @@ impl Simulation {
         let default_font = kiss3d::text::Font::default();
         let text_color = Point3::new(1.0, 1.0, 1.0);
         window.draw_text(
-            &self.orbit_summary_text(),
+            &self.left_hand_text(),
             &Point2::origin(),
             60.0,
             &default_font,
@@ -312,85 +295,78 @@ impl Simulation {
     }
 
     fn update_scene_objects(&mut self) {
+        // does some nice conversions
+        fn set_position_helper(obj: &mut SceneNode, position: Point3<f64>) {
+            let position: Point3<f32> = nalgebra::convert(position);
+            obj.set_local_translation(Translation3::from(position));
+        }
+
         // TODO apply rotations too!
         let camera_frame = self.focused_object_frame();
         for (id, sphere) in self.body_spheres.iter_mut() {
             let state = self.universe.get_body(*id).state();
-            set_object_position(sphere, state.get_position(camera_frame));
+            let position = state.get_position(camera_frame);
+            set_position_helper(sphere, position);
         }
 
         for (id, cube) in self.ship_objects.iter_mut() {
             let state = self.universe.get_ship(*id).state();
-            set_object_position(cube, state.get_position(camera_frame));
+            let position = state.get_position(camera_frame);
+            set_position_helper(cube, position);
         }
     }
 
-    fn draw_path_object(&self, window: &mut Window, path: &Path) {
-        // Transform points into the right frame before drawing them
-        let transform = self
-            .universe
-            .orrery
-            .convert_frames(path.frame, self.focused_object_frame());
-        let transform: FrameTransform<f32> = nalgebra::convert(transform);
+    fn draw_orbital_axes(&self, window: &mut Window, body: BodyRef) {
+        // TODO: this renders the axes at the center of the body; I think we probably want center
+        // of the orbit instead. But only do that if you're doing this only for the focused body.
+        let orbit = match body.get_orbit() {
+            Some(orbit) => orbit,
+            None => return,
+        };
 
-        draw_path_raw(
-            window,
-            path.nodes.iter().map(|p| transform.convert_point(p)),
-            &path.color,
+        let axis_length = 2.0 * body.info().radius;
+        let transform = self.transform_to_focus_space(Frame::BodyInertial(body.id()));
+        let origin = transform * Point3::origin();
+
+        // Draws a ray starting at the origin of the body, and proceeding in the given direction.
+        // Length and v are separated because one's f32 and the other's f64. Oh well.
+        let mut draw_ray = |v: Vector3<f64>, length: f32, color: Point3<f32>| {
+            let v: Vector3<f32> = nalgebra::convert(v);
+            let end_pt = origin + length * (transform * v.normalize());
+            window.draw_line(&origin, &end_pt, &color);
+        };
+
+        draw_ray(
+            orbit.orbit.periapse_vector(),
+            axis_length,
+            Point3::new(1.0, 0.0, 0.0),
+        );
+        draw_ray(
+            orbit.orbit.asc_node_vector(),
+            axis_length,
+            Point3::new(0.0, 1.0, 0.0),
+        );
+        draw_ray(
+            orbit.orbit.normal_vector(),
+            axis_length,
+            Point3::new(0.0, 0.0, 1.0),
         );
     }
 
-    fn orbit_summary_text(&self) -> String {
-        let (name, state, orbit, frame) = match self.camera_focus.point() {
+    fn left_hand_text(&self) -> String {
+        let (state, frame) = match self.camera_focus.point() {
             FocusPoint::Body(id) => {
                 let body = self.universe.get_body(id);
                 let frame = match body.get_parent_id() {
                     Some(id) => Frame::BodyInertial(id),
                     None => Frame::Root,
                 };
-                (
-                    body.info().name.to_owned(),
-                    body.state(),
-                    body.get_orbit(),
-                    frame,
-                )
+                (body.state(), frame)
             }
             FocusPoint::Ship(id) => {
                 let ship = self.universe.get_ship(id);
-                let name = if self.ship_camera_inertial {
-                    "<Ship> (inertial)"
-                } else {
-                    "<Ship> (orbital)"
-                };
-
-                (
-                    name.to_owned(),
-                    ship.state(),
-                    Some(ship.get_orbit()),
-                    Frame::BodyInertial(ship.get_parent_id()),
-                )
+                (ship.state(), Frame::BodyInertial(ship.get_parent_id()))
             }
-        };
-
-        // Orbit needs to be handled specially, because the Sun has no orbit
-        let orbit_text = match orbit {
-            Some(o) => {
-                format!(
-                    "{}
-    SMA: {:.0}
-    Eccentricity: {:.3}
-    Inclination: {:.3}
-    LAN: {:.1}
-    Arg PE: {:.1}",
-                    self.universe.get_body(o.parent_id).info().name,
-                    o.orbit.semimajor_axis(),
-                    o.orbit.eccentricity(),
-                    o.orbit.inclination().to_degrees(),
-                    o.orbit.long_asc_node().to_degrees(),
-                    o.orbit.arg_periapse().to_degrees(),
-                )
-            }
-            None => String::from("N/A"),
         };
 
         format!(
@@ -399,10 +375,61 @@ State:
     Radius: {:.0} m
     Speed: {:.0} m/s
 Orbiting: {}",
-            name,
+            self.focused_body_name(),
             state.get_position(frame).coords.norm(),
             state.get_velocity(frame).norm(),
-            orbit_text
+            self.orbit_summary_text(),
+        )
+    }
+
+    fn focused_body_name(&self) -> String {
+        match self.camera_focus.point() {
+            FocusPoint::Body(id) => {
+                let body = self.universe.get_body(id);
+                body.info().name.to_owned()
+            }
+            FocusPoint::Ship(_) => {
+                format!(
+                    "<Ship> ({})",
+                    if self.ship_camera_inertial {
+                        "inertial"
+                    } else {
+                        "orbital"
+                    }
+                )
+            }
+        }
+    }
+
+    fn orbit_summary_text(&self) -> String {
+        let orbit = match self.camera_focus.point() {
+            FocusPoint::Body(id) => match self.universe.get_body(id).get_orbit() {
+                Some(orbit) => orbit,
+                None => return String::from("N/A"),
+            },
+            FocusPoint::Ship(id) => {
+                let ship = self.universe.get_ship(id);
+                ship.get_orbit()
+            }
+        };
+
+        let parent_body = self.universe.get_body(orbit.parent_id);
+        let orbit = orbit.orbit;
+
+        // Indentation is intentional
+        format!(
+            "{}
+    SMA: {:.0}
+    Eccentricity: {:.3}
+    Inclination: {:.3}
+    LAN: {:.1}
+    Arg PE: {:.1}",
+            parent_body.info().name,
+            orbit.semimajor_axis(),
+            orbit.eccentricity(),
+            orbit.inclination().to_degrees(),
+            orbit.long_asc_node().to_degrees(),
+            orbit.arg_periapse().to_degrees(),
         )
     }
 
@@ -428,20 +455,16 @@ FPS: {:.0}",
             None => return, // early return if Sun
         };
 
-        // Get the position of the body in our current frame (may be non-zero if we're
-        // focused on a ship).
-        let body_pt = self
-            .universe
-            .orrery
-            .convert_frames(Frame::BodyInertial(soi_id), self.focused_object_frame())
-            .convert_point(&Point3::origin());
+        // The SOI body is located at the origin in its own frame, which might not be the focus
+        // frame (for example, if we are focused on a ship).
+        let body_pt = self.transform_to_focus_space(Frame::BodyInertial(soi_id)) * Point3::origin();
 
-        // Make an okayish SOI color
+        // Make an okayish SOI color by dimming the body color.
         let body_color = self.universe.get_body(soi_id).info().color;
         let soi_color = Point3::from(body_color.coords * 0.5);
 
         self.renderer
-            .draw_soi(convert_f32(body_pt), soi_radius as f32, soi_color);
+            .draw_soi(body_pt, soi_radius as f32, soi_color);
     }
 
     fn prep_orbits(&mut self) {
@@ -451,23 +474,17 @@ FPS: {:.0}",
                 None => continue,
             };
             let color = body.info().color;
-            let transform = self.universe.orrery.convert_frames(
-                Frame::BodyInertial(orbit.parent_id),
-                self.focused_object_frame(),
-            );
-            let isometry: Isometry3<f32> = nalgebra::convert(*transform.isometry());
-            self.renderer.draw_orbit(orbit, color, isometry);
+            let frame = Frame::BodyInertial(orbit.parent_id);
+            self.renderer
+                .draw_orbit(orbit, color, self.transform_to_focus_space(frame));
         }
 
         for ship in self.universe.ships() {
             let orbit = ship.get_orbit();
             let color = Point3::new(1.0, 1.0, 1.0);
-            let transform = self.universe.orrery.convert_frames(
-                Frame::BodyInertial(orbit.parent_id),
-                self.focused_object_frame(),
-            );
-            let isometry: Isometry3<f32> = nalgebra::convert(*transform.isometry());
-            self.renderer.draw_orbit(orbit, color, isometry);
+            let frame = Frame::BodyInertial(orbit.parent_id);
+            self.renderer
+                .draw_orbit(orbit, color, self.transform_to_focus_space(frame));
         }
     }
 }
@@ -494,15 +511,6 @@ impl State for Simulation {
     }
 }
 
-// Helpful for avoiding ambiguous typing
-fn convert_f32(p: Point3<f64>) -> Point3<f32> {
-    nalgebra::convert(p)
-}
-
-fn set_object_position(obj: &mut SceneNode, position: Point3<f64>) {
-    obj.set_local_translation(Translation3::from(convert_f32(position).coords));
-}
-
 fn draw_grid(window: &mut Window, num_squares: i32, square_size: f32, color: &Point3<f32>) {
     let max_coord = square_size * (num_squares as f32);
     for i in (-num_squares)..(num_squares + 1) {
@@ -519,20 +527,6 @@ fn draw_grid(window: &mut Window, num_squares: i32, square_size: f32, color: &Po
             &Point3::new(coord, max_coord, 0.0),
             &color,
         );
-    }
-}
-
-fn draw_path_raw<I: Iterator<Item = Point3<f32>>>(
-    window: &mut Window,
-    points: I,
-    color: &Point3<f32>,
-) {
-    let mut prev_pt = None;
-    for pt in points {
-        if let Some(prev_pt) = prev_pt {
-            window.draw_line(&prev_pt, &pt, color);
-        }
-        prev_pt = Some(pt);
     }
 }
 

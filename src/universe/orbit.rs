@@ -77,6 +77,7 @@ impl Orbit {
         self.rotation
     }
 
+    // TODO these should return unit vectors
     pub fn periapse_vector(&self) -> Vector3<f64> {
         self.rotation() * Vector3::x()
     }

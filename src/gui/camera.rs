@@ -7,15 +7,15 @@ use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector2, Vector3};
 
 use std::f32::consts::PI;
 
-// This camera will always be looking at the origin, and will have the z-axis
-// pointing straight up.
-// This is because the world will move around the camera, so that even when
-// we're looking at really far-out planets, our graphics will still take
-// place near the origin.
-// It will, however, be able to zoom in and out. As it does so, the clipping
-// planes will change. This is to accommodate the vast differences in scales
-// at which we're viewing things.
-pub struct CustomCamera {
+// This camera is a close cousin of ArcBall. Like ArcBall, this camera can be click-and-dragged to
+// adjust its pitch and yaw, and scrolled to zoom in and out. However, since we're operating over
+// very large length scales, our zooms must also adjust the clipping planes. Since ArcBall doesn't
+// expose those parameters, this prevents us from simply wrapping ArcBall.
+//
+// Our possible camera positions are more restricted than ArcBall. The camera always points at the
+// origin, and uses the z-axis as up. This is because we translate the universe so that the origin
+// is at the object we're "focused" on.
+pub struct ZoomableCamera {
     // -- position --
     theta: f32,  // azimuthal angle
     phi: f32,    // polar angle
@@ -35,10 +35,10 @@ pub struct CustomCamera {
     z_far_multipler: f32,
 }
 
-impl CustomCamera {
+impl ZoomableCamera {
     // TODO: more parameters
     pub fn new(radius: f32) -> Self {
-        CustomCamera {
+        ZoomableCamera {
             theta: 0.0,
             phi: PI / 2.0,
             radius,
@@ -78,7 +78,7 @@ impl CustomCamera {
     }
 }
 
-impl Camera for CustomCamera {
+impl Camera for ZoomableCamera {
     fn handle_event(&mut self, canvas: &Canvas, event: &WindowEvent) {
         match *event {
             WindowEvent::CursorPos(x, y, _) => {
