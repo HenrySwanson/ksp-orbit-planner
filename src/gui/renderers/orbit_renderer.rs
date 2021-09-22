@@ -1,47 +1,79 @@
 use kiss3d::camera::Camera;
-use kiss3d::renderer::{LineRenderer, Renderer};
+use kiss3d::context::Context;
+use kiss3d::renderer::Renderer;
+use kiss3d::resource::{
+    AllocationType, BufferType, Effect, GPUVec, ShaderAttribute, ShaderUniform,
+};
 
-use nalgebra::{Isometry3, Point3, Vector3};
+use nalgebra::{Isometry3, Matrix4, Point3, Vector3};
 
 use std::f64::consts::PI;
 
-use crate::universe::{Orbit, OrbitPatch};
+use crate::universe::OrbitPatch;
 
-use super::utils::{draw_path, path_iter_parametric};
-
-struct OrbitData {
-    pub orbit: Orbit,
-    pub start_anomaly: f64,
-    pub end_anomaly: Option<f64>,
-    pub color: Point3<f32>,
-    pub transform: Isometry3<f32>,
-}
+use super::utils::path_iter_parametric;
 
 pub struct OrbitRenderer {
-    line_renderer: LineRenderer,
-    orbits: Vec<OrbitData>,
+    // OpenGL stuff
+    shader: Effect,
+    pos: ShaderAttribute<Point3<f32>>,
+    color: ShaderAttribute<Point3<f32>>,
+    view: ShaderUniform<Matrix4<f32>>,
+    proj: ShaderUniform<Matrix4<f32>>,
+    line_width: f32,
+    // Data storage (a, color, b, color)
+    orbit_lines: GPUVec<Point3<f32>>,
 }
 
 impl OrbitRenderer {
     pub fn new() -> Self {
+        let mut shader = Effect::new_from_str(VERTEX_SRC, FRAGMENT_SRC);
+
+        shader.use_program();
+
         OrbitRenderer {
-            line_renderer: LineRenderer::new(),
-            orbits: vec![],
+            pos: shader
+                .get_attrib::<Point3<f32>>("position")
+                .expect("Failed to get shader attribute."),
+            color: shader
+                .get_attrib::<Point3<f32>>("color")
+                .expect("Failed to get shader attribute."),
+            view: shader
+                .get_uniform::<Matrix4<f32>>("view")
+                .expect("Failed to get shader uniform."),
+            proj: shader
+                .get_uniform::<Matrix4<f32>>("proj")
+                .expect("Failed to get shader uniform."),
+            shader: shader,
+            line_width: 1.0,
+            orbit_lines: GPUVec::new(Vec::new(), BufferType::Array, AllocationType::StreamDraw),
         }
     }
 
     pub fn add_orbit(&mut self, orbit: OrbitPatch, color: Point3<f32>, transform: Isometry3<f32>) {
-        let orbit = OrbitData {
-            orbit: orbit.orbit,
-            start_anomaly: orbit.start_anomaly,
-            end_anomaly: orbit.end_anomaly,
-            color,
-            transform,
+        // Don't bother storing the orbit itself, just load data into the GPUVec
+        let data = match self.orbit_lines.data_mut() {
+            Some(x) => x,
+            None => return,
         };
-        self.orbits.push(orbit);
+
+        // TODO: would be easier if we could use GL_LINE_STRIP
+        let mut prev_pt = None;
+        for pt in OrbitRenderer::get_orbit_points(orbit, transform) {
+            if let Some(prev_pt) = prev_pt {
+                data.push(prev_pt);
+                data.push(color);
+                data.push(pt);
+                data.push(color);
+            }
+            prev_pt = Some(pt);
+        }
     }
 
-    fn load_orbit_into_renderer(line_renderer: &mut LineRenderer, orbit: &OrbitData) {
+    fn get_orbit_points(
+        orbit: OrbitPatch,
+        transform: Isometry3<f32>,
+    ) -> impl Iterator<Item = Point3<f32>> {
         // Find the starting and ending anomalies
         let start_s = orbit.start_anomaly;
         let end_s = match orbit.end_anomaly {
@@ -60,25 +92,67 @@ impl OrbitRenderer {
         assert!(end_s >= start_s);
 
         // Get some points around the orbit
-        let f = |s| {
+        let f = move |s| {
             let v = orbit.orbit.get_state(s).get_position();
             let v: Vector3<f32> = nalgebra::convert(v);
-            orbit.transform * Point3::from(v)
+            transform * Point3::from(v)
         };
-        draw_path(
-            line_renderer,
-            path_iter_parametric(f, start_s, end_s, 180),
-            &orbit.color,
-        );
+
+        path_iter_parametric(f, start_s, end_s, 180)
     }
 }
 
 impl Renderer for OrbitRenderer {
     fn render(&mut self, pass: usize, camera: &mut dyn Camera) {
-        for orbit in self.orbits.iter() {
-            OrbitRenderer::load_orbit_into_renderer(&mut self.line_renderer, orbit);
+        if self.orbit_lines.len() == 0 {
+            return;
         }
-        self.line_renderer.render(pass, camera);
-        self.orbits.clear();
+
+        self.shader.use_program();
+        self.pos.enable();
+        self.color.enable();
+
+        camera.upload(pass, &mut self.proj, &mut self.view);
+
+        self.pos.bind_sub_buffer(&mut self.orbit_lines, 1, 0);
+        self.color.bind_sub_buffer(&mut self.orbit_lines, 1, 1);
+
+        let ctxt = Context::get();
+        ctxt.draw_arrays(Context::LINES, 0, (self.orbit_lines.len() / 2) as i32);
+        ctxt.line_width(self.line_width);
+
+        self.pos.disable();
+        self.color.disable();
+
+        for data in self.orbit_lines.data_mut().iter_mut() {
+            data.clear()
+        }
     }
 }
+
+// TODO add model matrix
+
+/// Vertex shader used by the material to display line.
+static VERTEX_SRC: &'static str = "#version 100
+    attribute vec3 position;
+    attribute vec3 color;
+    varying   vec3 vColor;
+    uniform   mat4 proj;
+    uniform   mat4 view;
+    void main() {
+        gl_Position = proj * view * vec4(position, 1.0);
+        vColor = color;
+    }";
+
+/// Fragment shader used by the material to display line.
+static FRAGMENT_SRC: &'static str = "#version 100
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+   precision highp float;
+#else
+   precision mediump float;
+#endif
+
+    varying vec3 vColor;
+    void main() {
+        gl_FragColor = vec4(vColor, 1.0);
+    }";
