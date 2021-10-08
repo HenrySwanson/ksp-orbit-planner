@@ -3,7 +3,7 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 use std::collections::HashMap;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState};
-use super::event::{Event, EventKind, ReverseEvent};
+use super::event::{Event, EventData, SOIChange};
 use super::frame::FrameTransform;
 use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
@@ -294,26 +294,34 @@ impl<'orr> Orrery {
 
     pub fn compute_next_event(&self, ship_id: ShipID) -> Option<Event> {
         let ship = &self.ships[&ship_id];
-        let parent_body_id = ship.parent_id;
+        let current_body = ship.parent_id;
         let mut events = vec![];
 
         // Look for an escape event
-        events.push(match self.get_soi_radius(parent_body_id) {
-            Some(soi_radius) => {
+        if let Some(parent_body) = self.get_body(current_body).parent_id() {
+            let soi_radius = self.get_soi_radius(current_body).unwrap();
+            let soi_change = SOIChange {
+                old: current_body,
+                new: parent_body,
+            };
+            events.push(
                 ship.state
                     .find_soi_escape_event(soi_radius, self.time)
                     .map(|point| Event {
                         ship_id,
-                        kind: EventKind::ExitingSOI,
+                        data: EventData::ExitingSOI(soi_change),
                         point,
-                    })
-            }
-            None => None,
-        });
+                    }),
+            );
+        }
 
         // Look for encounter events with co-orbiting bodies
-        for body in self.child_bodies(parent_body_id) {
+        for body in self.child_bodies(current_body) {
             let soi_radius = self.get_soi_radius(body.id).unwrap();
+            let soi_change = SOIChange {
+                old: current_body,
+                new: body.id,
+            };
             let state = match &body.state {
                 BodyState::Orbiting { state, .. } => state,
                 _ => panic!("Cannot SOI encounter the sun"),
@@ -324,7 +332,7 @@ impl<'orr> Orrery {
                 .find_soi_encounter_event(state, soi_radius, self.time);
             events.push(event_pt.map(|point| Event {
                 ship_id,
-                kind: EventKind::EnteringSOI(body.id),
+                data: EventData::EnteringSOI(soi_change),
                 point,
             }));
         }
@@ -335,51 +343,22 @@ impl<'orr> Orrery {
             .min_by(|a, b| a.point.compare_time(&b.point))
     }
 
-    pub fn process_event(&mut self, event: Event) -> ReverseEvent {
+    pub fn process_event(&mut self, event: &Event) {
         // Dispatch to the appropriate handler
         let ship_id = event.ship_id;
-        match event.kind {
-            EventKind::EnteringSOI(body_id) => {
-                let prev_body_id = self.ships[&ship_id].parent_id;
-                self.change_soi(ship_id, body_id);
-                ReverseEvent {
-                    event,
-                    previous_soi_body: Some(prev_body_id),
-                }
-            }
-            EventKind::ExitingSOI => {
-                let current_body = self.ships[&ship_id].parent_id;
-                let parent_id = self.bodies[&current_body]
-                    .parent_id()
-                    .expect("Cannot leave SOI of root body");
-                self.change_soi(ship_id, parent_id);
-                ReverseEvent {
-                    event,
-                    previous_soi_body: Some(current_body),
-                }
+        match &event.data {
+            EventData::EnteringSOI(soi_change) | EventData::ExitingSOI(soi_change) => {
+                self.change_soi(ship_id, soi_change.new);
             }
         }
     }
 
-    pub fn revert_event(&mut self, reverse_event: &ReverseEvent) {
+    pub fn revert_event(&mut self, event: &Event) {
         // Dispatch to the appropriate handler
-        let ship_id = reverse_event.event.ship_id;
-        match reverse_event.event.kind {
-            EventKind::EnteringSOI(_) => {
-                self.change_soi(
-                    ship_id,
-                    reverse_event
-                        .previous_soi_body
-                        .expect("Reverse event for EnteringSOI must have a previous body id"),
-                );
-            }
-            EventKind::ExitingSOI => {
-                self.change_soi(
-                    ship_id,
-                    reverse_event
-                        .previous_soi_body
-                        .expect("Reverse event for ExitingSOI must have a previous body id"),
-                );
+        let ship_id = event.ship_id;
+        match &event.data {
+            EventData::EnteringSOI(soi_change) | EventData::ExitingSOI(soi_change) => {
+                self.change_soi(ship_id, soi_change.old);
             }
         }
     }

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::f64::consts::PI;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState};
-use super::event::{Event, ReverseEvent};
+use super::event::Event;
 use super::orbit::OrbitPatch;
 use super::orrery::{FramedState, Orrery};
 use super::ship::{Ship, ShipID};
@@ -21,7 +21,7 @@ pub struct ShipRef<'u> {
 pub struct Universe {
     pub orrery: Orrery,
     upcoming_events: HashMap<ShipID, Event>,
-    rev_event_stack: Vec<ReverseEvent>,
+    prev_event_stack: Vec<Event>,
 }
 
 impl<'u> BodyRef<'u> {
@@ -107,7 +107,7 @@ impl<'u> Universe {
         Universe {
             orrery: Orrery::new(start_time),
             upcoming_events: HashMap::new(),
-            rev_event_stack: vec![],
+            prev_event_stack: vec![],
         }
     }
 
@@ -165,8 +165,8 @@ impl<'u> Universe {
 
                 // Apply the event, clear it from "upcoming", and push it onto
                 // the completed event stack.
-                let reverse_event = self.orrery.process_event(event);
-                self.rev_event_stack.push(reverse_event);
+                self.orrery.process_event(&event);
+                self.prev_event_stack.push(event);
                 self.upcoming_events.remove(&ship_id);
 
                 // Advance for the remaining amount of time (recursive!)
@@ -184,19 +184,17 @@ impl<'u> Universe {
         let new_time = self.orrery.get_time() - delta_t;
 
         // Check the most recent event, and see if we need to revert it
-        match self.rev_event_stack.last() {
-            Some(reverse_event) if reverse_event.event.point.time >= new_time => {
-                let reverse_event = reverse_event.clone();
-                let event_time = reverse_event.event.point.time;
+        match self.prev_event_stack.last() {
+            Some(event) if event.point.time >= new_time => {
+                let event_time = event.point.time;
 
                 // Rewind up until the event
                 self.orrery.update_time(event_time - self.orrery.get_time());
 
                 // Pop the event off of the stack and put it back into upcoming
-                self.orrery.revert_event(&reverse_event);
-                self.rev_event_stack.pop();
-                self.upcoming_events
-                    .insert(reverse_event.event.ship_id, reverse_event.event);
+                self.orrery.revert_event(&event);
+                self.upcoming_events.insert(event.ship_id, event.clone());
+                self.prev_event_stack.pop();
 
                 // Rewind the remaining amount of time (recursive!)
                 self.rewind_t(event_time - new_time);
