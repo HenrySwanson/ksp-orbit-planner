@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use nalgebra::Point3;
 
 use super::body::BodyID;
@@ -33,4 +35,8 @@ pub struct Event {
     pub ship_id: ShipID,
     pub data: EventData,
     pub point: EventPoint,
+}
+
+pub fn first_event<B: Borrow<Event>>(it: impl Iterator<Item = B>) -> Option<B> {
+    it.min_by(|a, b| a.borrow().point.compare_time(&b.borrow().point))
 }

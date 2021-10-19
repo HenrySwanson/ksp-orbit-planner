@@ -3,7 +3,7 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 use std::collections::HashMap;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState};
-use super::event::{Event, EventData, SOIChange};
+use super::event::{first_event, Event, EventData, SOIChange};
 use super::frame::FrameTransform;
 use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
@@ -292,55 +292,67 @@ impl<'orr> Orrery {
         ship.parent_id = new_body;
     }
 
-    pub fn compute_next_event(&self, ship_id: ShipID) -> Option<Event> {
+    pub fn search_for_soi_escape(&self, ship_id: ShipID) -> Option<Event> {
         let ship = &self.ships[&ship_id];
         let current_body = ship.parent_id;
-        let mut events = vec![];
+        let parent_body = match self.get_body(current_body).parent_id() {
+            Some(x) => x,
+            None => return None,
+        };
 
-        // Look for an escape event
-        if let Some(parent_body) = self.get_body(current_body).parent_id() {
-            let soi_radius = self.get_soi_radius(current_body).unwrap();
-            let soi_change = SOIChange {
-                old: current_body,
-                new: parent_body,
-            };
-            events.push(
-                ship.state
-                    .find_soi_escape_event(soi_radius, self.time)
-                    .map(|point| Event {
-                        ship_id,
-                        data: EventData::ExitingSOI(soi_change),
-                        point,
-                    }),
-            );
+        let soi_radius = self.get_soi_radius(current_body).unwrap();
+        let soi_change = SOIChange {
+            old: current_body,
+            new: parent_body,
+        };
+
+        ship.state
+            .find_soi_escape_event(soi_radius, self.time)
+            .map(|event_pt| Event {
+                ship_id,
+                data: EventData::ExitingSOI(soi_change),
+                point: event_pt,
+            })
+    }
+
+    pub fn search_for_soi_encounter(&self, ship_id: ShipID, target_id: BodyID) -> Option<Event> {
+        let ship = &self.ships[&ship_id];
+        let parent_id = ship.parent_id;
+
+        // Check whether this body and ship are co-orbiting
+        let target_body = &self.bodies[&target_id];
+        match target_body.parent_id() {
+            Some(x) if x == parent_id => {}
+            _ => return None,
         }
 
-        // Look for encounter events with co-orbiting bodies
-        for body in self.child_bodies(current_body) {
-            let soi_radius = self.get_soi_radius(body.id).unwrap();
-            let soi_change = SOIChange {
-                old: current_body,
-                new: body.id,
-            };
-            let state = match &body.state {
-                BodyState::Orbiting { state, .. } => state,
-                _ => panic!("Cannot SOI encounter the sun"),
-            };
+        let soi_radius = self.get_soi_radius(target_id).unwrap();
+        let soi_change = SOIChange {
+            old: parent_id,
+            new: target_id,
+        };
+        let state = match &target_body.state {
+            BodyState::Orbiting { state, .. } => state,
+            _ => panic!("Cannot SOI encounter the sun"),
+        };
 
-            let event_pt = ship
-                .state
-                .find_soi_encounter_event(state, soi_radius, self.time);
-            events.push(event_pt.map(|point| Event {
+        ship.state
+            .find_soi_encounter_event(state, soi_radius, self.time)
+            .map(|event_pt| Event {
                 ship_id,
                 data: EventData::EnteringSOI(soi_change),
-                point,
-            }));
-        }
+                point: event_pt,
+            })
+    }
 
-        events
-            .into_iter()
-            .flatten()
-            .min_by(|a, b| a.point.compare_time(&b.point))
+    pub fn compute_next_event(&self, ship_id: ShipID) -> Option<Event> {
+        let mut events: Vec<_> = self
+            .bodies
+            .keys()
+            .map(|id| self.search_for_soi_encounter(ship_id, *id))
+            .collect();
+        events.push(self.search_for_soi_escape(ship_id));
+        first_event(events.iter().flatten().cloned())
     }
 
     pub fn process_event(&mut self, event: &Event) {

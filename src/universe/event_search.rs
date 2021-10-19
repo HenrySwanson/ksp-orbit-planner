@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::event::Event;
+use super::event::{first_event, Event};
 use super::ship::ShipID;
 
 pub struct UpcomingEvents {
@@ -29,8 +29,4 @@ impl UpcomingEvents {
     pub fn clear_events(&mut self, id: ShipID) {
         self.ship_map.remove(&id);
     }
-}
-
-fn first_event<'a>(it: impl Iterator<Item = &'a Event>) -> Option<&'a Event> {
-    it.min_by(|a, b| a.point.compare_time(&b.point))
 }
