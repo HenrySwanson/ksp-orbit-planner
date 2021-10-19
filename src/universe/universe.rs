@@ -4,6 +4,7 @@ use std::f64::consts::PI;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState};
 use super::event::Event;
+use super::event_search::UpcomingEvents;
 use super::orbit::OrbitPatch;
 use super::orrery::{FramedState, Orrery};
 use super::ship::{Ship, ShipID};
@@ -20,7 +21,7 @@ pub struct ShipRef<'u> {
 
 pub struct Universe {
     pub orrery: Orrery,
-    upcoming_events: HashMap<ShipID, Event>,
+    upcoming_events: UpcomingEvents,
     prev_event_stack: Vec<Event>,
 }
 
@@ -73,8 +74,9 @@ impl<'u> ShipRef<'u> {
 
     pub fn get_orbit(&self) -> OrbitPatch {
         let orbit = self.ship.state.get_orbit();
+        let next_event = self.universe.upcoming_events.get_next_event(self.ship.id);
         let start_anomaly = self.ship.state.get_universal_anomaly();
-        let end_anomaly = match self.universe.upcoming_events.get(&self.ship.id) {
+        let end_anomaly = match next_event {
             Some(event) => {
                 let mut end_s = event.point.anomaly;
                 if end_s < start_anomaly {
@@ -106,7 +108,7 @@ impl<'u> Universe {
     pub fn new(start_time: f64) -> Self {
         Universe {
             orrery: Orrery::new(start_time),
-            upcoming_events: HashMap::new(),
+            upcoming_events: UpcomingEvents::new(),
             prev_event_stack: vec![],
         }
     }
@@ -155,7 +157,7 @@ impl<'u> Universe {
 
         // See if there's an event we need to process
         let end_time = self.orrery.get_time() + delta_t;
-        match self.get_next_event() {
+        match self.upcoming_events.get_next_event_global() {
             Some(event) if event.point.time < end_time => {
                 let ship_id = event.ship_id;
                 let event_time = event.point.time;
@@ -166,8 +168,8 @@ impl<'u> Universe {
                 // Apply the event, clear it from "upcoming", and push it onto
                 // the completed event stack.
                 self.orrery.process_event(&event);
-                self.prev_event_stack.push(event);
-                self.upcoming_events.remove(&ship_id);
+                self.prev_event_stack.push(event.clone());
+                self.upcoming_events.clear_events(ship_id);
 
                 // Advance for the remaining amount of time (recursive!)
                 self.advance_t(end_time - event_time);
@@ -193,7 +195,8 @@ impl<'u> Universe {
 
                 // Pop the event off of the stack and put it back into upcoming
                 self.orrery.revert_event(&event);
-                self.upcoming_events.insert(event.ship_id, event.clone());
+                self.upcoming_events
+                    .insert_event(event.ship_id, event.clone());
                 self.prev_event_stack.pop();
 
                 // Rewind the remaining amount of time (recursive!)
@@ -205,21 +208,13 @@ impl<'u> Universe {
 
     fn search_for_events(&mut self) {
         for id in self.orrery.ships().map(|s| s.id) {
-            if self.upcoming_events.contains_key(&id) {
+            if self.upcoming_events.get_next_event(id).is_some() {
                 continue;
             }
 
             if let Some(event) = self.orrery.compute_next_event(id) {
-                self.upcoming_events.insert(id, event);
+                self.upcoming_events.insert_event(id, event);
             }
         }
-    }
-
-    fn get_next_event(&self) -> Option<Event> {
-        // Note: can't easily use Iterator::min_by_key because f64 doesn't implement Ord.
-        self.upcoming_events
-            .values()
-            .min_by(|a, b| a.point.compare_time(&b.point))
-            .cloned()
     }
 }

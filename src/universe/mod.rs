@@ -1,5 +1,6 @@
 mod body;
 mod event;
+mod event_search;
 mod frame;
 mod orbit;
 mod orrery;
