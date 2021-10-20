@@ -163,6 +163,10 @@ impl CartesianState {
         Some(delta_s)
     }
 
+    pub fn get_t_until_radius(&self, radius: f64) -> Option<f64> {
+        self.get_s_until_radius(radius).map(|s| self.delta_s_to_t(s))
+    }
+
     pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<EventPoint> {
         let delta_s = match self.get_s_until_radius(soi_radius) {
             Some(s) => s,
@@ -187,6 +191,7 @@ impl CartesianState {
         planet_state: &CartesianState,
         soi_radius: f64,
         current_time: f64,
+        window: f64,
     ) -> Option<EventPoint> {
         let self_orbit = self.get_orbit();
         let planet_orbit = planet_state.get_orbit();
@@ -205,17 +210,6 @@ impl CartesianState {
             let new_planet_pos = planet_state.clone_update_t(time).get_position();
             (new_self_pos - new_planet_pos).norm()
         };
-
-        // If we're in a closed orbit, search over one period. Otherwise,
-        // search until we get too far away.
-        let window = self_orbit.period().unwrap_or_else(|| {
-            let max_distance = planet_orbit.apoapsis();
-            // Second orbit must be closed
-            assert!(max_distance > 0.0);
-            // Unwrap should succeed because this is an open orbit
-            let delta_s = self.get_s_until_radius(max_distance).unwrap();
-            self.delta_s_to_t(delta_s)
-        });
 
         // TODO have better algorithm than this!
 

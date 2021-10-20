@@ -336,8 +336,20 @@ impl<'orr> Orrery {
             _ => panic!("Cannot SOI encounter the sun"),
         };
 
+        // How far should we search?
+        // If the ship is in a closed orbit, search over one period. Otherwise,
+        // search until we get too far away from the target body.
+        let period = ship.state.get_orbit().period();
+        let window = period.unwrap_or_else(|| {
+            let max_distance = state.get_orbit().apoapsis();
+            // Second orbit must be closed
+            assert!(max_distance > 0.0);
+            // Unwrap should succeed because this is an open orbit
+            ship.state.get_t_until_radius(max_distance).unwrap()
+        });
+
         ship.state
-            .find_soi_encounter_event(state, soi_radius, self.time)
+            .find_soi_encounter_event(state, soi_radius, self.time, window)
             .map(|event_pt| Event {
                 ship_id,
                 data: EventData::EnteringSOI(soi_change),
