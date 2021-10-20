@@ -212,8 +212,16 @@ impl<'u> Universe {
                 continue;
             }
 
-            if let Some(event) = self.orrery.compute_next_event(id) {
+            // Check for an SOI escape event
+            if let Some(event) = self.orrery.search_for_soi_escape(id) {
                 self.upcoming_events.insert_event(id, event);
+            }
+
+            // Check for SOI encounter events
+            for body in self.orrery.bodies() {
+                if let Some(event) = self.orrery.search_for_soi_encounter(id, body.id) {
+                    self.upcoming_events.insert_event(id, event);
+                }
             }
         }
     }

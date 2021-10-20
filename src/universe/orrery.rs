@@ -345,16 +345,6 @@ impl<'orr> Orrery {
             })
     }
 
-    pub fn compute_next_event(&self, ship_id: ShipID) -> Option<Event> {
-        let mut events: Vec<_> = self
-            .bodies
-            .keys()
-            .map(|id| self.search_for_soi_encounter(ship_id, *id))
-            .collect();
-        events.push(self.search_for_soi_escape(ship_id));
-        first_event(events.iter().flatten().cloned())
-    }
-
     pub fn process_event(&mut self, event: &Event) {
         // Dispatch to the appropriate handler
         let ship_id = event.ship_id;
