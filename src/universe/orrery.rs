@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState};
 use super::event::{first_event, Event, EventData, SOIChange};
+use super::event_search::EventSearch;
 use super::frame::FrameTransform;
 use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
@@ -292,12 +293,12 @@ impl<'orr> Orrery {
         ship.parent_id = new_body;
     }
 
-    pub fn search_for_soi_escape(&self, ship_id: ShipID) -> Option<Event> {
+    pub fn search_for_soi_escape(&self, ship_id: ShipID) -> EventSearch {
         let ship = &self.ships[&ship_id];
         let current_body = ship.parent_id;
         let parent_body = match self.get_body(current_body).parent_id() {
             Some(x) => x,
-            None => return None,
+            None => return EventSearch::Never,
         };
 
         let soi_radius = self.get_soi_radius(current_body).unwrap();
@@ -306,16 +307,20 @@ impl<'orr> Orrery {
             new: parent_body,
         };
 
-        ship.state
-            .find_soi_escape_event(soi_radius, self.time)
-            .map(|event_pt| Event {
-                ship_id,
-                data: EventData::ExitingSOI(soi_change),
-                point: event_pt,
-            })
+        match ship.state.find_soi_escape_event(soi_radius, self.time) {
+            Some(event_pt) => {
+                let event = Event {
+                    ship_id,
+                    data: EventData::ExitingSOI(soi_change),
+                    point: event_pt,
+                };
+                EventSearch::Found(event)
+            }
+            None => EventSearch::Never,
+        }
     }
 
-    pub fn search_for_soi_encounter(&self, ship_id: ShipID, target_id: BodyID) -> Option<Event> {
+    pub fn search_for_soi_encounter(&self, ship_id: ShipID, target_id: BodyID) -> EventSearch {
         let ship = &self.ships[&ship_id];
         let parent_id = ship.parent_id;
 
@@ -323,7 +328,7 @@ impl<'orr> Orrery {
         let target_body = &self.bodies[&target_id];
         match target_body.parent_id() {
             Some(x) if x == parent_id => {}
-            _ => return None,
+            _ => return EventSearch::Never,
         }
 
         let soi_radius = self.get_soi_radius(target_id).unwrap();
@@ -348,13 +353,20 @@ impl<'orr> Orrery {
             ship.state.get_t_until_radius(max_distance).unwrap()
         });
 
-        ship.state
+        match ship
+            .state
             .find_soi_encounter_event(state, soi_radius, self.time, window)
-            .map(|event_pt| Event {
-                ship_id,
-                data: EventData::EnteringSOI(soi_change),
-                point: event_pt,
-            })
+        {
+            Some(event_pt) => {
+                let event = Event {
+                    ship_id,
+                    data: EventData::EnteringSOI(soi_change),
+                    point: event_pt,
+                };
+                EventSearch::Found(event)
+            }
+            None => EventSearch::NotFound(self.time + window),
+        }
     }
 
     pub fn process_event(&mut self, event: &Event) {

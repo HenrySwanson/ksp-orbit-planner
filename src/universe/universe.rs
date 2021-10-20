@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
 use std::f64::consts::PI;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState};
 use super::event::Event;
-use super::event_search::UpcomingEvents;
+use super::event_search::{EventTag, UpcomingEvents};
 use super::orbit::OrbitPatch;
 use super::orrery::{FramedState, Orrery};
 use super::ship::{Ship, ShipID};
@@ -212,16 +210,20 @@ impl<'u> Universe {
                 continue;
             }
 
+            // TODO this "check if we should search, and then separately search" is not
+            // a great pattern. They should be bundled together better.
+
             // Check for an SOI escape event
-            if let Some(event) = self.orrery.search_for_soi_escape(id) {
-                self.upcoming_events.insert_event(id, event);
-            }
+            let orrery = &self.orrery;
+            self.upcoming_events
+                .update(id, EventTag::EscapeSOI, || orrery.search_for_soi_escape(id));
 
             // Check for SOI encounter events
             for body in self.orrery.bodies() {
-                if let Some(event) = self.orrery.search_for_soi_encounter(id, body.id) {
-                    self.upcoming_events.insert_event(id, event);
-                }
+                self.upcoming_events
+                    .update(id, EventTag::EncounterSOI(body.id), || {
+                        orrery.search_for_soi_encounter(id, body.id)
+                    });
             }
         }
     }

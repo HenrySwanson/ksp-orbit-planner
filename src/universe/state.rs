@@ -164,7 +164,8 @@ impl CartesianState {
     }
 
     pub fn get_t_until_radius(&self, radius: f64) -> Option<f64> {
-        self.get_s_until_radius(radius).map(|s| self.delta_s_to_t(s))
+        self.get_s_until_radius(radius)
+            .map(|s| self.delta_s_to_t(s))
     }
 
     pub fn find_soi_escape_event(&self, soi_radius: f64, current_time: f64) -> Option<EventPoint> {
