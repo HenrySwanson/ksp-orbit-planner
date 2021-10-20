@@ -151,7 +151,7 @@ impl<'u> Universe {
         assert!(delta_t > 0.0);
 
         // Figure out any upcoming events
-        self.search_for_events();
+        self.search_for_events(delta_t);
 
         // See if there's an event we need to process
         let end_time = self.orrery.get_time() + delta_t;
@@ -204,11 +204,13 @@ impl<'u> Universe {
         }
     }
 
-    fn search_for_events(&mut self) {
+    fn search_for_events(&mut self, delta_t: f64) {
         for id in self.orrery.ships().map(|s| s.id) {
             if self.upcoming_events.get_next_event(id).is_some() {
                 continue;
             }
+
+            let end_time = self.orrery.get_time() + delta_t;
 
             // TODO this "check if we should search, and then separately search" is not
             // a great pattern. They should be bundled together better.
@@ -216,13 +218,15 @@ impl<'u> Universe {
             // Check for an SOI escape event
             let orrery = &self.orrery;
             self.upcoming_events
-                .update(id, EventTag::EscapeSOI, || orrery.search_for_soi_escape(id));
+                .update(id, EventTag::EscapeSOI, end_time, || {
+                    orrery.search_for_soi_escape(id)
+                });
 
             // Check for SOI encounter events
             for body in self.orrery.bodies() {
                 self.upcoming_events
-                    .update(id, EventTag::EncounterSOI(body.id), || {
-                        orrery.search_for_soi_encounter(id, body.id)
+                    .update(id, EventTag::EncounterSOI(body.id), end_time, || {
+                        orrery.search_for_soi_encounter(id, body.id, delta_t)
                     });
             }
         }

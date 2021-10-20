@@ -68,12 +68,18 @@ impl UpcomingEvents {
         inner.insert(event);
     }
 
-    pub fn update(&mut self, id: ShipID, tag: EventTag, search_fn: impl FnOnce() -> EventSearch) {
+    pub fn update(
+        &mut self,
+        id: ShipID,
+        tag: EventTag,
+        end_time: f64,
+        search_fn: impl FnOnce() -> EventSearch,
+    ) {
         let inner = self
             .ship_map
             .entry(id)
             .or_insert(UpcomingEventsInner::new());
-        inner.update(tag, search_fn);
+        inner.update(tag, end_time, search_fn);
     }
 
     pub fn clear_events(&mut self, id: ShipID) {
@@ -101,15 +107,16 @@ impl UpcomingEventsInner {
             .insert(EventTag::from_event(&event), EventSearch::Found(event));
     }
 
-    fn update(&mut self, tag: EventTag, search_fn: impl FnOnce() -> EventSearch) {
-        let should_update = match self.map.get(&tag) {
-            None => true,
-            Some(EventSearch::Found(_)) => false,
-            Some(EventSearch::NotFound(_)) => true,
-            Some(EventSearch::Never) => false,
+    fn update(&mut self, tag: EventTag, end_time: f64, search_fn: impl FnOnce() -> EventSearch) {
+        let searched_until = match self.map.get(&tag) {
+            None => None,
+            Some(EventSearch::Found(_)) => return,
+            Some(EventSearch::NotFound(ts)) => Some(*ts),
+            Some(EventSearch::Never) => return,
         };
 
-        if should_update {
+        // Perform a search unless we've already searched this far
+        if !searched_until.map_or(false, |ts| ts > end_time) {
             self.map.insert(tag, search_fn());
         }
     }

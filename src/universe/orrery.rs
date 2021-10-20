@@ -320,7 +320,12 @@ impl<'orr> Orrery {
         }
     }
 
-    pub fn search_for_soi_encounter(&self, ship_id: ShipID, target_id: BodyID) -> EventSearch {
+    pub fn search_for_soi_encounter(
+        &self,
+        ship_id: ShipID,
+        target_id: BodyID,
+        min_window: f64,
+    ) -> EventSearch {
         let ship = &self.ships[&ship_id];
         let parent_id = ship.parent_id;
 
@@ -352,6 +357,7 @@ impl<'orr> Orrery {
             // Unwrap should succeed because this is an open orbit
             ship.state.get_t_until_radius(max_distance).unwrap()
         });
+        let window = f64::max(min_window, window);
 
         match ship
             .state
