@@ -3,11 +3,11 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 use std::collections::HashMap;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState};
-use super::event::{first_event, Event, EventData, SOIChange};
+use super::event::{Event, EventData, SOIChange};
 use super::event_search::EventSearch;
-use super::frame::FrameTransform;
 use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
+use crate::math::frame::FrameTransform;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
