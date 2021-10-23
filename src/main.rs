@@ -5,6 +5,7 @@ mod consts;
 
 mod gui;
 mod math;
+mod orrery;
 mod universe;
 
 use kiss3d::light::Light;
@@ -15,9 +16,8 @@ use nalgebra::{Point3, Vector3};
 use std::collections::HashMap;
 use std::fs;
 
-use crate::universe::BodyInfo;
-use crate::universe::Orbit;
-use crate::universe::{BodyID, Universe};
+use crate::orrery::{BodyID, BodyInfo, Orbit};
+use crate::universe::Universe;
 
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");

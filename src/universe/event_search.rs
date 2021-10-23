@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use super::body::BodyID;
 use super::event::{first_event, Event, EventData};
-use super::ship::ShipID;
+use crate::orrery::BodyID;
+use crate::orrery::ShipID;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventTag {

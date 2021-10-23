@@ -9,7 +9,7 @@ use nalgebra::{Isometry3, Matrix4, Point3, Vector3};
 
 use std::f64::consts::PI;
 
-use crate::universe::OrbitPatch;
+use crate::orrery::OrbitPatch;
 
 use super::utils::path_iter_parametric;
 

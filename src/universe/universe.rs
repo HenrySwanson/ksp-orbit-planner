@@ -1,11 +1,12 @@
 use std::f64::consts::PI;
 
-use super::body::{Body, BodyID, BodyInfo, BodyState};
 use super::event::Event;
 use super::event_search::{EventTag, UpcomingEvents};
-use super::orbit::OrbitPatch;
-use super::orrery::{FramedState, Orrery};
-use super::ship::{Ship, ShipID};
+
+use crate::orrery::OrbitPatch;
+use crate::orrery::{Body, BodyID, BodyInfo, BodyState};
+use crate::orrery::{FramedState, Orrery};
+use crate::orrery::{Ship, ShipID};
 
 pub struct BodyRef<'u> {
     universe: &'u Universe,

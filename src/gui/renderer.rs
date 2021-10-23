@@ -3,7 +3,7 @@ use kiss3d::renderer::Renderer;
 
 use nalgebra::{Isometry3, Point3};
 
-use crate::universe::OrbitPatch;
+use crate::orrery::OrbitPatch;
 
 use super::renderers::{OrbitRenderer, SphereRenderer};
 

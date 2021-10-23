@@ -14,7 +14,8 @@ use std::time::Instant;
 use super::camera::ZoomableCamera;
 use super::renderer::CompoundRenderer;
 
-use crate::universe::{BodyID, BodyRef, Frame, ShipID, ShipRef, Universe};
+use crate::orrery::{BodyID, Frame, ShipID};
+use crate::universe::{BodyRef, ShipRef, Universe};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 

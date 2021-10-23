@@ -2,8 +2,8 @@ use std::borrow::Borrow;
 
 use nalgebra::Point3;
 
-use super::body::BodyID;
-use super::ship::ShipID;
+use crate::orrery::BodyID;
+use crate::orrery::ShipID;
 
 #[derive(Debug, Clone)]
 pub struct SOIChange {
