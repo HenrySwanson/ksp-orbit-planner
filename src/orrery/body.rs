@@ -34,4 +34,11 @@ impl Body {
             BodyState::Orbiting { parent_id, .. } => Some(parent_id),
         }
     }
+
+    pub fn state(&self) -> Option<&CartesianState> {
+        match &self.state {
+            BodyState::FixedAtOrigin => None,
+            BodyState::Orbiting { state, .. } => Some(state),
+        }
+    }
 }

@@ -7,8 +7,7 @@ use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
 
 use crate::math::frame::FrameTransform;
-use crate::universe::EventSearch;
-use crate::universe::{Event, EventData, SOIChange};
+use crate::universe::{Event, EventData};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
@@ -292,88 +291,6 @@ impl<'orr> Orrery {
         let ship = self.ships.get_mut(&ship_id).unwrap();
         ship.state = CartesianState::new(new_position.coords, new_velocity, parent_mu);
         ship.parent_id = new_body;
-    }
-
-    pub fn search_for_soi_escape(&self, ship_id: ShipID) -> EventSearch {
-        let ship = &self.ships[&ship_id];
-        let current_body = ship.parent_id;
-        let parent_body = match self.get_body(current_body).parent_id() {
-            Some(x) => x,
-            None => return EventSearch::Never,
-        };
-
-        let soi_radius = self.get_soi_radius(current_body).unwrap();
-        let soi_change = SOIChange {
-            old: current_body,
-            new: parent_body,
-        };
-
-        match ship.state.find_soi_escape_event(soi_radius, self.time) {
-            Some(event_pt) => {
-                let event = Event {
-                    ship_id,
-                    data: EventData::ExitingSOI(soi_change),
-                    point: event_pt,
-                };
-                EventSearch::Found(event)
-            }
-            None => EventSearch::Never,
-        }
-    }
-
-    pub fn search_for_soi_encounter(
-        &self,
-        ship_id: ShipID,
-        target_id: BodyID,
-        min_window: f64,
-    ) -> EventSearch {
-        let ship = &self.ships[&ship_id];
-        let parent_id = ship.parent_id;
-
-        // Check whether this body and ship are co-orbiting
-        let target_body = &self.bodies[&target_id];
-        match target_body.parent_id() {
-            Some(x) if x == parent_id => {}
-            _ => return EventSearch::Never,
-        }
-
-        let soi_radius = self.get_soi_radius(target_id).unwrap();
-        let soi_change = SOIChange {
-            old: parent_id,
-            new: target_id,
-        };
-        let state = match &target_body.state {
-            BodyState::Orbiting { state, .. } => state,
-            _ => panic!("Cannot SOI encounter the sun"),
-        };
-
-        // How far should we search?
-        // If the ship is in a closed orbit, search over one period. Otherwise,
-        // search until we get too far away from the target body.
-        let period = ship.state.get_orbit().period();
-        let window = period.unwrap_or_else(|| {
-            let max_distance = state.get_orbit().apoapsis();
-            // Second orbit must be closed
-            assert!(max_distance > 0.0);
-            // Unwrap should succeed because this is an open orbit
-            ship.state.get_t_until_radius(max_distance).unwrap()
-        });
-        let window = f64::max(min_window, window);
-
-        match ship
-            .state
-            .find_soi_encounter_event(state, soi_radius, self.time, window)
-        {
-            Some(event_pt) => {
-                let event = Event {
-                    ship_id,
-                    data: EventData::EnteringSOI(soi_change),
-                    point: event_pt,
-                };
-                EventSearch::Found(event)
-            }
-            None => EventSearch::NotFound(self.time + window),
-        }
     }
 
     pub fn process_event(&mut self, event: &Event) {

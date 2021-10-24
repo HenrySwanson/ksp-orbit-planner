@@ -1,8 +1,12 @@
+use super::event::{first_event, Event, EventData, EventPoint, SOIChange};
+
+use crate::math::root_finding::{bisection, Bracket};
+use crate::orrery::{BodyID, Orbit, Orrery, ShipID};
+
+use nalgebra::Point3;
 use std::collections::HashMap;
 
-use super::event::{first_event, Event, EventData};
-use crate::orrery::BodyID;
-use crate::orrery::ShipID;
+const NUM_ITERATIONS_SOI_ENCOUNTER: usize = 1000;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventTag {
@@ -120,4 +124,161 @@ impl UpcomingEventsInner {
             self.map.insert(tag, search_fn());
         }
     }
+}
+
+// TODO maybe these should be folded into UpcomingEvents? IDK
+pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> EventSearch {
+    let ship = orrery.get_ship(ship_id);
+    let current_body = ship.parent_id;
+    let parent_body = match orrery.get_body(current_body).parent_id() {
+        Some(x) => x,
+        None => return EventSearch::Never,
+    };
+
+    let soi_radius = orrery
+        .get_soi_radius(current_body)
+        .expect("Body with parent should have SOI");
+
+    let delta_s = match ship.state.get_s_until_radius(soi_radius) {
+        Some(s) => s,
+        None => return EventSearch::Never,
+    };
+
+    let delta_t = ship.state.delta_s_to_t(delta_s);
+    let new_state = ship.state.clone_update_s(delta_s);
+
+    let event = Event {
+        ship_id,
+        data: EventData::ExitingSOI(SOIChange {
+            old: current_body,
+            new: parent_body,
+        }),
+        point: EventPoint {
+            time: orrery.get_time() + delta_t,
+            anomaly: ship.state.get_universal_anomaly() + delta_s,
+            location: Point3::from(new_state.get_position()),
+        },
+    };
+
+    EventSearch::Found(event)
+}
+
+pub fn search_for_soi_encounter(
+    orrery: &Orrery,
+    ship_id: ShipID,
+    target_id: BodyID,
+    min_window: f64,
+) -> EventSearch {
+    let ship = orrery.get_ship(ship_id);
+    let parent_id = ship.parent_id;
+
+    // Check whether this body and ship are co-orbiting
+    let target_body = orrery.get_body(target_id);
+    match target_body.parent_id() {
+        Some(x) if x == parent_id => {}
+        _ => return EventSearch::Never,
+    }
+
+    let soi_radius = orrery.get_soi_radius(target_id).unwrap();
+    let target_state = target_body.state().expect("Cannot SOI encounter the sun");
+
+    // Get their orbits
+    let self_orbit = ship.state.get_orbit();
+    let planet_orbit = target_state.get_orbit();
+
+    // Quick check: if one orbit is much smaller than the other, then we can skip the rest
+    let pe_ap_check =
+        |o1: &Orbit, o2: &Orbit| o1.apoapsis() > 0.0 && o1.apoapsis() + soi_radius < o2.periapsis();
+    if pe_ap_check(&self_orbit, &planet_orbit) || pe_ap_check(&planet_orbit, &self_orbit) {
+        return EventSearch::Never;
+    }
+
+    // How far should we search?
+    // If the ship is in a closed orbit, search over one period. Otherwise,
+    // search until we get too far away from the target body.
+    let ship_period = ship.state.get_orbit().period();
+    let window = ship_period.unwrap_or_else(|| {
+        let target_apoapsis = target_state.get_orbit().apoapsis();
+        // Second orbit must be closed
+        assert!(target_apoapsis > 0.0);
+        // Unwrap should succeed because this is an open orbit
+        ship.state.get_t_until_radius(target_apoapsis).unwrap()
+    });
+    let window = f64::max(min_window, window);
+
+    let current_time = orrery.get_time();
+    let end_time = current_time + window;
+
+    // Method for checking distance between bodies
+    let check_distance = |time| {
+        let new_self_pos = ship.state.clone_update_t(time).get_position();
+        let new_target_pos = target_state.clone_update_t(time).get_position();
+        (new_self_pos - new_target_pos).norm()
+    };
+
+    // TODO have better algorithm than this!
+
+    // We know their maximum relative velocity
+    let mu = ship.state.get_mu();
+    let self_max_velocity = mu * (1.0 + self_orbit.eccentricity()) / self_orbit.angular_momentum();
+    let planet_max_velocity =
+        mu * (1.0 + planet_orbit.eccentricity()) / planet_orbit.angular_momentum();
+    let max_rel_velocity = self_max_velocity.abs() + planet_max_velocity.abs();
+    let current_distance = check_distance(0.0);
+
+    // If we can't possibly catch up, then return no event.
+    if current_distance - soi_radius > max_rel_velocity * window {
+        return EventSearch::NotFound(end_time);
+    }
+
+    // Just step by step look for an intersection
+    let num_slices = 1000;
+    let slice_duration = window / (num_slices as f64);
+    let mut encounter_time = None;
+    for i in 0..num_slices {
+        let t = i as f64 * slice_duration;
+        if check_distance(t) < soi_radius {
+            encounter_time = Some(t);
+            break;
+        }
+    }
+
+    // If we didn't get close enough, return no event
+    let t2 = match encounter_time {
+        Some(t) => t,
+        None => return EventSearch::NotFound(end_time),
+    };
+
+    // Edge case: if t2 is zero, we may have just exited an SOI, and shouldn't
+    // return an event, since we'd then get into a loop
+    // TODO use direction to detect this instead!
+    if t2 == 0.0 {
+        return EventSearch::NotFound(end_time);
+    }
+
+    // Now we narrow in on the point using binary search.
+    let t1 = t2 - slice_duration;
+    let entry_time = bisection(
+        |t| check_distance(t) - soi_radius,
+        Bracket::new(t1, t2),
+        NUM_ITERATIONS_SOI_ENCOUNTER,
+    );
+
+    // Lastly, figure out anomaly and position at that point
+    // TODO: new s can end up less than old s if we're not careful :\
+    let new_state = ship.state.clone_update_t(entry_time);
+
+    let event = Event {
+        ship_id,
+        data: EventData::EnteringSOI(SOIChange {
+            old: parent_id,
+            new: target_id,
+        }),
+        point: EventPoint {
+            time: current_time + entry_time,
+            anomaly: new_state.get_universal_anomaly(),
+            location: Point3::from(new_state.get_position()),
+        },
+    };
+    EventSearch::Found(event)
 }

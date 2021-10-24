@@ -1,7 +1,9 @@
 use std::f64::consts::PI;
 
 use super::event::Event;
-use super::event_search::{EventTag, UpcomingEvents};
+use super::event_search::{
+    search_for_soi_encounter, search_for_soi_escape, EventTag, UpcomingEvents,
+};
 
 use crate::orrery::OrbitPatch;
 use crate::orrery::{Body, BodyID, BodyInfo, BodyState};
@@ -220,14 +222,14 @@ impl<'u> Universe {
             let orrery = &self.orrery;
             self.upcoming_events
                 .update(id, EventTag::EscapeSOI, end_time, || {
-                    orrery.search_for_soi_escape(id)
+                    search_for_soi_escape(orrery, id)
                 });
 
             // Check for SOI encounter events
             for body in self.orrery.bodies() {
                 self.upcoming_events
                     .update(id, EventTag::EncounterSOI(body.id), end_time, || {
-                        orrery.search_for_soi_encounter(id, body.id, delta_t)
+                        search_for_soi_encounter(orrery, id, body.id, delta_t)
                     });
             }
         }
