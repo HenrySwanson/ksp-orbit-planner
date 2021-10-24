@@ -160,8 +160,8 @@ impl<'orr> Orrery {
                         // Get the transform from our frame to the parent's
                         let parent_to_self = FrameTransform::from_active(
                             UnitQuaternion::identity(),
-                            state.get_position(),
-                            state.get_velocity(),
+                            state.position(),
+                            state.velocity(),
                             Vector3::zeros(),
                         );
                         root_to_parent.append_transformation(&parent_to_self)
@@ -175,8 +175,8 @@ impl<'orr> Orrery {
 
                 let parent_to_self = FrameTransform::from_active(
                     UnitQuaternion::identity(),
-                    ship.state.get_position(),
-                    ship.state.get_velocity(),
+                    ship.state.position(),
+                    ship.state.velocity(),
                     Vector3::zeros(),
                 );
                 root_to_parent.append_transformation(&parent_to_self)
@@ -189,7 +189,7 @@ impl<'orr> Orrery {
                 let orbit = ship.state.get_orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
-                    &ship.state.get_velocity(),
+                    &ship.state.velocity(),
                     1e-20,
                 );
                 let parent_to_self = FrameTransform::from_active(
@@ -207,8 +207,8 @@ impl<'orr> Orrery {
         let (p, v, frame) = match &self.bodies[&id].state {
             BodyState::FixedAtOrigin => (Vector3::zeros(), Vector3::zeros(), Frame::Root),
             BodyState::Orbiting { state, parent_id } => (
-                state.get_position(),
-                state.get_velocity(),
+                state.position(),
+                state.velocity(),
                 Frame::BodyInertial(*parent_id),
             ),
         };
@@ -226,8 +226,8 @@ impl<'orr> Orrery {
 
         FramedState {
             orrery: self,
-            position: Point3::from(ship.state.get_position()),
-            velocity: ship.state.get_velocity(),
+            position: Point3::from(ship.state.position()),
+            velocity: ship.state.velocity(),
             native_frame: Frame::BodyInertial(ship.parent_id),
         }
     }
@@ -261,12 +261,12 @@ impl<'orr> Orrery {
         for body in self.bodies.values_mut() {
             match &mut body.state {
                 BodyState::FixedAtOrigin => {}
-                BodyState::Orbiting { state, .. } => state.update_t(delta_t),
+                BodyState::Orbiting { state, .. } => state.update_t_mut(delta_t),
             }
         }
 
         for ship in self.ships.values_mut() {
-            ship.state.update_t(delta_t);
+            ship.state.update_t_mut(delta_t);
         }
 
         self.time += delta_t;
@@ -279,8 +279,8 @@ impl<'orr> Orrery {
         let ship = &self.ships[&ship_id];
         let state = FramedState {
             orrery: &self,
-            position: Point3::from(ship.state.get_position()),
-            velocity: ship.state.get_velocity(),
+            position: Point3::from(ship.state.position()),
+            velocity: ship.state.velocity(),
             native_frame: Frame::BodyInertial(ship.parent_id),
         };
 

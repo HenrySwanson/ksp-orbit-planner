@@ -108,7 +108,7 @@ impl OrbitRenderer {
 
         // Get some points around the orbit
         let f = move |s| {
-            let v = orbit.orbit.get_state_native_frame(s).get_position();
+            let v = orbit.orbit.get_state_native_frame(s).position();
             let v: Vector3<f32> = nalgebra::convert(v);
             Point3::from(v)
         };

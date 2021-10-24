@@ -256,8 +256,8 @@ impl Orbit {
     pub fn get_state(&self, s: f64) -> CartesianState {
         let native_state = self.get_state_native_frame(s);
 
-        let position = self.rotation * native_state.get_position();
-        let velocity = self.rotation * native_state.get_velocity();
+        let position = self.rotation * native_state.position();
+        let velocity = self.rotation * native_state.velocity();
 
         CartesianState::new(position, velocity, self.mu)
     }

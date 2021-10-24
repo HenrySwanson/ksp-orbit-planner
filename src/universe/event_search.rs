@@ -145,7 +145,7 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> EventSearch {
     };
 
     let delta_t = ship.state.delta_s_to_t(delta_s);
-    let new_state = ship.state.clone_update_s(delta_s);
+    let new_state = ship.state.update_s(delta_s);
 
     let event = Event {
         ship_id,
@@ -156,7 +156,7 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> EventSearch {
         point: EventPoint {
             time: orrery.get_time() + delta_t,
             anomaly: ship.state.get_universal_anomaly() + delta_s,
-            location: Point3::from(new_state.get_position()),
+            location: Point3::from(new_state.position()),
         },
     };
 
@@ -211,15 +211,15 @@ pub fn search_for_soi_encounter(
 
     // Method for checking distance between bodies
     let check_distance = |time| {
-        let new_self_pos = ship.state.clone_update_t(time).get_position();
-        let new_target_pos = target_state.clone_update_t(time).get_position();
+        let new_self_pos = ship.state.update_t(time).position();
+        let new_target_pos = target_state.update_t(time).position();
         (new_self_pos - new_target_pos).norm()
     };
 
     // TODO have better algorithm than this!
 
     // We know their maximum relative velocity
-    let mu = ship.state.get_mu();
+    let mu = ship.state.mu();
     let self_max_velocity = mu * (1.0 + self_orbit.eccentricity()) / self_orbit.angular_momentum();
     let planet_max_velocity =
         mu * (1.0 + planet_orbit.eccentricity()) / planet_orbit.angular_momentum();
@@ -266,7 +266,7 @@ pub fn search_for_soi_encounter(
 
     // Lastly, figure out anomaly and position at that point
     // TODO: new s can end up less than old s if we're not careful :\
-    let new_state = ship.state.clone_update_t(entry_time);
+    let new_state = ship.state.update_t(entry_time);
 
     let event = Event {
         ship_id,
@@ -277,7 +277,7 @@ pub fn search_for_soi_encounter(
         point: EventPoint {
             time: current_time + entry_time,
             anomaly: new_state.get_universal_anomaly(),
-            location: Point3::from(new_state.get_position()),
+            location: Point3::from(new_state.position()),
         },
     };
     EventSearch::Found(event)

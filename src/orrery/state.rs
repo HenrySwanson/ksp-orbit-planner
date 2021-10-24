@@ -26,20 +26,20 @@ impl CartesianState {
         }
     }
 
-    pub fn get_position(&self) -> Vector3<f64> {
+    pub fn position(&self) -> Vector3<f64> {
         self.position
     }
 
-    pub fn get_velocity(&self) -> Vector3<f64> {
+    pub fn velocity(&self) -> Vector3<f64> {
         self.velocity
     }
 
-    pub fn get_mu(&self) -> f64 {
+    pub fn mu(&self) -> f64 {
         self.parent_mu
     }
 
     pub fn get_orbit(&self) -> Orbit {
-        Orbit::from_cartesian(&self.get_position(), &self.get_velocity(), self.get_mu())
+        Orbit::from_cartesian(&self.position(), &self.velocity(), self.mu())
     }
 
     pub fn get_universal_anomaly(&self) -> f64 {
@@ -49,14 +49,14 @@ impl CartesianState {
         orbit.true_to_universal(my_theta)
     }
 
-    fn get_energy(&self) -> f64 {
+    fn energy(&self) -> f64 {
         // KE = 1/2 v^2, PE = - mu/r
         self.velocity.norm_squared() / 2.0 - self.parent_mu / self.position.norm()
     }
 
     #[allow(non_snake_case)]
-    pub fn update_s(&mut self, delta_s: f64) -> f64 {
-        let beta = -2.0 * self.get_energy();
+    pub fn update_s_mut(&mut self, delta_s: f64) -> f64 {
+        let beta = -2.0 * self.energy();
         let mu = self.parent_mu;
         let G: [f64; 4] = stumpff_G(beta, delta_s);
 
@@ -83,15 +83,43 @@ impl CartesianState {
     }
 
     #[allow(non_snake_case)]
-    pub fn update_t(&mut self, delta_t: f64) {
+    pub fn update_t_mut(&mut self, delta_t: f64) {
         // We find the delta_s corresponding to the given delta_t, and advance using that.
         // Since ds/dt = 1/r, s and t are monotonically related, so there's a unique solution.
         if delta_t == 0.0 {
             return;
         }
 
+        self.update_s_mut(self.delta_t_to_s(delta_t));
+    }
+
+    pub fn update_s(&self, delta_s: f64) -> Self {
+        let mut copy = self.clone();
+        copy.update_s_mut(delta_s);
+        copy
+    }
+
+    pub fn update_t(&self, time: f64) -> Self {
+        let mut copy = self.clone();
+        copy.update_t_mut(time);
+        copy
+    }
+
+    #[allow(non_snake_case)]
+    pub fn delta_s_to_t(&self, delta_s: f64) -> f64 {
+        let r_0 = self.position.norm();
+        let r_dot_0 = self.position.dot(&self.velocity) / r_0;
+        let beta = -2.0 * self.energy();
+        let mu = self.parent_mu;
+        let G = stumpff_G(beta, delta_s);
+
+        r_0 * G[1] + r_0 * r_dot_0 * G[2] + mu * G[3]
+    }
+
+    #[allow(non_snake_case)]
+    pub fn delta_t_to_s(&self, delta_t: f64) -> f64 {
         // Grab some constants
-        let beta = -2.0 * self.get_energy();
+        let beta = -2.0 * self.energy();
         let mu = self.parent_mu;
         let r_0 = self.position.norm();
         let r_dot_0 = self.position.dot(&self.velocity) / r_0;
@@ -112,33 +140,7 @@ impl CartesianState {
             delta_t / r_0,
             NUM_ITERATIONS_DELTA_T,
         );
-        let root = newton_plus_bisection(f_and_f_prime, bracket, NUM_ITERATIONS_DELTA_T);
-
-        self.update_s(root);
-    }
-
-    // TODO: name this better >:(
-    pub fn clone_update_s(&self, delta_s: f64) -> Self {
-        let mut copy = self.clone();
-        copy.update_s(delta_s);
-        copy
-    }
-
-    pub fn clone_update_t(&self, time: f64) -> Self {
-        let mut copy = self.clone();
-        copy.update_t(time);
-        copy
-    }
-
-    #[allow(non_snake_case)]
-    pub fn delta_s_to_t(&self, delta_s: f64) -> f64 {
-        let r_0 = self.position.norm();
-        let r_dot_0 = self.position.dot(&self.velocity) / r_0;
-        let beta = -2.0 * self.get_energy();
-        let mu = self.parent_mu;
-        let G = stumpff_G(beta, delta_s);
-
-        r_0 * G[1] + r_0 * r_dot_0 * G[2] + mu * G[3]
+        newton_plus_bisection(f_and_f_prime, bracket, NUM_ITERATIONS_DELTA_T)
     }
 
     pub fn get_theta(&self) -> f64 {
@@ -224,13 +226,13 @@ mod tests {
         // Advance for one full orbit.
         // This is a circular orbit, so s is proportional to theta. Specifically,
         // s = theta / sqrt(beta).
-        let beta = -2.0 * state.get_energy();
+        let beta = -2.0 * state.energy();
         let s = 2.0 * PI / beta.sqrt();
-        elapsed_time += state.update_s(s);
+        elapsed_time += state.update_s_mut(s);
 
         // We expect these to be extremely close, since we got s from the orbit itself
-        assert_vectors_close(&initial_position, &state.get_position(), 1e-14);
-        assert_vectors_close(&initial_velocity, &state.get_velocity(), 1e-14);
+        assert_vectors_close(&initial_position, &state.position(), 1e-14);
+        assert_vectors_close(&initial_velocity, &state.velocity(), 1e-14);
 
         // Time is a little fuzzier, because the velocity constant (and thus this orbit) isn't
         // perfect.
@@ -258,18 +260,18 @@ mod tests {
         let mut elapsed_time = 0.0;
 
         // Compute s for a whole orbit. Since r doesn't change, s varies linearly with t.
-        let beta = -2.0 * state.get_energy();
+        let beta = -2.0 * state.energy();
         let s = 2.0 * PI / beta.sqrt();
 
         let num_points = 1000;
         for i in 0..num_points {
             let num_points = num_points as f64;
 
-            elapsed_time += state.update_s(s / num_points);
+            elapsed_time += state.update_s_mut(s / num_points);
 
             let theta = 2.0 * PI * (i + 1) as f64 / num_points;
             let expected = radius * Vector3::new(theta.cos(), 0.0, theta.sin());
-            assert_vectors_close(&expected, &state.get_position(), 1e-14);
+            assert_vectors_close(&expected, &state.position(), 1e-14);
         }
 
         // Check that the expected amount of time has elapsed. Not sure why we get slightly
