@@ -74,10 +74,10 @@ impl<T: RealField> FrameTransform<T> {
 
         // Angular velocities add, but first we have to convert both vectors to A's coordinates.
         let angular_velocity =
-            self.angular_velocity + self.inverse_convert_vector(&other.angular_velocity);
+            &self.angular_velocity + self.inverse_convert_vector(&other.angular_velocity);
 
         FrameTransform {
-            isometry: other.isometry * self.isometry,
+            isometry: &other.isometry * &self.isometry,
             relative_velocity,
             angular_velocity,
         }
@@ -112,7 +112,7 @@ impl<T: RealField> FrameTransform<T> {
     /// converted to target coordinates.
     pub fn convert_velocity(&self, position: &Point3<T>, velocity: &Vector3<T>) -> Vector3<T> {
         let rb_src = position - self.inverse_convert_point(&Point3::origin());
-        let vb_src = velocity - self.relative_velocity - self.angular_velocity.cross(&rb_src);
+        let vb_src = velocity - &self.relative_velocity - self.angular_velocity.cross(&rb_src);
         self.convert_vector(&vb_src)
     }
 
@@ -125,7 +125,7 @@ impl<T: RealField> FrameTransform<T> {
     ) -> Vector3<T> {
         let vb_src = self.inverse_convert_vector(&velocity);
         let rb_src = self.inverse_convert_vector(&position.coords);
-        vb_src + self.relative_velocity + self.angular_velocity.cross(&rb_src)
+        vb_src + &self.relative_velocity + self.angular_velocity.cross(&rb_src)
     }
 
     pub fn isometry(&self) -> &Isometry3<T> {

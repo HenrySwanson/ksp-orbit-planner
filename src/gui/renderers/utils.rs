@@ -10,7 +10,7 @@ pub fn path_iter_parametric<F, S>(
 ) -> impl Iterator<Item = Point3<f32>>
 where
     F: Fn(S) -> Point3<f32>,
-    S: nalgebra::RealField + simba::scalar::SupersetOf<usize>,
+    S: nalgebra::RealField + simba::scalar::SupersetOf<usize> + Copy,
 {
     assert!(
         num_segments >= 1,
