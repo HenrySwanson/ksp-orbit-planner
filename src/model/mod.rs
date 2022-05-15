@@ -1,5 +1,5 @@
 use crate::orrery::Orrery;
-use crate::universe::Event;
+use crate::events::Event;
 
 pub struct Timeline {
     // Invariants:
@@ -13,6 +13,17 @@ struct Segment {
 }
 
 impl Timeline {
+    pub fn new(orrery: Orrery) -> Self {
+        Self {
+            segments: vec![
+                Segment {
+                    start_time: 0.0,
+                    start_state: orrery,
+                }
+            ]
+        }
+    }
+
     pub fn get_orrery_at(&self, time: f64) -> Option<Orrery> {
         // Get the first segment to strictly precede this time.
         let next_segment_idx = self.segments.partition_point(|s| s.start_time <= time);

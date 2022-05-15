@@ -7,7 +7,7 @@ use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
 
 use crate::math::frame::FrameTransform;
-use crate::universe::{Event, EventData};
+use crate::events::{Event, EventData};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {

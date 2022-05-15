@@ -7,7 +7,9 @@ mod gui;
 mod math;
 mod model;
 mod orrery;
-mod universe;
+
+#[allow(dead_code)]
+mod events;
 
 use kiss3d::light::Light;
 use kiss3d::window::Window;
@@ -17,25 +19,23 @@ use nalgebra::{Point3, Vector3};
 use std::collections::HashMap;
 use std::fs;
 
-use crate::orrery::{BodyID, BodyInfo, Orbit};
-use crate::universe::Universe;
+use crate::model::Timeline;
+use crate::orrery::{BodyID, BodyInfo, Orbit, Orrery};
 
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");
     window.set_light(Light::StickToCamera);
     window.set_framerate_limit(Some(60));
 
-    let mut universe = read_file("ksp-bodies.txt");
-    universe
-        .orrery
-        .add_ship(Vector3::x() * 6000000.0, Vector3::y() * 1000.0, BodyID(4));
+    let mut orrery = read_file("ksp-bodies.txt");
+    orrery.add_ship(Vector3::x() * 6000000.0, Vector3::y() * 1000.0, BodyID(4));
 
-    let simulation = gui::Simulation::new(universe, &mut window);
+    let simulation = gui::Simulation::new(Timeline::new(orrery), &mut window);
     window.render_loop(simulation);
 }
 
-fn read_file(filename: &str) -> Universe {
-    let mut universe = Universe::new(0.0);
+fn read_file(filename: &str) -> Orrery {
+    let mut orrery = Orrery::new(0.0);
 
     let mut name_to_id = HashMap::new();
     let mut name_to_mu = HashMap::new();
@@ -73,7 +73,7 @@ fn read_file(filename: &str) -> Universe {
         let parent = next_string!();
 
         let id = if parent == "-" {
-            universe.orrery.add_fixed_body(body_info)
+            orrery.add_fixed_body(body_info)
         } else {
             let parent_id = name_to_id[parent];
             let parent_mu = name_to_mu[parent];
@@ -93,15 +93,13 @@ fn read_file(filename: &str) -> Universe {
             let theta = math::anomaly::mean_to_true(maae, ecc);
             let (position, velocity) = orbit.get_state_at_theta(theta);
 
-            universe
-                .orrery
-                .add_body(body_info, position, velocity, parent_id)
+            orrery.add_body(body_info, position, velocity, parent_id)
         };
         name_to_id.insert(name, id);
         name_to_mu.insert(name, mu);
     }
 
-    universe
+    orrery
 }
 
 fn parse_color(s: &str) -> Point3<f32> {

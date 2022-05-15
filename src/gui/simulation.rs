@@ -14,8 +14,8 @@ use std::time::Instant;
 use super::camera::ZoomableCamera;
 use super::renderer::CompoundRenderer;
 
-use crate::orrery::{BodyID, Frame, ShipID};
-use crate::universe::{BodyRef, ShipRef, Universe};
+use crate::model::Timeline;
+use crate::orrery::{Body, BodyID, BodyState, Frame, OrbitPatch, Orrery, Ship, ShipID};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -76,20 +76,20 @@ pub struct CameraFocus {
 }
 
 impl CameraFocus {
-    pub fn new(universe: &Universe) -> Self {
+    pub fn new(orrery: &Orrery) -> Self {
         // TODO sort focus points in a more systematic way
-        let mut bodies: Vec<_> = universe.bodies().collect();
-        bodies.sort_by_key(|b| b.id());
-        let mut ships: Vec<_> = universe.ships().collect();
-        ships.sort_by_key(|s| s.id());
+        let mut bodies: Vec<_> = orrery.bodies().collect();
+        bodies.sort_by_key(|b| b.id);
+        let mut ships: Vec<_> = orrery.ships().collect();
+        ships.sort_by_key(|s| s.id);
 
         let mut focus_points = vec![];
         for body in bodies.into_iter() {
-            focus_points.push(FocusPoint::Body(body.id()));
+            focus_points.push(FocusPoint::Body(body.id));
             // Now put in all ships orbiting that body
             for ship in ships.iter() {
-                if ship.get_parent_id() == body.id() {
-                    focus_points.push(FocusPoint::Ship(ship.id()));
+                if ship.parent_id == body.id {
+                    focus_points.push(FocusPoint::Ship(ship.id));
                 }
             }
         }
@@ -117,7 +117,9 @@ impl CameraFocus {
 
 pub struct Simulation {
     // Object state
-    universe: Universe,
+    timeline: Timeline,
+    orrery: Orrery,
+    time: f64,
     body_spheres: HashMap<BodyID, SceneNode>,
     ship_objects: HashMap<ShipID, SceneNode>,
     // Timestep
@@ -133,29 +135,35 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new(universe: Universe, window: &mut Window) -> Self {
+    pub fn new(timeline: Timeline, window: &mut Window) -> Self {
+        let orrery = timeline
+            .get_orrery_at(0.0)
+            .expect("Timeline starts after 0");
+
         // Set up camera
         // TODO figure out what distance to put the camera...
         let camera = ZoomableCamera::new(2.0e9);
-        let camera_focus = CameraFocus::new(&universe);
+        let camera_focus = CameraFocus::new(&orrery);
         let ship_camera_inertial = true;
 
         // Create objects for bodies
         let mut body_spheres = HashMap::new();
-        for body in universe.bodies() {
+        for body in orrery.bodies() {
             let sphere = Simulation::create_body_object(window, &body);
-            body_spheres.insert(body.id(), sphere);
+            body_spheres.insert(body.id, sphere);
         }
 
         // Create objects for ships
         let mut ship_objects = HashMap::new();
-        for ship in universe.ships() {
+        for ship in orrery.ships() {
             let cube = Simulation::create_ship_object(window, &ship);
-            ship_objects.insert(ship.id(), cube);
+            ship_objects.insert(ship.id, cube);
         }
 
         let mut simulation = Simulation {
-            universe,
+            timeline,
+            orrery,
+            time: 0.0,
             body_spheres,
             ship_objects,
             timestep: 21600.0 / 60.0, // one Kerbin-day
@@ -171,17 +179,15 @@ impl Simulation {
         simulation
     }
 
-    fn create_body_object(window: &mut Window, body: &BodyRef) -> SceneNode {
-        let body_info = body.info();
-
+    fn create_body_object(window: &mut Window, body: &Body) -> SceneNode {
         // Make the sphere that represents the body
-        let mut sphere = window.add_sphere(body_info.radius);
-        let color = &body_info.color;
+        let mut sphere = window.add_sphere(body.info.radius);
+        let color = &body.info.color;
         sphere.set_color(color.x, color.y, color.z);
         sphere
     }
 
-    fn create_ship_object(window: &mut Window, _ship: &ShipRef) -> SceneNode {
+    fn create_ship_object(window: &mut Window, ship: &Ship) -> SceneNode {
         // Make the cube that represents the ship
         let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
         cube.set_color(1.0, 1.0, 1.0);
@@ -233,14 +239,18 @@ impl Simulation {
     fn update_state(&mut self) {
         if !self.paused {
             // Update the universe, then move scene objects to the right places
-            self.universe.update_time(self.timestep);
+            self.time += self.timestep;
+            self.orrery = self
+                .timeline
+                .get_orrery_at(self.time)
+                .expect("TODO implement model extension");
             self.update_scene_objects();
         }
     }
 
     fn fix_camera_zoom(&mut self) {
         let dist = match self.camera_focus.point() {
-            FocusPoint::Body(id) => self.universe.get_body(id).info().radius * 2.0,
+            FocusPoint::Body(id) => self.orrery.get_body(id).info.radius * 2.0,
             FocusPoint::Ship(_) => TEST_SHIP_SIZE * 2.0,
         };
         self.camera.set_min_distance(dist);
@@ -258,7 +268,6 @@ impl Simulation {
 
     fn transform_to_focus_space(&self, frame: Frame) -> Isometry3<f32> {
         let transform = self
-            .universe
             .orrery
             .convert_frames(frame, self.focused_object_frame());
         nalgebra::convert(*transform.isometry())
@@ -270,7 +279,7 @@ impl Simulation {
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
         // Draw orbital axes
-        for body in self.universe.bodies() {
+        for body in self.orrery.bodies() {
             self.draw_orbital_axes(window, body);
         }
 
@@ -305,28 +314,28 @@ impl Simulation {
         // TODO apply rotations too!
         let camera_frame = self.focused_object_frame();
         for (id, sphere) in self.body_spheres.iter_mut() {
-            let state = self.universe.get_body(*id).state();
+            let state = self.orrery.get_body_state(*id);
             let position = state.get_position(camera_frame);
             set_position_helper(sphere, position);
         }
 
         for (id, cube) in self.ship_objects.iter_mut() {
-            let state = self.universe.get_ship(*id).state();
+            let state = self.orrery.get_ship_state(*id);
             let position = state.get_position(camera_frame);
             set_position_helper(cube, position);
         }
     }
 
-    fn draw_orbital_axes(&self, window: &mut Window, body: BodyRef) {
+    fn draw_orbital_axes(&self, window: &mut Window, body: &Body) {
         // TODO: this renders the axes at the center of the body; I think we probably want center
         // of the orbit instead. But only do that if you're doing this only for the focused body.
-        let orbit = match body.get_orbit() {
-            Some(orbit) => orbit,
-            None => return,
+        let orbit = match &body.state {
+            BodyState::FixedAtOrigin => return,
+            BodyState::Orbiting { parent_id, state } => state.to_orbit_patch(*parent_id),
         };
 
-        let axis_length = 2.0 * body.info().radius;
-        let transform = self.transform_to_focus_space(Frame::BodyInertial(body.id()));
+        let axis_length = 2.0 * body.info.radius;
+        let transform = self.transform_to_focus_space(Frame::BodyInertial(body.id));
         let origin = transform * Point3::origin();
 
         // Draws a ray starting at the origin of the body, and proceeding in the given direction.
@@ -357,16 +366,15 @@ impl Simulation {
     fn left_hand_text(&self) -> String {
         let (state, frame) = match self.camera_focus.point() {
             FocusPoint::Body(id) => {
-                let body = self.universe.get_body(id);
-                let frame = match body.get_parent_id() {
+                let frame = match self.orrery.get_body(id).parent_id() {
                     Some(id) => Frame::BodyInertial(id),
                     None => Frame::Root,
                 };
-                (body.state(), frame)
+                (self.orrery.get_body_state(id), frame)
             }
             FocusPoint::Ship(id) => {
-                let ship = self.universe.get_ship(id);
-                (ship.state(), Frame::BodyInertial(ship.get_parent_id()))
+                let frame = Frame::BodyInertial(self.orrery.get_ship(id).parent_id);
+                (self.orrery.get_ship_state(id), frame)
             }
         };
 
@@ -386,8 +394,8 @@ Orbiting: {}",
     fn focused_body_name(&self) -> String {
         match self.camera_focus.point() {
             FocusPoint::Body(id) => {
-                let body = self.universe.get_body(id);
-                body.info().name.to_owned()
+                let body = self.orrery.get_body(id);
+                body.info.name.to_owned()
             }
             FocusPoint::Ship(_) => {
                 format!(
@@ -404,17 +412,17 @@ Orbiting: {}",
 
     fn orbit_summary_text(&self) -> String {
         let orbit = match self.camera_focus.point() {
-            FocusPoint::Body(id) => match self.universe.get_body(id).get_orbit() {
-                Some(orbit) => orbit,
-                None => return String::from("N/A"),
+            FocusPoint::Body(id) => match &self.orrery.get_body(id).state {
+                BodyState::FixedAtOrigin => return String::from("N/A"),
+                BodyState::Orbiting { parent_id, state } => state.to_orbit_patch(*parent_id),
             },
             FocusPoint::Ship(id) => {
-                let ship = self.universe.get_ship(id);
-                ship.get_orbit()
+                let ship = self.orrery.get_ship(id);
+                ship.state.to_orbit_patch(ship.parent_id)
             }
         };
 
-        let parent_body = self.universe.get_body(orbit.parent_id);
+        let parent_body = self.orrery.get_body(orbit.parent_id);
         let orbit = orbit.orbit;
 
         // Indentation is intentional
@@ -425,7 +433,7 @@ Orbiting: {}",
     Inclination: {:.3}
     LAN: {:.1}
     Arg PE: {:.1}",
-            parent_body.info().name,
+            parent_body.info.name,
             orbit.semimajor_axis(),
             orbit.eccentricity(),
             orbit.inclination().to_degrees(),
@@ -439,7 +447,7 @@ Orbiting: {}",
             "Time: {}
 Timestep: {} s/frame
 FPS: {:.0}",
-            format_seconds(self.universe.orrery.get_time()),
+            format_seconds(self.time),
             self.timestep,
             self.fps_counter.value(),
         )
@@ -448,10 +456,10 @@ FPS: {:.0}",
     fn prep_soi(&mut self) {
         let soi_id = match self.camera_focus.point() {
             FocusPoint::Body(id) => id,
-            FocusPoint::Ship(id) => self.universe.get_ship(id).get_parent_id(),
+            FocusPoint::Ship(id) => self.orrery.get_ship(id).parent_id,
         };
 
-        let soi_radius = match self.universe.orrery.get_soi_radius(soi_id) {
+        let soi_radius = match self.orrery.get_soi_radius(soi_id) {
             Some(r) => r,
             None => return, // early return if Sun
         };
@@ -461,7 +469,7 @@ FPS: {:.0}",
         let body_pt = self.transform_to_focus_space(Frame::BodyInertial(soi_id)) * Point3::origin();
 
         // Make an okayish SOI color by dimming the body color.
-        let body_color = self.universe.get_body(soi_id).info().color;
+        let body_color = self.orrery.get_body(soi_id).info.color;
         let soi_color = Point3::from(body_color.coords * 0.5);
 
         self.renderer
@@ -469,19 +477,19 @@ FPS: {:.0}",
     }
 
     fn prep_orbits(&mut self) {
-        for body in self.universe.bodies() {
-            let orbit = match body.get_orbit() {
-                Some(o) => o,
-                None => continue,
+        for body in self.orrery.bodies() {
+            let orbit = match &body.state {
+                BodyState::FixedAtOrigin => continue,
+                BodyState::Orbiting { parent_id, state } => state.to_orbit_patch(*parent_id),
             };
-            let color = body.info().color;
+            let color = body.info.color;
             let frame = Frame::BodyInertial(orbit.parent_id);
             self.renderer
                 .draw_orbit(orbit, color, self.transform_to_focus_space(frame));
         }
 
-        for ship in self.universe.ships() {
-            let orbit = ship.get_orbit();
+        for ship in self.orrery.ships() {
+            let orbit = ship.state.to_orbit_patch(ship.parent_id);
             let color = Point3::new(1.0, 1.0, 1.0);
             let frame = Frame::BodyInertial(orbit.parent_id);
             self.renderer
@@ -554,4 +562,19 @@ fn format_seconds(seconds: f64) -> String {
         "{}y, {}d, {:02}:{:02}:{:02}",
         years, days, hours, minutes, total_seconds
     )
+}
+
+// TODO: delete this once the timeline migration is done!
+impl crate::orrery::CartesianState {
+    fn to_orbit_patch(&self, parent_id: BodyID) -> OrbitPatch {
+        let orbit = self.get_orbit();
+        let start_anomaly = self.get_universal_anomaly();
+
+        OrbitPatch {
+            orbit,
+            start_anomaly,
+            end_anomaly: None,
+            parent_id,
+        }
+    }
 }

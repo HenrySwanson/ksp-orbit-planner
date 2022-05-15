@@ -9,3 +9,4 @@ pub use body::{Body, BodyID, BodyInfo, BodyState};
 pub use orbit::{Orbit, OrbitPatch};
 pub use orrery::{Frame, FramedState, Orrery};
 pub use ship::{Ship, ShipID};
+pub use state::CartesianState;
