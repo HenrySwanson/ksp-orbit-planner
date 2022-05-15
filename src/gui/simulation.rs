@@ -239,7 +239,8 @@ impl Simulation {
     fn update_state(&mut self) {
         if !self.paused {
             // Update the universe, then move scene objects to the right places
-            self.time += self.timestep;
+            self.time = f64::max(self.time + self.timestep, 0.0);
+            self.timeline.extend_end_time(self.time);
             self.orrery = self
                 .timeline
                 .get_orrery_at(self.time)

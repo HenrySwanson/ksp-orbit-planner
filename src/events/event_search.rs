@@ -23,6 +23,7 @@ impl EventTag {
     }
 }
 
+#[derive(Debug)]
 pub enum EventSearch {
     Found(Event),
     NotFound(f64),
@@ -39,6 +40,7 @@ impl EventSearch {
     }
 }
 
+#[derive(Debug)]
 pub struct UpcomingEvents {
     ship_map: HashMap<ShipID, UpcomingEventsInner>,
 }
@@ -91,6 +93,7 @@ impl UpcomingEvents {
     }
 }
 
+#[derive(Debug)]
 struct UpcomingEventsInner {
     map: HashMap<EventTag, EventSearch>,
 }

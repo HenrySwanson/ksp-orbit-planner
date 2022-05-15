@@ -3,13 +3,11 @@ extern crate kiss3d;
 #[allow(dead_code)]
 mod consts;
 
+mod events;
 mod gui;
 mod math;
 mod model;
 mod orrery;
-
-#[allow(dead_code)]
-mod events;
 
 use kiss3d::light::Light;
 use kiss3d::window::Window;

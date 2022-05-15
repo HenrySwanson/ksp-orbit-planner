@@ -6,8 +6,8 @@ use super::body::{Body, BodyID, BodyInfo, BodyState};
 use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
 
-use crate::math::frame::FrameTransform;
 use crate::events::{Event, EventData};
+use crate::math::frame::FrameTransform;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {
@@ -26,7 +26,7 @@ pub struct FramedState<'orr> {
 
 // TODO: should the BodyInfo live in some other struct that
 // does not clone, and lives forever?
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Orrery {
     bodies: HashMap<BodyID, Body>,
     next_body_id: usize,

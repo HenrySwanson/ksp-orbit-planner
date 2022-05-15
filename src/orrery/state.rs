@@ -6,7 +6,7 @@ use crate::math::geometry::directed_angle;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::math::stumpff::stumpff_G;
 
-const NUM_ITERATIONS_DELTA_T: usize = 200;
+const NUM_ITERATIONS_DELTA_T: usize = 2000;
 
 // TODO pub these fields
 #[derive(Debug, Clone)]
