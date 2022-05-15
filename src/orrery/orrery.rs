@@ -24,6 +24,9 @@ pub struct FramedState<'orr> {
     native_frame: Frame,
 }
 
+// TODO: should the BodyInfo live in some other struct that
+// does not clone, and lives forever?
+#[derive(Clone)]
 pub struct Orrery {
     bodies: HashMap<BodyID, Body>,
     next_body_id: usize,

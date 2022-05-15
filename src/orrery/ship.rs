@@ -5,6 +5,7 @@ use super::state::CartesianState;
 pub struct ShipID(pub usize);
 
 // TODO un-pub fields
+#[derive(Debug, Clone)]
 pub struct Ship {
     pub id: ShipID,
     pub state: CartesianState,

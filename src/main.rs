@@ -5,6 +5,7 @@ mod consts;
 
 mod gui;
 mod math;
+mod model;
 mod orrery;
 mod universe;
 

@@ -6,6 +6,7 @@ use super::state::CartesianState;
 pub struct BodyID(pub usize);
 
 // All the immutable info about a body
+#[derive(Debug, Clone)]
 pub struct BodyInfo {
     pub name: String,
     pub mu: f64,
@@ -13,6 +14,7 @@ pub struct BodyInfo {
     pub color: Point3<f32>,
 }
 
+#[derive(Debug, Clone)]
 pub enum BodyState {
     FixedAtOrigin,
     Orbiting {
@@ -21,6 +23,7 @@ pub enum BodyState {
     },
 }
 
+#[derive(Debug, Clone)]
 pub struct Body {
     pub id: BodyID,
     pub info: BodyInfo,
