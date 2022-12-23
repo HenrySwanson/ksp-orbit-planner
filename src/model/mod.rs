@@ -130,21 +130,33 @@ fn search_for_events(orrery: &Orrery, upcoming_events: &mut UpcomingEvents, delt
             continue;
         }
 
-        let end_time = orrery.get_time() + delta_t;
+        let start_time = orrery.get_time();
+        let end_time = start_time + delta_t;
 
         // TODO this "check if we should search, and then separately search" is not
         // a great pattern. They should be bundled together better.
 
         // Check for an SOI escape event
-        upcoming_events.update(id, EventTag::EscapeSOI, end_time, || {
+        upcoming_events.update(id, EventTag::EscapeSOI, end_time, |_| {
             search_for_soi_escape(orrery, id)
         });
 
         // Check for SOI encounter events
         for body in orrery.bodies() {
-            upcoming_events.update(id, EventTag::EncounterSOI(body.id), end_time, || {
-                search_for_soi_encounter(orrery, id, body.id, delta_t)
-            });
+            upcoming_events.update(
+                id,
+                EventTag::EncounterSOI(body.id),
+                end_time,
+                |searched_until| {
+                    search_for_soi_encounter(
+                        orrery,
+                        id,
+                        body.id,
+                        searched_until.unwrap_or(start_time),
+                        end_time,
+                    )
+                },
+            );
         }
     }
 }

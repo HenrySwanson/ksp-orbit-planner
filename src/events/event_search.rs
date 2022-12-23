@@ -24,18 +24,18 @@ impl EventTag {
 }
 
 #[derive(Debug)]
-pub enum EventSearch {
+pub enum SearchResult {
     Found(Event),
     NotFound(f64),
     Never,
 }
 
-impl EventSearch {
+impl SearchResult {
     pub fn event(&self) -> Option<&Event> {
         match self {
-            EventSearch::Found(event) => Some(event),
-            EventSearch::NotFound(_) => None,
-            EventSearch::Never => None,
+            SearchResult::Found(event) => Some(event),
+            SearchResult::NotFound(_) => None,
+            SearchResult::Never => None,
         }
     }
 }
@@ -79,7 +79,7 @@ impl UpcomingEvents {
         id: ShipID,
         tag: EventTag,
         end_time: f64,
-        search_fn: impl FnOnce() -> EventSearch,
+        search_fn: impl FnOnce(Option<f64>) -> SearchResult,
     ) {
         let inner = self
             .ship_map
@@ -95,7 +95,7 @@ impl UpcomingEvents {
 
 #[derive(Debug)]
 struct UpcomingEventsInner {
-    map: HashMap<EventTag, EventSearch>,
+    map: HashMap<EventTag, SearchResult>,
 }
 
 impl UpcomingEventsInner {
@@ -111,31 +111,36 @@ impl UpcomingEventsInner {
 
     fn insert(&mut self, event: Event) {
         self.map
-            .insert(EventTag::from_event(&event), EventSearch::Found(event));
+            .insert(EventTag::from_event(&event), SearchResult::Found(event));
     }
 
-    fn update(&mut self, tag: EventTag, end_time: f64, search_fn: impl FnOnce() -> EventSearch) {
+    fn update(
+        &mut self,
+        tag: EventTag,
+        end_time: f64,
+        search_fn: impl FnOnce(Option<f64>) -> SearchResult,
+    ) {
         let searched_until = match self.map.get(&tag) {
             None => None,
-            Some(EventSearch::Found(_)) => return,
-            Some(EventSearch::NotFound(ts)) => Some(*ts),
-            Some(EventSearch::Never) => return,
+            Some(SearchResult::Found(_)) => return,
+            Some(SearchResult::NotFound(ts)) => Some(*ts),
+            Some(SearchResult::Never) => return,
         };
 
-        // Perform a search unless we've already searched this far
-        if !searched_until.map_or(false, |ts| ts > end_time) {
-            self.map.insert(tag, search_fn());
+        // Perform a search if we haven't already searched far enough
+        if searched_until.map_or(true, |ts| ts <= end_time) {
+            self.map.insert(tag, search_fn(searched_until));
         }
     }
 }
 
 // TODO maybe these should be folded into UpcomingEvents? IDK
-pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> EventSearch {
+pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
     let ship = orrery.get_ship(ship_id);
     let current_body = ship.parent_id;
     let parent_body = match orrery.get_body(current_body).parent_id() {
         Some(x) => x,
-        None => return EventSearch::Never,
+        None => return SearchResult::Never,
     };
 
     let soi_radius = orrery
@@ -144,7 +149,7 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> EventSearch {
 
     let delta_s = match ship.state.get_s_until_radius(soi_radius) {
         Some(s) => s,
-        None => return EventSearch::Never,
+        None => return SearchResult::Never,
     };
 
     let delta_t = ship.state.delta_s_to_t(delta_s);
@@ -163,15 +168,28 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> EventSearch {
         },
     };
 
-    EventSearch::Found(event)
+    SearchResult::Found(event)
 }
 
 pub fn search_for_soi_encounter(
     orrery: &Orrery,
     ship_id: ShipID,
     target_id: BodyID,
-    min_window: f64,
-) -> EventSearch {
+    start_time: f64,
+    end_time: f64,
+) -> SearchResult {
+    assert!(
+        start_time <= end_time,
+        "Reversed window: {} > {}",
+        start_time,
+        end_time
+    );
+    let window = end_time - start_time;
+
+    // Fast-forward to the start of the window
+    let mut orrery = orrery.clone();
+    orrery.update_time(start_time - orrery.get_time());
+
     let ship = orrery.get_ship(ship_id);
     let parent_id = ship.parent_id;
 
@@ -179,7 +197,7 @@ pub fn search_for_soi_encounter(
     let target_body = orrery.get_body(target_id);
     match target_body.parent_id() {
         Some(x) if x == parent_id => {}
-        _ => return EventSearch::Never,
+        _ => return SearchResult::Never,
     }
 
     let soi_radius = orrery.get_soi_radius(target_id).unwrap();
@@ -189,28 +207,29 @@ pub fn search_for_soi_encounter(
     let self_orbit = ship.state.get_orbit();
     let planet_orbit = target_state.get_orbit();
 
-    // Quick check: if one orbit is much smaller than the other, then we can skip the rest
+    // Quick check: if one orbit is much smaller than the other, then there's no chance of
+    // intersection, so we can skip the rest of the search.
     let pe_ap_check =
         |o1: &Orbit, o2: &Orbit| o1.apoapsis() > 0.0 && o1.apoapsis() + soi_radius < o2.periapsis();
     if pe_ap_check(&self_orbit, &planet_orbit) || pe_ap_check(&planet_orbit, &self_orbit) {
-        return EventSearch::Never;
+        return SearchResult::Never;
     }
 
     // How far should we search?
     // If the ship is in a closed orbit, search over one period. Otherwise,
     // search until we get too far away from the target body.
-    let ship_period = ship.state.get_orbit().period();
-    let window = ship_period.unwrap_or_else(|| {
-        let target_apoapsis = target_state.get_orbit().apoapsis();
-        // Second orbit must be closed
-        assert!(target_apoapsis > 0.0);
-        // Unwrap should succeed because this is an open orbit
-        ship.state.get_t_until_radius(target_apoapsis).unwrap()
-    });
-    let window = f64::max(min_window, window);
+    // let ship_period = ship.state.get_orbit().period();
+    // let window = ship_period.unwrap_or_else(|| {
+    //     let target_apoapsis = target_state.get_orbit().apoapsis();
+    //     // Second orbit must be closed
+    //     assert!(target_apoapsis > 0.0);
+    //     // Unwrap should succeed because this is an open orbit
+    //     ship.state.get_t_until_radius(target_apoapsis).unwrap()
+    // });
+    // let window = f64::max(min_window, window);
 
-    let current_time = orrery.get_time();
-    let end_time = current_time + window;
+    // let current_time = orrery.get_time();
+    // let end_time = current_time + window;
 
     // Method for checking distance between bodies
     let check_distance = |time| {
@@ -231,7 +250,7 @@ pub fn search_for_soi_encounter(
 
     // If we can't possibly catch up, then return no event.
     if current_distance - soi_radius > max_rel_velocity * window {
-        return EventSearch::NotFound(end_time);
+        return SearchResult::NotFound(end_time);
     }
 
     // Just step by step look for an intersection
@@ -249,14 +268,14 @@ pub fn search_for_soi_encounter(
     // If we didn't get close enough, return no event
     let t2 = match encounter_time {
         Some(t) => t,
-        None => return EventSearch::NotFound(end_time),
+        None => return SearchResult::NotFound(end_time),
     };
 
     // Edge case: if t2 is zero, we may have just exited an SOI, and shouldn't
     // return an event, since we'd then get into a loop
     // TODO use direction to detect this instead!
     if t2 == 0.0 {
-        return EventSearch::NotFound(end_time);
+        return SearchResult::NotFound(end_time);
     }
 
     // Now we narrow in on the point using binary search.
@@ -278,10 +297,10 @@ pub fn search_for_soi_encounter(
             new: target_id,
         }),
         point: EventPoint {
-            time: current_time + entry_time,
+            time: start_time + entry_time,
             anomaly: new_state.get_universal_anomaly(),
             location: Point3::from(new_state.position()),
         },
     };
-    EventSearch::Found(event)
+    SearchResult::Found(event)
 }
