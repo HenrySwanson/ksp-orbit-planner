@@ -1,24 +1,13 @@
-extern crate kiss3d;
-
-#[allow(dead_code)]
-mod consts;
-
-mod events;
-mod gui;
-mod math;
-mod model;
-mod orrery;
-
-use kiss3d::light::Light;
-use kiss3d::window::Window;
-
-use nalgebra::{Point3, Vector3};
-
 use std::collections::HashMap;
 use std::fs;
 
-use crate::model::Timeline;
-use crate::orrery::{BodyID, BodyInfo, Orbit, Orrery};
+use kiss3d::light::Light;
+use kiss3d::window::Window;
+use nalgebra::{Point3, Vector3};
+use rust_ksp::gui::Simulation;
+use rust_ksp::math;
+use rust_ksp::model::Timeline;
+use rust_ksp::orrery::{BodyID, BodyInfo, Orbit, Orrery};
 
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");
@@ -28,7 +17,7 @@ fn main() {
     let mut orrery = read_file("ksp-bodies.txt");
     orrery.add_ship(Vector3::x() * 6000000.0, Vector3::y() * 1000.0, BodyID(4));
 
-    let simulation = gui::Simulation::new(Timeline::new(orrery), &mut window);
+    let simulation = Simulation::new(Timeline::new(orrery), &mut window);
     window.render_loop(simulation);
 }
 
