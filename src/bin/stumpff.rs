@@ -2,93 +2,101 @@ use plotters::prelude::*;
 use rust_ksp::math::stumpff::{c0, c1, c2, c3};
 
 pub fn main() {
-    let scale = 1e-7;
     draw_plot(
         "plots/c2-naive.png",
-        |x| (naive_c2(x * scale) - 0.5) / scale,
+        |x| naive_stumpff(2, x),
         200,
-    )
-    .unwrap();
-    draw_plot("plots/c2.png", |x| (c2(x * scale) - 0.5) / scale, 200).unwrap();
+        (0.0, 0.5),
+        1e-7,
+    );
+    draw_plot("plots/c2.png", c2, 200, (0.0, 0.5), 1e-7);
 
-    let scale = 1e-7;
-    let sixth = 1.0 / 6.0;
     draw_plot(
         "plots/c3-naive.png",
-        |x| (naive_c3(x * scale) - sixth) / scale,
+        |x| naive_stumpff(3, x),
         200,
-    )
-    .unwrap();
-    draw_plot("plots/c3.png", |x| (c3(x * scale) - sixth) / scale, 200).unwrap();
+        (0.0, 1.0 / 6.0),
+        1e-7,
+    );
+
+    draw_plot("plots/c3.png", c3, 200, (0.0, 1.0 / 6.0), 1e-7);
 
     // Print some useful coefficients
     println!("Computing c3; use this in your code");
-    generate_stumpff_coefficients(3, naive_c3(1.0));
+    generate_stumpff_coefficients(3, naive_stumpff(3, 1.0));
     println!(
         "Computing c4 and c5; check this against NASA values: {}",
         "https://ntrs.nasa.gov/api/citations/19670018315/downloads/19670018315.pdf"
     );
-    generate_stumpff_coefficients(4, naive_c4(1.0));
-    generate_stumpff_coefficients(5, naive_c5(1.0));
+    generate_stumpff_coefficients(4, naive_stumpff(4, 1.0));
+    generate_stumpff_coefficients(5, naive_stumpff(5, 1.0));
 }
 
-// TODO: y-axis shows up centered at 0.0 even when it's not centered there. fix that.
+/// Draw a plot of the given function, on the specified domain (center and scale).
+/// Note: because we're working at the limits of f64, but plotter uses f32 to draw,
+/// we have to rescale and recenter the datapoints before passing them to plotter.
+/// This means the "origin" on the graph is not actually the origin.
 fn draw_plot(
     name: &str,
     func: impl Fn(f64) -> f64,
     n_points: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+    center: (f64, f64),
+    scale: f64,
+) {
     let root = BitMapBackend::new(name, (640, 640)).into_drawing_area();
-    root.fill(&WHITE)?;
+    root.fill(&WHITE).unwrap();
+
     let mut chart = ChartBuilder::on(&root)
+        .caption(
+            format!(
+                "Centered at ({}, {}), with scale {}",
+                center.0, center.1, scale
+            ),
+            ("sans-serif", 24).into_font(),
+        )
         .margin(5)
         .x_label_area_size(30)
         .y_label_area_size(30)
-        .build_cartesian_2d(-1.0f32..1.0f32, -1.0f32..1.0f32)?;
+        .build_cartesian_2d(-1.0f32..1.0f32, -1.0f32..1.0f32)
+        .unwrap();
 
-    chart.configure_mesh().draw()?;
+    chart.configure_mesh().draw().unwrap();
 
-    chart.draw_series(LineSeries::new(
-        (0..=n_points)
-            .map(|i| (2 * i as i32 - n_points as i32) as f64 / (n_points as f64))
-            .map(|x| (x as f32, func(x) as f32)),
-        &RED,
-    ))?;
-
-    Ok(())
+    chart
+        .draw_series(LineSeries::new(
+            (0..=n_points)
+                // Convert to u: [0, 1]
+                .map(|i| i as f64 / n_points as f64)
+                // Convert to actual x coordinates
+                .map(|u| center.0 + (2.0 * u - 1.0) * scale)
+                // Compute points
+                .map(|x| (x, func(x)))
+                // Recenter at the origin because f32 isn't precise enough
+                .map(|(x, y)| ((x - center.0) / scale, (y - center.1) / scale))
+                // Convert to f32 for drawing
+                .map(|(x, y)| (x as f32, y as f32)),
+            &RED,
+        ))
+        .unwrap();
 }
 
-fn naive_c2(x: f64) -> f64 {
-    if x != 0.0 {
-        (1.0 - c0(x)) / x
-    } else {
-        0.5
+fn float_factorial(n: usize) -> f64 {
+    (1..=n).map(|k| k as f64).product()
+}
+
+fn naive_stumpff(n: usize, x: f64) -> f64 {
+    // Avoid dividing by 0 please
+    if x == 0.0 {
+        return 1.0 / float_factorial(n);
+    }
+
+    match n {
+        0 => c0(x),
+        1 => c1(x),
+        n => (float_factorial(n - 2) - naive_stumpff(n - 2, x)) / x,
     }
 }
 
-fn naive_c3(x: f64) -> f64 {
-    if x != 0.0 {
-        (1.0 - c1(x)) / x
-    } else {
-        1.0 / 6.0
-    }
-}
-
-fn naive_c4(x: f64) -> f64 {
-    if x != 0.0 {
-        (0.5 - c2(x)) / x
-    } else {
-        1.0 / 24.0
-    }
-}
-
-fn naive_c5(x: f64) -> f64 {
-    if x != 0.0 {
-        (1.0 / 6.0 - c3(x)) / x
-    } else {
-        1.0 / 120.0
-    }
-}
 /// Prints the coefficients of the kth stumpff function. `bound` is used to estimate
 /// when to stop generating coefficients. Specifically, we should stop when a_k + c_n(X)
 /// is indistinguishable from c_n(X), where X is in our domain of approximation [-1, 1].
