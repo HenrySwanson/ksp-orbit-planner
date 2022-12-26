@@ -12,3 +12,4 @@ nalgebra = "^0.30"  # Must match that in kiss3d
 simba = "*"  # Must match that in nalgebra
 approx = "^0.5.1"
 plotters = "*"
+clap = { version = "4.0.32", features = ["derive"] }

@@ -262,6 +262,10 @@ impl Orbit {
         CartesianState::new(position, velocity, self.mu)
     }
 
+    pub fn mu(&self) -> f64 {
+        self.mu
+    }
+
     #[allow(non_snake_case)]
     pub fn get_time_since_periapsis(&self, s: f64) -> f64 {
         // Identical to the one in CartesianState, but we can simplify a bit
