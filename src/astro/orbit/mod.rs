@@ -4,6 +4,8 @@ use nalgebra::{Rotation3, Vector3};
 
 use crate::math::geometry::{always_find_rotation, directed_angle};
 
+mod state;
+
 #[derive(Debug, Clone, Copy)]
 pub struct PointMass(f64);
 
