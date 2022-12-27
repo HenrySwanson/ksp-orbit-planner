@@ -41,20 +41,30 @@ impl HasMass for PointMass {
     }
 }
 
-impl<S> Orbit<PointMass, S> {
-    pub fn from_old_orbit(orbit: &crate::orrery::Orbit, secondary: S) -> Self {
-        let mu = orbit.mu();
-        Self {
-            primary: PointMass::with_mu(mu),
-            secondary,
-            rotation: orbit.rotation(),
-            alpha: -2.0 * orbit.energy() / mu,
-            slr: orbit.angular_momentum().powi(2) / mu,
-        }
-    }
-}
+pub type BareOrbit = Orbit<(), ()>;
+pub type PhysicalOrbit = Orbit<PointMass, ()>;
 
 impl<P, S> Orbit<P, S> {
+    pub fn with_primary<P2>(self, new_primary: P2) -> Orbit<P2, S> {
+        Orbit {
+            primary: new_primary,
+            secondary: self.secondary,
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
+    }
+
+    pub fn with_secondary<S2>(self, new_secondary: S2) -> Orbit<P, S2> {
+        Orbit {
+            primary: self.primary,
+            secondary: new_secondary,
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
+    }
+
     pub fn from_kepler(
         primary: P,
         secondary: S,

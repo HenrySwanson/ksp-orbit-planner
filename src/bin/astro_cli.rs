@@ -1,4 +1,4 @@
-use rust_ksp::astro::orbit::{Orbit, PointMass};
+use rust_ksp::astro::orbit::PointMass;
 use rust_ksp::file::read_file;
 use rust_ksp::orrery::BodyState;
 
@@ -18,11 +18,12 @@ fn main() {
             continue;
         }
 
-        let old_orbit = match &body.state {
+        let orbit = match &body.state {
             BodyState::FixedAtOrigin => continue,
-            BodyState::Orbiting { state, .. } => state.get_orbit(),
+            BodyState::Orbiting { state, .. } => state
+                .get_orbit()
+                .with_secondary(PointMass::with_mu(body.info.mu)),
         };
-        let orbit = Orbit::from_old_orbit(&old_orbit, PointMass::with_mu(body.info.mu));
 
         // Order is the same as on the KSP wiki for ease of sanity-checking
         println!("Orbital characteristics for {}", body.info.name);

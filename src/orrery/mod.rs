@@ -1,12 +1,21 @@
+use crate::astro::orbit::PhysicalOrbit;
+
 mod body;
-mod orbit;
 mod orrery;
 mod ship;
 mod state;
 
 // TODO restrict imports!
 pub use body::{Body, BodyID, BodyInfo, BodyState};
-pub use orbit::{Orbit, OrbitPatch};
 pub use orrery::{Frame, FramedState, Orrery};
 pub use ship::{Ship, ShipID};
 pub use state::CartesianState;
+
+// TODO: re-evaluate if we need this
+#[derive(Debug, Clone)]
+pub struct OrbitPatch {
+    pub orbit: PhysicalOrbit,
+    pub start_anomaly: f64,
+    pub end_anomaly: Option<f64>,
+    pub parent_id: BodyID,
+}

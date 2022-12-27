@@ -1,7 +1,6 @@
 use nalgebra::Vector3;
 
-use super::orbit::Orbit;
-
+use crate::astro::orbit::{Orbit, PointMass};
 use crate::math::geometry::directed_angle;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::math::stumpff::stumpff_G;
@@ -38,8 +37,13 @@ impl CartesianState {
         self.parent_mu
     }
 
-    pub fn get_orbit(&self) -> Orbit {
-        Orbit::from_cartesian(&self.position(), &self.velocity(), self.mu())
+    pub fn get_orbit(&self) -> Orbit<PointMass, ()> {
+        Orbit::from_cartesian(
+            PointMass::with_mu(self.parent_mu),
+            (),
+            &self.position(),
+            &self.velocity(),
+        )
     }
 
     pub fn get_universal_anomaly(&self) -> f64 {

@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::fs;
 
+use crate::astro::orbit::{Orbit, PointMass};
 use crate::math;
-use crate::orrery::{BodyInfo, Orbit, Orrery};
+use crate::orrery::{BodyInfo, Orrery};
 use nalgebra::Point3;
 
 pub fn read_file(filename: &str) -> Orrery {
@@ -60,7 +61,8 @@ pub fn read_file(filename: &str) -> Orrery {
 
             assert!(ecc < 1.0, "Currently can only load elliptic orbits");
 
-            let orbit = Orbit::from_kepler(a, ecc, incl, lan, argp, parent_mu);
+            let orbit =
+                Orbit::from_kepler(PointMass::with_mu(parent_mu), (), a, ecc, incl, lan, argp);
             let theta = math::anomaly::mean_to_true(maae, ecc);
             let (position, velocity) = orbit.get_state_at_theta(theta);
 

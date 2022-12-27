@@ -1,7 +1,8 @@
 use super::event::{first_event, Event, EventData, EventPoint, SOIChange};
 
+use crate::astro::orbit::PhysicalOrbit;
 use crate::math::root_finding::{bisection, Bracket};
-use crate::orrery::{BodyID, Orbit, Orrery, ShipID};
+use crate::orrery::{BodyID, Orrery, ShipID};
 
 use nalgebra::Point3;
 use std::collections::HashMap;
@@ -209,8 +210,9 @@ pub fn search_for_soi_encounter(
 
     // Quick check: if one orbit is much smaller than the other, then there's no chance of
     // intersection, so we can skip the rest of the search.
-    let pe_ap_check =
-        |o1: &Orbit, o2: &Orbit| o1.apoapsis() > 0.0 && o1.apoapsis() + soi_radius < o2.periapsis();
+    let pe_ap_check = |o1: &PhysicalOrbit, o2: &PhysicalOrbit| {
+        o1.apoapsis().is_some() && o1.apoapsis().unwrap() + soi_radius < o2.periapsis()
+    };
     if pe_ap_check(&self_orbit, &planet_orbit) || pe_ap_check(&planet_orbit, &self_orbit) {
         return SearchResult::Never;
     }
