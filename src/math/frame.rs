@@ -123,7 +123,7 @@ impl<T: RealField> FrameTransform<T> {
         position: &Point3<T>,
         velocity: &Vector3<T>,
     ) -> Vector3<T> {
-        let vb_src = self.inverse_convert_vector(&velocity);
+        let vb_src = self.inverse_convert_vector(velocity);
         let rb_src = self.inverse_convert_vector(&position.coords);
         vb_src + &self.relative_velocity + self.angular_velocity.cross(&rb_src)
     }

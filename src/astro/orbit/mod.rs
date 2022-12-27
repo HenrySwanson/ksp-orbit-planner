@@ -183,7 +183,7 @@ impl<P: HasMass, S> Orbit<P, S> {
         let mu = primary.mu();
         let r = position.norm();
         let energy = velocity.norm_squared() / 2.0 - mu / r;
-        let ang_mom = position.cross(&velocity);
+        let ang_mom = position.cross(velocity);
 
         // LRL vector = v x h / mu - r/|r|
         let lrl = velocity.cross(&ang_mom) / mu - position / r;

@@ -56,7 +56,7 @@ impl OrbitRenderer {
             proj: shader
                 .get_uniform::<Matrix4<f32>>("proj")
                 .expect("Failed to get shader uniform."),
-            shader: shader,
+            shader,
             line_width: 1.0,
             orbits: vec![],
         }
@@ -88,7 +88,7 @@ impl OrbitRenderer {
 
     /// Returns a sequence of points tracing out the orbit's path, evaluated in the orbit's native
     /// frame.
-    fn get_orbit_points<'a>(orbit: &'a OrbitPatch) -> impl Iterator<Item = Point3<f32>> + 'a {
+    fn get_orbit_points(orbit: &OrbitPatch) -> impl Iterator<Item = Point3<f32>> + '_ {
         // Find the starting and ending anomalies
         let start_s = orbit.start_anomaly;
         let end_s = match orbit.end_anomaly {
@@ -119,7 +119,7 @@ impl OrbitRenderer {
 
 impl Renderer for OrbitRenderer {
     fn render(&mut self, pass: usize, camera: &mut dyn Camera) {
-        if self.orbits.len() == 0 {
+        if self.orbits.is_empty() {
             return;
         }
 
@@ -151,7 +151,7 @@ impl Renderer for OrbitRenderer {
 // TODO add model matrix
 
 /// Vertex shader used by the material to display line.
-static VERTEX_SRC: &'static str = "#version 100
+static VERTEX_SRC: &str = "#version 100
     attribute vec3 position;
     attribute vec3 color;
     varying   vec3 vColor;
@@ -164,7 +164,7 @@ static VERTEX_SRC: &'static str = "#version 100
     }";
 
 /// Fragment shader used by the material to display line.
-static FRAGMENT_SRC: &'static str = "#version 100
+static FRAGMENT_SRC: &str = "#version 100
 #ifdef GL_FRAGMENT_PRECISION_HIGH
    precision highp float;
 #else

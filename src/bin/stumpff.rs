@@ -25,8 +25,8 @@ pub fn main() {
     println!("Computing c3; use this in your code");
     generate_stumpff_coefficients(3, naive_stumpff(3, 1.0));
     println!(
-        "Computing c4 and c5; check this against NASA values: {}",
-        "https://ntrs.nasa.gov/api/citations/19670018315/downloads/19670018315.pdf"
+        "Computing c4 and c5; check this against NASA values: \
+        https://ntrs.nasa.gov/api/citations/19670018315/downloads/19670018315.pdf"
     );
     generate_stumpff_coefficients(4, naive_stumpff(4, 1.0));
     generate_stumpff_coefficients(5, naive_stumpff(5, 1.0));

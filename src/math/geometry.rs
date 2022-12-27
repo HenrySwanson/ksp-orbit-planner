@@ -4,7 +4,7 @@ use std::f64::consts::PI;
 
 pub fn reject(u: &Vector3<f64>, v: &Vector3<f64>) -> Vector3<f64> {
     // Computes the vector rejection of u from v. v must be non-zero.
-    let u_proj_v = u.dot(&v) * v / v.norm_squared();
+    let u_proj_v = u.dot(v) * v / v.norm_squared();
     u - u_proj_v
 
     // TODO this could also be done by computing v x (u x v) and normalizing
@@ -12,8 +12,8 @@ pub fn reject(u: &Vector3<f64>, v: &Vector3<f64>) -> Vector3<f64> {
 
 pub fn directed_angle(u: &Vector3<f64>, v: &Vector3<f64>, up: &Vector3<f64>) -> f64 {
     // Returns the angle between u and v, measured as a positive angle around 'up'.
-    let theta = u.angle(&v);
-    if u.cross(&v).dot(&up) >= 0.0 {
+    let theta = u.angle(v);
+    if u.cross(v).dot(up) >= 0.0 {
         theta
     } else {
         2.0 * PI - theta
@@ -52,7 +52,7 @@ pub fn always_find_rotation(
             // Rejecting the z axis from new_x gives us the most-z-like vector
             // that's perpendicular to new_x. If it's too small, we just pick
             // our fallback choice.
-            let mut best_new_z = reject(&Vector3::z(), &new_x);
+            let mut best_new_z = reject(&Vector3::z(), new_x);
             if best_new_z.norm() < tolerance {
                 best_new_z = Vector3::y();
             };
@@ -61,7 +61,7 @@ pub fn always_find_rotation(
         // x is too small
         (true, false) => {
             // Same thing as above, with z and x switched.
-            let mut best_new_x = reject(&Vector3::x(), &new_z);
+            let mut best_new_x = reject(&Vector3::x(), new_z);
             if best_new_x.norm() < tolerance {
                 best_new_x = -Vector3::y();
             };

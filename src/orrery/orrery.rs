@@ -281,7 +281,7 @@ impl<'orr> Orrery {
         // Get the new state of the ship
         let ship = &self.ships[&ship_id];
         let state = FramedState {
-            orrery: &self,
+            orrery: self,
             position: Point3::from(ship.state.position()),
             velocity: ship.state.velocity(),
             native_frame: Frame::BodyInertial(ship.parent_id),

@@ -41,16 +41,14 @@ impl SearchResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct UpcomingEvents {
     ship_map: HashMap<ShipID, UpcomingEventsInner>,
 }
 
 impl UpcomingEvents {
     pub fn new() -> Self {
-        UpcomingEvents {
-            ship_map: HashMap::new(),
-        }
+        Default::default()
     }
 
     pub fn get_next_event(&self, id: ShipID) -> Option<&Event> {
@@ -71,7 +69,7 @@ impl UpcomingEvents {
         let inner = self
             .ship_map
             .entry(id)
-            .or_insert(UpcomingEventsInner::new());
+            .or_insert_with(UpcomingEventsInner::new);
         inner.insert(event);
     }
 
@@ -85,7 +83,7 @@ impl UpcomingEvents {
         let inner = self
             .ship_map
             .entry(id)
-            .or_insert(UpcomingEventsInner::new());
+            .or_insert_with(UpcomingEventsInner::new);
         inner.update(tag, end_time, search_fn);
     }
 
@@ -94,16 +92,14 @@ impl UpcomingEvents {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct UpcomingEventsInner {
     map: HashMap<EventTag, SearchResult>,
 }
 
 impl UpcomingEventsInner {
     fn new() -> Self {
-        UpcomingEventsInner {
-            map: HashMap::new(),
-        }
+        Default::default()
     }
 
     fn get_next_event(&self) -> Option<&Event> {

@@ -33,7 +33,7 @@ pub fn draw_path<I: Iterator<Item = Point3<f32>>>(
     let mut prev_pt = None;
     for pt in points {
         if let Some(prev_pt) = prev_pt {
-            line_renderer.draw_line(prev_pt, pt, color.clone());
+            line_renderer.draw_line(prev_pt, pt, *color);
         }
         prev_pt = Some(pt);
     }

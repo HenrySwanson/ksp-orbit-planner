@@ -81,14 +81,14 @@ impl Timeline {
         };
 
         // Wow this is distasteful. See if you can improve it!
-        let mut upcoming = match &mut segment.end {
+        let upcoming = match &mut segment.end {
             SegmentEnd::Open(x) => x,
             other => panic!("Last segment had {:?} as its end", other),
         };
 
         // Use the event search to look for an event
         let delta_t = time - segment.start_time;
-        search_for_events(&segment.start_state, &mut upcoming, delta_t);
+        search_for_events(&segment.start_state, upcoming, delta_t);
         let event = upcoming.get_next_event_global();
 
         // If we find an event, we should add a new segment! Otherwise do nothing,

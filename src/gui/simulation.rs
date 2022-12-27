@@ -149,14 +149,14 @@ impl Simulation {
         // Create objects for bodies
         let mut body_spheres = HashMap::new();
         for body in orrery.bodies() {
-            let sphere = Simulation::create_body_object(window, &body);
+            let sphere = Simulation::create_body_object(window, body);
             body_spheres.insert(body.id, sphere);
         }
 
         // Create objects for ships
         let mut ship_objects = HashMap::new();
         for ship in orrery.ships() {
-            let cube = Simulation::create_ship_object(window, &ship);
+            let cube = Simulation::create_ship_object(window, ship);
             ship_objects.insert(ship.id, cube);
         }
 
@@ -187,7 +187,7 @@ impl Simulation {
         sphere
     }
 
-    fn create_ship_object(window: &mut Window, ship: &Ship) -> SceneNode {
+    fn create_ship_object(window: &mut Window, _: &Ship) -> SceneNode {
         // Make the cube that represents the ship
         let mut cube = window.add_cube(TEST_SHIP_SIZE, TEST_SHIP_SIZE, TEST_SHIP_SIZE);
         cube.set_color(1.0, 1.0, 1.0);
@@ -529,13 +529,13 @@ fn draw_grid(window: &mut Window, num_squares: i32, square_size: f32, color: &Po
         window.draw_line(
             &Point3::new(-max_coord, coord, 0.0),
             &Point3::new(max_coord, coord, 0.0),
-            &color,
+            color,
         );
         // vertical
         window.draw_line(
             &Point3::new(coord, -max_coord, 0.0),
             &Point3::new(coord, max_coord, 0.0),
-            &color,
+            color,
         );
     }
 }
