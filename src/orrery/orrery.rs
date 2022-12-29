@@ -126,10 +126,14 @@ impl<'orr> Orrery {
         let new_id = ShipID(self.next_ship_id);
         self.next_ship_id += 1;
         let parent_mu = self.bodies[&parent_id].info.mu;
+
         let ship = Ship {
             id: new_id,
-            state: CartesianState::new(position, velocity, parent_mu),
-            parent_id,
+            orbit_data: OrbitingData::from_state(
+                parent_id,
+                CartesianState::new(position, velocity, parent_mu),
+                self.get_time(),
+            ),
         };
 
         self.ships.insert(new_id, ship);
@@ -170,13 +174,13 @@ impl<'orr> Orrery {
             }
             Frame::ShipInertial(k) => {
                 let ship = &self.ships[&k];
-                let parent_frame = Frame::BodyInertial(ship.parent_id);
+                let parent_frame = Frame::BodyInertial(ship.parent_id());
                 let root_to_parent = self.convert_from_root(parent_frame);
 
                 let parent_to_self = FrameTransform::from_active(
                     UnitQuaternion::identity(),
-                    ship.state.position(),
-                    ship.state.velocity(),
+                    ship.orbit_data.state().position(),
+                    ship.orbit_data.state().velocity(),
                     Vector3::zeros(),
                 );
                 root_to_parent.append_transformation(&parent_to_self)
@@ -186,10 +190,10 @@ impl<'orr> Orrery {
                 let root_to_parent = self.convert_from_root(Frame::ShipInertial(k));
                 // TODO oops! I've been using quaternion-based (Isometry3) and matrix-based (Rotation3)
                 // things in the same code. let's pick one and unify
-                let orbit = ship.state.get_orbit();
+                let orbit = ship.orbit_data.get_orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
-                    &ship.state.velocity(),
+                    &ship.orbit_data.state().velocity(),
                     1e-20,
                 );
                 let parent_to_self = FrameTransform::from_active(
@@ -226,9 +230,9 @@ impl<'orr> Orrery {
 
         FramedState {
             orrery: self,
-            position: Point3::from(ship.state.position()),
-            velocity: ship.state.velocity(),
-            native_frame: Frame::BodyInertial(ship.parent_id),
+            position: Point3::from(ship.orbit_data.state().position()),
+            velocity: ship.orbit_data.state().velocity(),
+            native_frame: Frame::BodyInertial(ship.parent_id()),
         }
     }
 
@@ -267,7 +271,7 @@ impl<'orr> Orrery {
         }
 
         for ship in self.ships.values_mut() {
-            ship.state.update_t_mut(delta_t);
+            ship.orbit_data.update_t_mut(delta_t);
         }
 
         self.time += delta_t;
@@ -280,18 +284,22 @@ impl<'orr> Orrery {
         let ship = &self.ships[&ship_id];
         let state = FramedState {
             orrery: self,
-            position: Point3::from(ship.state.position()),
-            velocity: ship.state.velocity(),
-            native_frame: Frame::BodyInertial(ship.parent_id),
+            position: Point3::from(ship.orbit_data.state().position()),
+            velocity: ship.orbit_data.state().velocity(),
+            native_frame: Frame::BodyInertial(ship.parent_id()),
         };
 
         let new_position = state.get_position(new_frame);
         let new_velocity = state.get_velocity(new_frame);
 
         // Re-root the ship to the new body
+        let now = self.get_time();
         let ship = self.ships.get_mut(&ship_id).unwrap();
-        ship.state = CartesianState::new(new_position.coords, new_velocity, parent_mu);
-        ship.parent_id = new_body;
+        ship.orbit_data = OrbitingData::from_state(
+            new_body,
+            CartesianState::new(new_position.coords, new_velocity, parent_mu),
+            now,
+        );
     }
 
     pub fn process_event(&mut self, event: &Event) {

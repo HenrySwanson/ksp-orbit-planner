@@ -109,4 +109,8 @@ impl OrbitingData {
     pub fn update_t_mut(&mut self, delta_t: f64) {
         self.current_time += delta_t;
     }
+
+    pub fn time_at_periapsis(&self) -> f64 {
+        self.time_at_periapsis
+    }
 }

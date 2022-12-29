@@ -88,7 +88,7 @@ impl CameraFocus {
             focus_points.push(FocusPoint::Body(body.id));
             // Now put in all ships orbiting that body
             for ship in ships.iter() {
-                if ship.parent_id == body.id {
+                if ship.parent_id() == body.id {
                     focus_points.push(FocusPoint::Ship(ship.id));
                 }
             }
@@ -374,7 +374,7 @@ impl Simulation {
                 (self.orrery.get_body_state(id), frame)
             }
             FocusPoint::Ship(id) => {
-                let frame = Frame::BodyInertial(self.orrery.get_ship(id).parent_id);
+                let frame = Frame::BodyInertial(self.orrery.get_ship(id).parent_id());
                 (self.orrery.get_ship_state(id), frame)
             }
         };
@@ -419,7 +419,7 @@ Orbiting: {}",
             },
             FocusPoint::Ship(id) => {
                 let ship = self.orrery.get_ship(id);
-                ship.state.to_orbit_patch(ship.parent_id)
+                ship.orbit_data.get_orbit_patch()
             }
         };
 
@@ -457,7 +457,7 @@ FPS: {:.0}",
     fn prep_soi(&mut self) {
         let soi_id = match self.camera_focus.point() {
             FocusPoint::Body(id) => id,
-            FocusPoint::Ship(id) => self.orrery.get_ship(id).parent_id,
+            FocusPoint::Ship(id) => self.orrery.get_ship(id).parent_id(),
         };
 
         let soi_radius = match self.orrery.get_soi_radius(soi_id) {
@@ -490,7 +490,7 @@ FPS: {:.0}",
         }
 
         for ship in self.orrery.ships() {
-            let orbit = ship.state.to_orbit_patch(ship.parent_id);
+            let orbit = ship.orbit_data.get_orbit_patch();
             let color = Point3::new(1.0, 1.0, 1.0);
             let frame = Frame::BodyInertial(orbit.parent_id);
             self.renderer

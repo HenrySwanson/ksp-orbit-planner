@@ -122,6 +122,10 @@ impl CartesianState {
 
     #[allow(non_snake_case)]
     pub fn delta_t_to_s(&self, delta_t: f64) -> f64 {
+        if delta_t == 0.0 {
+            return 0.0;
+        }
+
         // Grab some constants
         let beta = -2.0 * self.energy();
         let mu = self.parent_mu;

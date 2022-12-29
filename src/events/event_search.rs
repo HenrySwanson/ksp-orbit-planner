@@ -134,7 +134,7 @@ impl UpcomingEventsInner {
 // TODO maybe these should be folded into UpcomingEvents? IDK
 pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
     let ship = orrery.get_ship(ship_id);
-    let current_body = ship.parent_id;
+    let current_body = ship.parent_id();
     let parent_body = match orrery.get_body(current_body).parent_id() {
         Some(x) => x,
         None => return SearchResult::Never,
@@ -144,13 +144,13 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
         .get_soi_radius(current_body)
         .expect("Body with parent should have SOI");
 
-    let delta_s = match ship.state.get_s_until_radius(soi_radius) {
+    let delta_s = match ship.orbit_data.state().get_s_until_radius(soi_radius) {
         Some(s) => s,
         None => return SearchResult::Never,
     };
 
-    let delta_t = ship.state.delta_s_to_t(delta_s);
-    let new_state = ship.state.update_s(delta_s);
+    let delta_t = ship.orbit_data.state().delta_s_to_t(delta_s);
+    let new_state = ship.orbit_data.state().update_s(delta_s);
 
     let event = Event {
         ship_id,
@@ -160,7 +160,7 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
         }),
         point: EventPoint {
             time: orrery.get_time() + delta_t,
-            anomaly: ship.state.get_universal_anomaly() + delta_s,
+            anomaly: ship.orbit_data.state().get_universal_anomaly() + delta_s,
             location: Point3::from(new_state.position()),
         },
     };
@@ -188,7 +188,7 @@ pub fn search_for_soi_encounter(
     orrery.update_time(start_time - orrery.get_time());
 
     let ship = orrery.get_ship(ship_id);
-    let parent_id = ship.parent_id;
+    let parent_id = ship.parent_id();
 
     // Check whether this body and ship are co-orbiting
     let target_body = orrery.get_body(target_id);
@@ -201,7 +201,7 @@ pub fn search_for_soi_encounter(
     let target_state = target_body.state().expect("Cannot SOI encounter the sun");
 
     // Get their orbits
-    let self_orbit = ship.state.get_orbit();
+    let self_orbit = ship.orbit_data.state().get_orbit();
     let planet_orbit = target_state.get_orbit();
 
     // Quick check: if one orbit is much smaller than the other, then there's no chance of
@@ -231,7 +231,7 @@ pub fn search_for_soi_encounter(
 
     // Method for checking distance between bodies
     let check_distance = |time| {
-        let new_self_pos = ship.state.update_t(time).position();
+        let new_self_pos = ship.orbit_data.state().update_t(time).position();
         let new_target_pos = target_state.update_t(time).position();
         (new_self_pos - new_target_pos).norm()
     };
@@ -239,7 +239,7 @@ pub fn search_for_soi_encounter(
     // TODO have better algorithm than this!
 
     // We know their maximum relative velocity
-    let mu = ship.state.mu();
+    let mu = ship.orbit_data.state().mu();
     let self_max_velocity = mu * (1.0 + self_orbit.eccentricity()) / self_orbit.angular_momentum();
     let planet_max_velocity =
         mu * (1.0 + planet_orbit.eccentricity()) / planet_orbit.angular_momentum();
@@ -286,7 +286,7 @@ pub fn search_for_soi_encounter(
 
     // Lastly, figure out anomaly and position at that point
     // TODO: new s can end up less than old s if we're not careful :\
-    let new_state = ship.state.update_t(entry_time);
+    let new_state = ship.orbit_data.state().update_t(entry_time);
 
     let event = Event {
         ship_id,
