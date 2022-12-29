@@ -27,6 +27,9 @@ pub enum BodyState {
 pub struct OrbitingData {
     parent_id: BodyID,
     state: CartesianState,
+    orbit: Orbit<PointMass, ()>,
+    time_at_periapsis: f64,
+    current_time: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -54,13 +57,24 @@ impl Body {
 }
 
 impl OrbitingData {
-    pub fn new(parent_id: BodyID, state: CartesianState) -> Self {
-        Self { parent_id, state }
+    pub fn new(parent_id: BodyID, state: CartesianState, current_time: f64) -> Self {
+        let orbit = state.get_orbit();
+        let s = state.get_universal_anomaly();
+        let time_until_periapsis = state.delta_s_to_t(-s);
+
+        Self {
+            parent_id,
+            state,
+            orbit,
+            time_at_periapsis: current_time + time_until_periapsis,
+            current_time,
+        }
     }
 
     pub fn get_orbit_patch(&self) -> OrbitPatch {
+        let time_since_periapsis = self.current_time - self.time_at_periapsis;
         let orbit = self.get_orbit();
-        let start_anomaly = self.state.get_universal_anomaly();
+        let start_anomaly = self.orbit.tsp_to_s(time_since_periapsis);
 
         OrbitPatch {
             orbit,
@@ -75,14 +89,27 @@ impl OrbitingData {
     }
 
     pub fn state(&self) -> CartesianState {
-        self.state.clone()
+        let time_since_periapsis = self.current_time - self.time_at_periapsis;
+        let state = self.orbit.get_state_at_tsp(time_since_periapsis);
+
+        {
+            let p1 = self.state.position();
+            let p2 = state.position();
+            let diff = (p1 - p2) / p1.norm().max(p2.norm());
+            if diff.norm() > 1e-7 {
+                println!("pos diff: {:?}", diff)
+            }
+        }
+
+        state
     }
 
     pub fn get_orbit(&self) -> Orbit<PointMass, ()> {
-        self.state.get_orbit()
+        self.orbit.clone()
     }
 
     pub fn update_t_mut(&mut self, delta_t: f64) {
-        self.state.update_t_mut(delta_t)
+        self.state.update_t_mut(delta_t);
+        self.current_time += delta_t;
     }
 }

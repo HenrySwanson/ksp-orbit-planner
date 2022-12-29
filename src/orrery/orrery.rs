@@ -95,6 +95,7 @@ impl<'orr> Orrery {
         let odata = OrbitingData::new(
             parent_id,
             CartesianState::new(position, velocity, parent_mu),
+            self.time,
         );
         self.insert_new_body(body_info, BodyState::Orbiting(odata))
     }

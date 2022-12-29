@@ -113,4 +113,9 @@ impl<P: HasMass, S> Orbit<P, S> {
 
         (position, velocity)
     }
+
+    pub fn tsp_to_s(&self, time_since_periapsis: f64) -> f64 {
+        self.get_state_at_universal_anomaly(0.0)
+            .delta_t_to_s(time_since_periapsis)
+    }
 }
