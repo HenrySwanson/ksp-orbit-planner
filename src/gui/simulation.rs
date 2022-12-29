@@ -15,7 +15,7 @@ use super::camera::ZoomableCamera;
 use super::renderer::CompoundRenderer;
 
 use crate::model::Timeline;
-use crate::orrery::{Body, BodyID, BodyState, Frame, OrbitPatch, Orrery, Ship, ShipID};
+use crate::orrery::{Body, BodyID, BodyState, Frame, Orrery, Ship, ShipID};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -332,7 +332,7 @@ impl Simulation {
         // of the orbit instead. But only do that if you're doing this only for the focused body.
         let orbit = match &body.state {
             BodyState::FixedAtOrigin => return,
-            BodyState::Orbiting(odata) => odata.state.to_orbit_patch(odata.parent_id),
+            BodyState::Orbiting(odata) => odata.get_orbit_patch(),
         };
 
         let axis_length = 2.0 * body.info.radius;
@@ -415,7 +415,7 @@ Orbiting: {}",
         let orbit = match self.camera_focus.point() {
             FocusPoint::Body(id) => match &self.orrery.get_body(id).state {
                 BodyState::FixedAtOrigin => return String::from("N/A"),
-                BodyState::Orbiting(odata) => odata.state.to_orbit_patch(odata.parent_id),
+                BodyState::Orbiting(odata) => odata.get_orbit_patch(),
             },
             FocusPoint::Ship(id) => {
                 let ship = self.orrery.get_ship(id);
@@ -481,7 +481,7 @@ FPS: {:.0}",
         for body in self.orrery.bodies() {
             let orbit = match &body.state {
                 BodyState::FixedAtOrigin => continue,
-                BodyState::Orbiting(odata) => odata.state.to_orbit_patch(odata.parent_id),
+                BodyState::Orbiting(odata) => odata.get_orbit_patch(),
             };
             let color = body.info.color;
             let frame = Frame::BodyInertial(orbit.parent_id);
@@ -563,19 +563,4 @@ fn format_seconds(seconds: f64) -> String {
         "{}y, {}d, {:02}:{:02}:{:02}",
         years, days, hours, minutes, total_seconds
     )
-}
-
-// TODO: delete this once the timeline migration is done!
-impl crate::orrery::CartesianState {
-    fn to_orbit_patch(&self, parent_id: BodyID) -> OrbitPatch {
-        let orbit = self.get_orbit();
-        let start_anomaly = self.get_universal_anomaly();
-
-        OrbitPatch {
-            orbit,
-            start_anomaly,
-            end_anomaly: None,
-            parent_id,
-        }
-    }
 }

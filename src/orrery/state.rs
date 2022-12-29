@@ -177,6 +177,19 @@ impl CartesianState {
         self.get_s_until_radius(radius)
             .map(|s| self.delta_s_to_t(s))
     }
+
+    // TODO: delete this once the timeline migration is done!
+    pub fn to_orbit_patch(&self, parent_id: super::BodyID) -> super::OrbitPatch {
+        let orbit = self.get_orbit();
+        let start_anomaly = self.get_universal_anomaly();
+
+        super::OrbitPatch {
+            orbit,
+            start_anomaly,
+            end_anomaly: None,
+            parent_id,
+        }
+    }
 }
 
 #[cfg(test)]
