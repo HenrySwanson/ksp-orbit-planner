@@ -17,10 +17,14 @@ pub struct BodyInfo {
 #[derive(Debug, Clone)]
 pub enum BodyState {
     FixedAtOrigin,
-    Orbiting {
-        parent_id: BodyID,
-        state: CartesianState,
-    },
+    Orbiting(OrbitingData),
+}
+
+// TODO: come up with better name? generalize to ships?
+#[derive(Debug, Clone)]
+pub struct OrbitingData {
+    pub parent_id: BodyID,
+    pub state: CartesianState,
 }
 
 #[derive(Debug, Clone)]
@@ -32,16 +36,17 @@ pub struct Body {
 
 impl Body {
     pub fn parent_id(&self) -> Option<BodyID> {
-        match self.state {
-            BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting { parent_id, .. } => Some(parent_id),
-        }
+        self.get_orbiting_data().map(|x| x.parent_id)
     }
 
     pub fn state(&self) -> Option<&CartesianState> {
+        self.get_orbiting_data().map(|x| &x.state)
+    }
+
+    pub fn get_orbiting_data(&self) -> Option<&OrbitingData> {
         match &self.state {
             BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting { state, .. } => Some(state),
+            BodyState::Orbiting(x) => Some(x),
         }
     }
 }

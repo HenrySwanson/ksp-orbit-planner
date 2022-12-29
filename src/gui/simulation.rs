@@ -332,7 +332,7 @@ impl Simulation {
         // of the orbit instead. But only do that if you're doing this only for the focused body.
         let orbit = match &body.state {
             BodyState::FixedAtOrigin => return,
-            BodyState::Orbiting { parent_id, state } => state.to_orbit_patch(*parent_id),
+            BodyState::Orbiting(odata) => odata.state.to_orbit_patch(odata.parent_id),
         };
 
         let axis_length = 2.0 * body.info.radius;
@@ -415,7 +415,7 @@ Orbiting: {}",
         let orbit = match self.camera_focus.point() {
             FocusPoint::Body(id) => match &self.orrery.get_body(id).state {
                 BodyState::FixedAtOrigin => return String::from("N/A"),
-                BodyState::Orbiting { parent_id, state } => state.to_orbit_patch(*parent_id),
+                BodyState::Orbiting(odata) => odata.state.to_orbit_patch(odata.parent_id),
             },
             FocusPoint::Ship(id) => {
                 let ship = self.orrery.get_ship(id);
@@ -481,7 +481,7 @@ FPS: {:.0}",
         for body in self.orrery.bodies() {
             let orbit = match &body.state {
                 BodyState::FixedAtOrigin => continue,
-                BodyState::Orbiting { parent_id, state } => state.to_orbit_patch(*parent_id),
+                BodyState::Orbiting(odata) => odata.state.to_orbit_patch(odata.parent_id),
             };
             let color = body.info.color;
             let frame = Frame::BodyInertial(orbit.parent_id);

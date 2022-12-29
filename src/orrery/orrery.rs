@@ -2,7 +2,7 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
-use super::body::{Body, BodyID, BodyInfo, BodyState};
+use super::body::{Body, BodyID, BodyInfo, BodyState, OrbitingData};
 use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
 
@@ -91,11 +91,12 @@ impl<'orr> Orrery {
         parent_id: BodyID,
     ) -> BodyID {
         let parent_mu = self.bodies[&parent_id].info.mu;
-        let state = BodyState::Orbiting {
+
+        let odata = OrbitingData {
             parent_id,
             state: CartesianState::new(position, velocity, parent_mu),
         };
-        self.insert_new_body(body_info, state)
+        self.insert_new_body(body_info, BodyState::Orbiting(odata))
     }
 
     pub fn add_fixed_body(&mut self, body_info: BodyInfo) -> BodyID {
@@ -155,16 +156,16 @@ impl<'orr> Orrery {
                         // This is equivalent to the root frame; return the identity
                         FrameTransform::identity()
                     }
-                    BodyState::Orbiting { parent_id, state } => {
+                    BodyState::Orbiting(odata) => {
                         // Get the parent and compute the transform from its reference frame to root
-                        let parent_frame = Frame::BodyInertial(*parent_id);
+                        let parent_frame = Frame::BodyInertial(odata.parent_id);
                         let root_to_parent = self.convert_from_root(parent_frame);
 
                         // Get the transform from our frame to the parent's
                         let parent_to_self = FrameTransform::from_active(
                             UnitQuaternion::identity(),
-                            state.position(),
-                            state.velocity(),
+                            odata.state.position(),
+                            odata.state.velocity(),
                             Vector3::zeros(),
                         );
                         root_to_parent.append_transformation(&parent_to_self)
@@ -209,10 +210,10 @@ impl<'orr> Orrery {
     pub fn get_body_state(&'orr self, id: BodyID) -> FramedState<'orr> {
         let (p, v, frame) = match &self.bodies[&id].state {
             BodyState::FixedAtOrigin => (Vector3::zeros(), Vector3::zeros(), Frame::Root),
-            BodyState::Orbiting { state, parent_id } => (
-                state.position(),
-                state.velocity(),
-                Frame::BodyInertial(*parent_id),
+            BodyState::Orbiting(odata) => (
+                odata.state.position(),
+                odata.state.velocity(),
+                Frame::BodyInertial(odata.parent_id),
             ),
         };
 
@@ -241,13 +242,13 @@ impl<'orr> Orrery {
 
         match &body.state {
             BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting { parent_id, state } => {
-                let parent_body = &self.bodies[parent_id];
+            BodyState::Orbiting(odata) => {
+                let parent_body = &self.bodies[&odata.parent_id];
 
                 let mu_1 = parent_body.info.mu;
                 let mu_2 = body.info.mu;
 
-                let sma = state.get_orbit().semimajor_axis();
+                let sma = odata.state.get_orbit().semimajor_axis();
                 assert!(
                     sma > 0.0,
                     "SOI radius approximation only works with elliptical orbits"
@@ -264,7 +265,7 @@ impl<'orr> Orrery {
         for body in self.bodies.values_mut() {
             match &mut body.state {
                 BodyState::FixedAtOrigin => {}
-                BodyState::Orbiting { state, .. } => state.update_t_mut(delta_t),
+                BodyState::Orbiting(odata) => odata.state.update_t_mut(delta_t),
             }
         }
 
