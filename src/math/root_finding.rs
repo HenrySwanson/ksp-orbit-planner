@@ -29,6 +29,7 @@ pub fn find_root_bracket(
     mut radius: f64,
     num_iterations: usize,
 ) -> Bracket {
+    let initial_radius = radius;
     for _ in 0..num_iterations {
         let a = center - radius;
         let b = center + radius;
@@ -43,7 +44,7 @@ pub fn find_root_bracket(
 
     panic!(
         "Unable to find two points of opposite sign, starting at {} with radius {}",
-        center, radius
+        center, initial_radius
     );
 }
 

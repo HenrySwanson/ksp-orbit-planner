@@ -119,4 +119,23 @@ impl<P: HasMass, S> Orbit<P, S> {
         self.get_state_at_universal_anomaly(0.0)
             .delta_t_to_s(time_since_periapsis)
     }
+
+    pub fn s_to_tsp(&self, s: f64) -> f64 {
+        // TODO: ugly hack, fix this
+        self.get_state_at_universal_anomaly(0.0).delta_s_to_t(s)
+    }
+
+    pub fn get_s_at_radius(&self, radius: f64) -> Option<f64> {
+        // TODO this doesn't work well for radial orbits, try to adjust it so that it does
+
+        // Since (h^2/mu) / (1 + e cos theta) = r, we can invert that to get
+        // a desired theta, which will always be in the first or second quadrant
+        let cos_theta = (self.semilatus_rectum() / radius - 1.0) / self.eccentricity();
+        if cos_theta.abs() > 1.0 {
+            return None;
+        }
+
+        let theta = cos_theta.acos();
+        Some(self.true_to_universal(theta))
+    }
 }

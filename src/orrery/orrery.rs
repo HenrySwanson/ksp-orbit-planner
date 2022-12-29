@@ -282,11 +282,12 @@ impl<'orr> Orrery {
 
         // Get the new state of the ship
         let ship = &self.ships[&ship_id];
+        let old_body = ship.parent_id();
         let state = FramedState {
             orrery: self,
             position: Point3::from(ship.orbit_data.state().position()),
             velocity: ship.orbit_data.state().velocity(),
-            native_frame: Frame::BodyInertial(ship.parent_id()),
+            native_frame: Frame::BodyInertial(old_body),
         };
 
         let new_position = state.get_position(new_frame);
@@ -299,6 +300,13 @@ impl<'orr> Orrery {
             new_body,
             CartesianState::new(new_position.coords, new_velocity, parent_mu),
             now,
+        );
+        println!(
+            "Rerooted ship {:?} from {:?} to {:?}. New orbit is: {:?}",
+            ship_id,
+            old_body,
+            new_body,
+            ship.orbit_data.get_orbit()
         );
     }
 

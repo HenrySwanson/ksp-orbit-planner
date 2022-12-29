@@ -102,6 +102,10 @@ impl OrbitingData {
         self.orbit.get_state_at_tsp(time_since_periapsis)
     }
 
+    pub fn state_at_time(&self, time: f64) -> CartesianState {
+        self.orbit.get_state_at_tsp(time - self.time_at_periapsis)
+    }
+
     pub fn get_orbit(&self) -> Orbit<PointMass, ()> {
         self.orbit.clone()
     }
