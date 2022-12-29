@@ -26,9 +26,9 @@ pub enum BodyState {
 #[derive(Debug, Clone)]
 pub struct OrbitingData {
     parent_id: BodyID,
-    state: CartesianState,
     orbit: Orbit<PointMass, ()>,
     time_at_periapsis: f64,
+    // TODO: can we drop this and get it straight from the orrery?
     current_time: f64,
 }
 
@@ -44,8 +44,8 @@ impl Body {
         self.get_orbiting_data().map(|x| x.parent_id)
     }
 
-    pub fn state(&self) -> Option<&CartesianState> {
-        self.get_orbiting_data().map(|x| &x.state)
+    pub fn state(&self) -> Option<CartesianState> {
+        self.get_orbiting_data().map(|x| x.state())
     }
 
     pub fn get_orbiting_data(&self) -> Option<&OrbitingData> {
@@ -57,18 +57,27 @@ impl Body {
 }
 
 impl OrbitingData {
-    pub fn new(parent_id: BodyID, state: CartesianState, current_time: f64) -> Self {
-        let orbit = state.get_orbit();
-        let s = state.get_universal_anomaly();
-        let time_until_periapsis = state.delta_s_to_t(-s);
-
+    pub fn from_orbit(
+        parent_id: BodyID,
+        orbit: Orbit<PointMass, ()>,
+        time_since_periapsis: f64,
+        current_time: f64,
+    ) -> Self {
         Self {
             parent_id,
-            state,
             orbit,
-            time_at_periapsis: current_time + time_until_periapsis,
+            time_at_periapsis: current_time - time_since_periapsis,
             current_time,
         }
+    }
+
+    pub fn from_state(parent_id: BodyID, state: CartesianState, current_time: f64) -> Self {
+        let orbit = state.get_orbit();
+        let s = state.get_universal_anomaly();
+
+        // How long would it take to go backwards to the periapsis? Reverse that.
+        let time_since_periapsis = -state.delta_s_to_t(-s);
+        Self::from_orbit(parent_id, orbit, time_since_periapsis, current_time)
     }
 
     pub fn get_orbit_patch(&self) -> OrbitPatch {
@@ -90,18 +99,7 @@ impl OrbitingData {
 
     pub fn state(&self) -> CartesianState {
         let time_since_periapsis = self.current_time - self.time_at_periapsis;
-        let state = self.orbit.get_state_at_tsp(time_since_periapsis);
-
-        {
-            let p1 = self.state.position();
-            let p2 = state.position();
-            let diff = (p1 - p2) / p1.norm().max(p2.norm());
-            if diff.norm() > 1e-7 {
-                println!("pos diff: {:?}", diff)
-            }
-        }
-
-        state
+        self.orbit.get_state_at_tsp(time_since_periapsis)
     }
 
     pub fn get_orbit(&self) -> Orbit<PointMass, ()> {
@@ -109,7 +107,6 @@ impl OrbitingData {
     }
 
     pub fn update_t_mut(&mut self, delta_t: f64) {
-        self.state.update_t_mut(delta_t);
         self.current_time += delta_t;
     }
 }

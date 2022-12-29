@@ -6,6 +6,7 @@ use super::body::{Body, BodyID, BodyInfo, BodyState, OrbitingData};
 use super::ship::{Ship, ShipID};
 use super::state::CartesianState;
 
+use crate::astro::orbit::{Orbit, PointMass};
 use crate::events::{Event, EventData};
 use crate::math::frame::FrameTransform;
 
@@ -86,17 +87,11 @@ impl<'orr> Orrery {
     pub fn add_body(
         &mut self,
         body_info: BodyInfo,
-        position: Vector3<f64>,
-        velocity: Vector3<f64>,
+        orbit: Orbit<PointMass, ()>,
+        time_since_periapsis: f64,
         parent_id: BodyID,
     ) -> BodyID {
-        let parent_mu = self.bodies[&parent_id].info.mu;
-
-        let odata = OrbitingData::new(
-            parent_id,
-            CartesianState::new(position, velocity, parent_mu),
-            self.time,
-        );
+        let odata = OrbitingData::from_orbit(parent_id, orbit, time_since_periapsis, self.time);
         self.insert_new_body(body_info, BodyState::Orbiting(odata))
     }
 

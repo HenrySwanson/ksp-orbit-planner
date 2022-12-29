@@ -1,8 +1,8 @@
 use std::collections::HashMap;
+use std::f64::consts::PI;
 use std::fs;
 
 use crate::astro::orbit::{Orbit, PointMass};
-use crate::math;
 use crate::orrery::{BodyInfo, Orrery};
 use nalgebra::Point3;
 
@@ -63,10 +63,10 @@ pub fn read_file(filename: &str) -> Orrery {
 
             let orbit =
                 Orbit::from_kepler(PointMass::with_mu(parent_mu), (), a, ecc, incl, lan, argp);
-            let theta = math::anomaly::mean_to_true(maae, ecc);
-            let (position, velocity) = orbit.get_state_at_theta(theta);
+            // M = 2pi/P (t - t_periapse)
+            let time_since_periapsis = maae * orbit.period().unwrap() / 2.0 / PI;
 
-            orrery.add_body(body_info, position, velocity, parent_id)
+            orrery.add_body(body_info, orbit, time_since_periapsis, parent_id)
         };
         name_to_id.insert(name, id);
         name_to_mu.insert(name, mu);
