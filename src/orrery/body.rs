@@ -73,10 +73,7 @@ impl OrbitingData {
 
     pub fn from_state(parent_id: BodyID, state: CartesianState, current_time: f64) -> Self {
         let orbit = state.get_orbit();
-        let s = state.get_universal_anomaly();
-
-        // How long would it take to go backwards to the periapsis? Reverse that.
-        let time_since_periapsis = -state.delta_s_to_t(-s);
+        let time_since_periapsis = orbit.s_to_tsp(state.get_universal_anomaly());
         Self::from_orbit(parent_id, orbit, time_since_periapsis, current_time)
     }
 

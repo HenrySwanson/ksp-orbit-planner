@@ -1,11 +1,13 @@
 use nalgebra::Vector3;
 
-use crate::{
-    math::{anomaly, stumpff::stumpff_G},
-    orrery::CartesianState,
-};
+use crate::math::anomaly;
+use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
+use crate::math::stumpff::stumpff_G;
+use crate::orrery::CartesianState;
 
 use super::{HasMass, Orbit};
+
+const NUM_ITERATIONS_DELTA_T: usize = 2000;
 
 impl<P, S> Orbit<P, S> {
     pub fn get_position_at_theta(&self, theta: f64) -> Option<Vector3<f64>> {
@@ -95,9 +97,9 @@ impl<P: HasMass, S> Orbit<P, S> {
     }
 
     pub fn get_state_at_tsp(&self, time_since_periapsis: f64) -> CartesianState {
-        // TODO: ugly hack, fix this
-        self.get_state_at_universal_anomaly(0.0)
-            .update_t(time_since_periapsis)
+        // First we find the s corresponding to the time
+        let s = self.tsp_to_s(time_since_periapsis);
+        self.get_state_at_universal_anomaly(s)
     }
 
     pub fn get_state_at_theta(&self, theta: f64) -> (Vector3<f64>, Vector3<f64>) {
@@ -114,15 +116,47 @@ impl<P: HasMass, S> Orbit<P, S> {
         (position, velocity)
     }
 
+    /// Returns t(s) and t'(s), evaluted at the given point, where
+    /// t(s) = r_0 * G_1(β, s) + r_0 * r_dot_0 * G_2(β, s) + mu * G_3(β, s)
+    #[allow(non_snake_case)]
+    fn ts_and_derivative(&self, s: f64) -> (f64, f64) {
+        // Grab some constants
+        let beta = -2.0 * self.energy();
+        let mu = self.primary.mu();
+        let r_p = self.periapsis();
+
+        let G = stumpff_G(beta, s);
+        let t = r_p * G[1] + mu * G[3];
+        let t_prime = r_p * G[0] + mu * G[2];
+
+        (t, t_prime)
+    }
+
+    #[allow(non_snake_case)]
     pub fn tsp_to_s(&self, time_since_periapsis: f64) -> f64 {
-        // TODO: ugly hack, fix this
-        self.get_state_at_universal_anomaly(0.0)
-            .delta_t_to_s(time_since_periapsis)
+        if time_since_periapsis == 0.0 {
+            return 0.0;
+        }
+
+        // We want to find a root of this function, which is monotonically increasing:
+        let f_and_f_prime = |s: f64| {
+            let (t, t_prime) = self.ts_and_derivative(s);
+            (t - time_since_periapsis, t_prime)
+        };
+
+        // TODO if these fail, we need to log the parameters somewhere :\
+        let center = time_since_periapsis / self.periapsis();
+        let bracket = find_root_bracket(
+            |x| f_and_f_prime(x).0,
+            center,
+            center,
+            NUM_ITERATIONS_DELTA_T,
+        );
+        newton_plus_bisection(f_and_f_prime, bracket, NUM_ITERATIONS_DELTA_T)
     }
 
     pub fn s_to_tsp(&self, s: f64) -> f64 {
-        // TODO: ugly hack, fix this
-        self.get_state_at_universal_anomaly(0.0).delta_s_to_t(s)
+        self.ts_and_derivative(s).0
     }
 
     pub fn get_s_at_radius(&self, radius: f64) -> Option<f64> {

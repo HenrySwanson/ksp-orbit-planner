@@ -323,6 +323,7 @@ Given an initial position and velocity, we can then advance the state forward by
 A natural point, present on all orbits, is the periapsis. Other than on a circular orbit, this point is unique, so we'll use it for the initial conditions, at $s = 0$, and describe all other points on the orbit from there. There are simple formulas for the radius and velocity at periapsis, and this would give the following parameterization:
 \[ f(s) = 1 - \frac{\mu}{r_p} G_2(\beta, s) \]
 \[ g(s) = r_p G_1(\beta, s) + r_p \dot r_p G_2(\beta, s) = r_p G_1(\beta, s) \]
+\[ t = r_p G_1(\beta, s) + r_p \dot{r}_p G_2(\beta, s) + \mu G_3(\beta, s) = r_p G_1(\beta, s) + \mu G_3(\beta, s) \]
 
 But there's a major problem lurking here: collision orbits. For those orbits, $r_p = 0$ and $v_p = \infty$, and conversely, $f(s) = \infty$ and $g(s) = 0$. Since $\bm x(s) = f(s) \bm x_p + g(s) \bm v_p$, these $0 \times \infty$ terms resolve to something finite, so this isn't an irresolvable problem, but it does mean that we cannot use $r_p$ and $v_p$ themselves as the parameterizing constants.
 

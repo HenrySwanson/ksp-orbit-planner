@@ -417,7 +417,6 @@ mod tests {
         let mu = crate::consts::KERBOL_MU;
         let radius = crate::consts::KERBIN_ORBIT_RADIUS;
         let circ_velocity = (mu / radius).sqrt();
-        let period = 2.0 * PI * radius / circ_velocity;
 
         let make_orbit = |p_dir, v_dir, multiplier| {
             Orbit::from_cartesian(

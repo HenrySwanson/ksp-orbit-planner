@@ -2,12 +2,7 @@ use nalgebra::Vector3;
 
 use crate::astro::orbit::{Orbit, PointMass};
 use crate::math::geometry::directed_angle;
-use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
-use crate::math::stumpff::stumpff_G;
 
-const NUM_ITERATIONS_DELTA_T: usize = 2000;
-
-// TODO pub these fields
 #[derive(Debug, Clone)]
 pub struct CartesianState {
     position: Vector3<f64>,
@@ -33,10 +28,6 @@ impl CartesianState {
         self.velocity
     }
 
-    pub fn mu(&self) -> f64 {
-        self.parent_mu
-    }
-
     pub fn get_orbit(&self) -> Orbit<PointMass, ()> {
         Orbit::from_cartesian(
             PointMass::with_mu(self.parent_mu),
@@ -53,13 +44,26 @@ impl CartesianState {
         orbit.true_to_universal(my_theta)
     }
 
+    fn get_theta(&self) -> f64 {
+        let orbit = self.get_orbit();
+        let x_vec = orbit.periapse_vector();
+        let z_vec = orbit.normal_vector();
+        directed_angle(&x_vec, &self.position, &z_vec)
+    }
+}
+
+// TODO: see how many of these are actually needed outside testing
+#[cfg(test)]
+impl CartesianState {
     fn energy(&self) -> f64 {
         // KE = 1/2 v^2, PE = - mu/r
         self.velocity.norm_squared() / 2.0 - self.parent_mu / self.position.norm()
     }
 
     #[allow(non_snake_case)]
-    pub fn update_s_mut(&mut self, delta_s: f64) -> f64 {
+    fn update_s_mut(&mut self, delta_s: f64) -> f64 {
+        use crate::math::stumpff::stumpff_G;
+
         let beta = -2.0 * self.energy();
         let mu = self.parent_mu;
         let G: [f64; 4] = stumpff_G(beta, delta_s);
@@ -84,115 +88,6 @@ impl CartesianState {
 
         // Return the elapsed time, in case anyone's interested
         delta_t
-    }
-
-    #[allow(non_snake_case)]
-    pub fn update_t_mut(&mut self, delta_t: f64) {
-        // We find the delta_s corresponding to the given delta_t, and advance using that.
-        // Since ds/dt = 1/r, s and t are monotonically related, so there's a unique solution.
-        if delta_t == 0.0 {
-            return;
-        }
-
-        self.update_s_mut(self.delta_t_to_s(delta_t));
-    }
-
-    pub fn update_s(&self, delta_s: f64) -> Self {
-        let mut copy = self.clone();
-        copy.update_s_mut(delta_s);
-        copy
-    }
-
-    pub fn update_t(&self, time: f64) -> Self {
-        let mut copy = self.clone();
-        copy.update_t_mut(time);
-        copy
-    }
-
-    #[allow(non_snake_case)]
-    pub fn delta_s_to_t(&self, delta_s: f64) -> f64 {
-        let r_0 = self.position.norm();
-        let r_dot_0 = self.position.dot(&self.velocity) / r_0;
-        let beta = -2.0 * self.energy();
-        let mu = self.parent_mu;
-        let G = stumpff_G(beta, delta_s);
-
-        r_0 * G[1] + r_0 * r_dot_0 * G[2] + mu * G[3]
-    }
-
-    #[allow(non_snake_case)]
-    pub fn delta_t_to_s(&self, delta_t: f64) -> f64 {
-        if delta_t == 0.0 {
-            return 0.0;
-        }
-
-        // Grab some constants
-        let beta = -2.0 * self.energy();
-        let mu = self.parent_mu;
-        let r_0 = self.position.norm();
-        let r_dot_0 = self.position.dot(&self.velocity) / r_0;
-
-        // We want to find a root of this function, which is monotonically increasing:
-        //  r_0 * G_1(β, s) + r_0 * r_dot_0 * G_2(β, s) + mu * G_3(β, s) - delta_t
-        let f_and_f_prime = |s: f64| {
-            let G = stumpff_G(beta, s);
-            let f = r_0 * G[1] + r_0 * r_dot_0 * G[2] + mu * G[3] - delta_t;
-            let f_prime = r_0 * G[0] + r_0 * r_dot_0 * G[1] + mu * G[2];
-            (f, f_prime)
-        };
-
-        // TODO if these fail, we need to log the parameters somewhere :\
-        let bracket = find_root_bracket(
-            |x| f_and_f_prime(x).0,
-            delta_t / r_0,
-            delta_t / r_0,
-            NUM_ITERATIONS_DELTA_T,
-        );
-        newton_plus_bisection(f_and_f_prime, bracket, NUM_ITERATIONS_DELTA_T)
-    }
-
-    pub fn get_theta(&self) -> f64 {
-        let orbit = self.get_orbit();
-        let x_vec = orbit.periapse_vector();
-        let z_vec = orbit.normal_vector();
-        directed_angle(&x_vec, &self.position, &z_vec)
-    }
-
-    pub fn get_s_until_radius(&self, radius: f64) -> Option<f64> {
-        // TODO this doesn't work well for radial orbits, try to adjust it so that it does
-        let orbit = self.get_orbit();
-        let current_s = self.get_universal_anomaly();
-
-        // Since (h^2/mu) / (1 + e cos theta) = r, we can invert that to get
-        // a desired theta, which will always be in the first or second quadrant
-        let target_cos_theta = (orbit.semilatus_rectum() / radius - 1.0) / orbit.eccentricity();
-        if target_cos_theta.abs() > 1.0 {
-            return None;
-        }
-
-        let target_theta = target_cos_theta.acos();
-        let target_s = orbit.true_to_universal(target_theta);
-        let delta_s = target_s - current_s;
-
-        Some(delta_s)
-    }
-
-    pub fn get_t_until_radius(&self, radius: f64) -> Option<f64> {
-        self.get_s_until_radius(radius)
-            .map(|s| self.delta_s_to_t(s))
-    }
-
-    // TODO: delete this once the timeline migration is done!
-    pub fn to_orbit_patch(&self, parent_id: super::BodyID) -> super::OrbitPatch {
-        let orbit = self.get_orbit();
-        let start_anomaly = self.get_universal_anomaly();
-
-        super::OrbitPatch {
-            orbit,
-            start_anomaly,
-            end_anomaly: None,
-            parent_id,
-        }
     }
 }
 
