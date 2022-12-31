@@ -101,23 +101,36 @@ pub fn newton_plus_bisection(
             (false, false) => bracket.lo = guess, // + + -
         }
 
-        // TODO what if f_prime is zero?
-        let newton_guess = guess - f / f_prime;
+        // Get a new guess from Newton's method, but discard it if it lies outside
+        // the bracket.
+        let newton_guess = if f_prime != 0.0 {
+            let newton_guess = guess - f / f_prime;
+            if bracket.contains(newton_guess) {
+                Some(newton_guess)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         // Use the Newton's method guess if possible, otherwise fall back on bisection.
-        guess = if bracket.contains(newton_guess) {
-            // If the guess hasn't changed any, we've converged
-            if newton_guess == guess {
-                return guess;
+        guess = match newton_guess {
+            Some(newton_guess) => {
+                // If the guess hasn't changed any, we've converged
+                if newton_guess == guess {
+                    return guess;
+                }
+                newton_guess
             }
-            newton_guess
-        } else {
-            // If the bracket is too small, we've converged.
-            let midpoint = (bracket.lo + bracket.hi) / 2.0;
-            if midpoint == bracket.lo || midpoint == bracket.hi {
-                return guess;
+            None => {
+                // If the bracket is too small, we've converged.
+                let midpoint = (bracket.lo + bracket.hi) / 2.0;
+                if midpoint == bracket.lo || midpoint == bracket.hi {
+                    return guess;
+                }
+                midpoint
             }
-            midpoint
         };
     }
 

@@ -6,7 +6,7 @@ use kiss3d::renderer::Renderer;
 use kiss3d::scene::SceneNode;
 use kiss3d::window::{State, Window};
 
-use nalgebra::{Isometry3, Point3, Translation3, Vector3};
+use nalgebra::{Isometry3, Point3, Translation3, Unit, Vector3};
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -341,9 +341,9 @@ impl Simulation {
 
         // Draws a ray starting at the origin of the body, and proceeding in the given direction.
         // Length and v are separated because one's f32 and the other's f64. Oh well.
-        let mut draw_ray = |v: Vector3<f64>, length: f32, color: Point3<f32>| {
-            let v: Vector3<f32> = nalgebra::convert(v);
-            let end_pt = origin + length * (transform * v.normalize());
+        let mut draw_ray = |v: Unit<Vector3<f64>>, length: f32, color: Point3<f32>| {
+            let v: Vector3<f32> = nalgebra::convert(v.into_inner());
+            let end_pt = origin + length * (transform * v);
             window.draw_line(&origin, &end_pt, &color);
         };
 

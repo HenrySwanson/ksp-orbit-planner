@@ -8,7 +8,6 @@ pub struct CartesianState {
     position: Vector3<f64>,
     velocity: Vector3<f64>,
     parent_mu: f64,
-    // TODO: maybe track time that we couldn't account for in advance_s?
 }
 
 impl CartesianState {

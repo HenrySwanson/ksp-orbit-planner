@@ -188,8 +188,6 @@ impl<'orr> Orrery {
             Frame::ShipOrbital(k) => {
                 let ship = &self.ships[&k];
                 let root_to_parent = self.convert_from_root(Frame::ShipInertial(k));
-                // TODO oops! I've been using quaternion-based (Isometry3) and matrix-based (Rotation3)
-                // things in the same code. let's pick one and unify
                 let orbit = ship.orbit_data.get_orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
@@ -237,26 +235,16 @@ impl<'orr> Orrery {
     }
 
     pub fn get_soi_radius(&self, id: BodyID) -> Option<f64> {
-        // TODO: replace this with the method on Orbit
-        // it's given by a (m/M)^(2/5)
         let body = &self.bodies[&id];
 
         match &body.state {
             BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting(odata) => {
-                let parent_body = &self.bodies[&odata.parent_id()];
-
-                let mu_1 = parent_body.info.mu;
-                let mu_2 = body.info.mu;
-
-                let sma = odata.get_orbit().semimajor_axis();
-                assert!(
-                    sma > 0.0,
-                    "SOI radius approximation only works with elliptical orbits"
-                );
-
-                Some(sma * (mu_2 / mu_1).powf(0.4))
-            }
+            BodyState::Orbiting(odata) => Some(
+                odata
+                    .get_orbit()
+                    .with_secondary(PointMass::with_mu(body.info.mu))
+                    .soi_radius(),
+            ),
         }
     }
 
@@ -276,6 +264,7 @@ impl<'orr> Orrery {
 
         self.time += delta_t;
     }
+
     pub fn change_soi(&mut self, ship_id: ShipID, new_body: BodyID) {
         let new_frame = Frame::BodyInertial(new_body);
         let parent_mu = self.bodies[&new_body].info.mu;

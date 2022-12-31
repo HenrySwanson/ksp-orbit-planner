@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use nalgebra::{Rotation3, Vector3};
+use nalgebra::{Rotation3, Unit, Vector3};
 
 use crate::math::geometry::{always_find_rotation, directed_angle};
 
@@ -89,20 +89,18 @@ impl<P, S> Orbit<P, S> {
         self.rotation
     }
 
-    // TODO these should return unit vectors
-    pub fn periapse_vector(&self) -> Vector3<f64> {
-        self.rotation() * Vector3::x()
+    pub fn periapse_vector(&self) -> Unit<Vector3<f64>> {
+        self.rotation() * Vector3::x_axis()
     }
 
-    pub fn normal_vector(&self) -> Vector3<f64> {
-        self.rotation() * Vector3::z()
+    pub fn normal_vector(&self) -> Unit<Vector3<f64>> {
+        self.rotation() * Vector3::z_axis()
     }
 
-    pub fn asc_node_vector(&self) -> Vector3<f64> {
+    pub fn asc_node_vector(&self) -> Unit<Vector3<f64>> {
         // TODO: the ambiguity here makes me think i might wanna just store the angles
         let v = Vector3::z().cross(&self.normal_vector());
-        v.try_normalize(1e-20)
-            .unwrap_or_else(|| self.periapse_vector())
+        Unit::try_new(v, 1e-20).unwrap_or_else(|| self.periapse_vector())
     }
 
     // -- Orbital elements --

@@ -6,8 +6,6 @@ pub fn reject(u: &Vector3<f64>, v: &Vector3<f64>) -> Vector3<f64> {
     // Computes the vector rejection of u from v. v must be non-zero.
     let u_proj_v = u.dot(v) * v / v.norm_squared();
     u - u_proj_v
-
-    // TODO this could also be done by computing v x (u x v) and normalizing
 }
 
 pub fn directed_angle(u: &Vector3<f64>, v: &Vector3<f64>, up: &Vector3<f64>) -> f64 {
