@@ -21,7 +21,7 @@ fn main() {
         let orbit = match &body.state {
             BodyState::FixedAtOrigin => continue,
             BodyState::Orbiting(odata) => odata
-                .get_orbit()
+                .orbit()
                 .with_secondary(PointMass::with_mu(body.info.mu)),
         };
 

@@ -188,7 +188,7 @@ impl<'orr> Orrery {
             Frame::ShipOrbital(k) => {
                 let ship = &self.ships[&k];
                 let root_to_parent = self.convert_from_root(Frame::ShipInertial(k));
-                let orbit = ship.orbit_data.get_orbit();
+                let orbit = ship.orbit_data.orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
                     &ship.orbit_data.state().velocity(),
@@ -241,7 +241,7 @@ impl<'orr> Orrery {
             BodyState::FixedAtOrigin => None,
             BodyState::Orbiting(odata) => Some(
                 odata
-                    .get_orbit()
+                    .orbit()
                     .with_secondary(PointMass::with_mu(body.info.mu))
                     .soi_radius(),
             ),
@@ -295,7 +295,7 @@ impl<'orr> Orrery {
             ship_id,
             old_body,
             new_body,
-            ship.orbit_data.get_orbit()
+            ship.orbit_data.orbit()
         );
     }
 

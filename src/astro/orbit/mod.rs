@@ -5,6 +5,9 @@ use nalgebra::{Rotation3, Unit, Vector3};
 use crate::math::geometry::{always_find_rotation, directed_angle};
 
 mod state;
+mod timed_orbit;
+
+pub use timed_orbit::TimedOrbit;
 
 #[derive(Debug, Clone, Copy)]
 pub struct PointMass(f64);

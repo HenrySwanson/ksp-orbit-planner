@@ -1,6 +1,6 @@
 use nalgebra::Point3;
 
-use crate::astro::orbit::{Orbit, PointMass};
+use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
 
 use super::{state::CartesianState, OrbitPatch};
 
@@ -26,8 +26,7 @@ pub enum BodyState {
 #[derive(Debug, Clone)]
 pub struct OrbitingData {
     parent_id: BodyID,
-    orbit: Orbit<PointMass, ()>,
-    time_at_periapsis: f64,
+    orbit: TimedOrbit<PointMass, ()>,
     // TODO: can we drop this and get it straight from the orrery?
     current_time: f64,
 }
@@ -65,8 +64,7 @@ impl OrbitingData {
     ) -> Self {
         Self {
             parent_id,
-            orbit,
-            time_at_periapsis: current_time - time_since_periapsis,
+            orbit: TimedOrbit::from_orbit(orbit, current_time - time_since_periapsis),
             current_time,
         }
     }
@@ -78,12 +76,10 @@ impl OrbitingData {
     }
 
     pub fn get_orbit_patch(&self) -> OrbitPatch {
-        let time_since_periapsis = self.current_time - self.time_at_periapsis;
-        let orbit = self.get_orbit();
-        let start_anomaly = self.orbit.tsp_to_s(time_since_periapsis);
+        let start_anomaly = self.orbit.s_at_time(self.current_time);
 
         OrbitPatch {
-            orbit,
+            orbit: self.orbit(),
             start_anomaly,
             end_anomaly: None,
             parent_id: self.parent_id,
@@ -95,23 +91,22 @@ impl OrbitingData {
     }
 
     pub fn state(&self) -> CartesianState {
-        let time_since_periapsis = self.current_time - self.time_at_periapsis;
-        self.orbit.get_state_at_tsp(time_since_periapsis)
+        self.orbit.state_at_time(self.current_time)
     }
 
     pub fn state_at_time(&self, time: f64) -> CartesianState {
-        self.orbit.get_state_at_tsp(time - self.time_at_periapsis)
+        self.orbit.state_at_time(time)
     }
 
-    pub fn get_orbit(&self) -> Orbit<PointMass, ()> {
-        self.orbit.clone()
+    pub fn timed_orbit(&self) -> &TimedOrbit<PointMass, ()> {
+        &self.orbit
+    }
+
+    pub fn orbit(&self) -> Orbit<PointMass, ()> {
+        self.orbit.orbit().clone()
     }
 
     pub fn update_t_mut(&mut self, delta_t: f64) {
         self.current_time += delta_t;
-    }
-
-    pub fn time_at_periapsis(&self) -> f64 {
-        self.time_at_periapsis
     }
 }

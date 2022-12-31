@@ -144,12 +144,12 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
         .get_soi_radius(current_body)
         .expect("Body with parent should have SOI");
 
-    let orbit = ship.orbit_data.get_orbit();
+    let orbit = ship.orbit_data.orbit();
     let escape_s = match orbit.get_s_at_radius(soi_radius) {
         Some(s) => s,
         None => return SearchResult::Never,
     };
-    let escape_time = ship.orbit_data.time_at_periapsis() + orbit.s_to_tsp(escape_s);
+    let escape_time = ship.orbit_data.timed_orbit().time_at_s(escape_s);
     let new_state = orbit.get_state_at_universal_anomaly(escape_s);
 
     let event = Event {
@@ -200,8 +200,8 @@ pub fn search_for_soi_encounter(
     let target_odata = target_body
         .get_orbiting_data()
         .expect("Cannot SOI encounter the sun");
-    let ship_orbit = ship.orbit_data.get_orbit();
-    let target_orbit = target_odata.get_orbit();
+    let ship_orbit = ship.orbit_data.orbit();
+    let target_orbit = target_odata.orbit();
 
     // Quick check: if one orbit is much smaller than the other, then there's no chance of
     // intersection, so we can skip the rest of the search.
