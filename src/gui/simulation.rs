@@ -138,7 +138,8 @@ impl Simulation {
     pub fn new(timeline: Timeline, window: &mut Window) -> Self {
         let orrery = timeline
             .get_orrery_at(0.0)
-            .expect("Timeline starts after 0");
+            .expect("Timeline starts after 0")
+            .clone();
 
         // Set up camera
         // TODO figure out what distance to put the camera...
@@ -244,7 +245,8 @@ impl Simulation {
             self.orrery = self
                 .timeline
                 .get_orrery_at(self.time)
-                .expect("TODO implement model extension");
+                .expect("TODO implement model extension")
+                .clone();
             self.update_scene_objects();
         }
     }
@@ -270,7 +272,7 @@ impl Simulation {
     fn transform_to_focus_space(&self, frame: Frame) -> Isometry3<f32> {
         let transform = self
             .orrery
-            .convert_frames(frame, self.focused_object_frame());
+            .convert_frames(frame, self.focused_object_frame(), self.time);
         nalgebra::convert(*transform.isometry())
     }
 
@@ -315,14 +317,14 @@ impl Simulation {
         // TODO apply rotations too!
         let camera_frame = self.focused_object_frame();
         for (id, sphere) in self.body_spheres.iter_mut() {
-            let state = self.orrery.get_body_state(*id);
-            let position = state.get_position(camera_frame);
+            let state = self.orrery.get_body_state(*id, self.time);
+            let position = state.get_position(camera_frame, self.time);
             set_position_helper(sphere, position);
         }
 
         for (id, cube) in self.ship_objects.iter_mut() {
-            let state = self.orrery.get_ship_state(*id);
-            let position = state.get_position(camera_frame);
+            let state = self.orrery.get_ship_state(*id, self.time);
+            let position = state.get_position(camera_frame, self.time);
             set_position_helper(cube, position);
         }
     }
@@ -332,7 +334,7 @@ impl Simulation {
         // of the orbit instead. But only do that if you're doing this only for the focused body.
         let orbit = match &body.state {
             BodyState::FixedAtOrigin => return,
-            BodyState::Orbiting(odata) => odata.get_orbit_patch(),
+            BodyState::Orbiting(odata) => odata.get_orbit_patch(self.time),
         };
 
         let axis_length = 2.0 * body.info.radius;
@@ -371,11 +373,11 @@ impl Simulation {
                     Some(id) => Frame::BodyInertial(id),
                     None => Frame::Root,
                 };
-                (self.orrery.get_body_state(id), frame)
+                (self.orrery.get_body_state(id, self.time), frame)
             }
             FocusPoint::Ship(id) => {
                 let frame = Frame::BodyInertial(self.orrery.get_ship(id).parent_id());
-                (self.orrery.get_ship_state(id), frame)
+                (self.orrery.get_ship_state(id, self.time), frame)
             }
         };
 
@@ -386,8 +388,8 @@ State:
     Speed: {:.0} m/s
 Orbiting: {}",
             self.focused_body_name(),
-            state.get_position(frame).coords.norm(),
-            state.get_velocity(frame).norm(),
+            state.get_position(frame, self.time).coords.norm(),
+            state.get_velocity(frame, self.time).norm(),
             self.orbit_summary_text(),
         )
     }
@@ -415,11 +417,11 @@ Orbiting: {}",
         let orbit = match self.camera_focus.point() {
             FocusPoint::Body(id) => match &self.orrery.get_body(id).state {
                 BodyState::FixedAtOrigin => return String::from("N/A"),
-                BodyState::Orbiting(odata) => odata.get_orbit_patch(),
+                BodyState::Orbiting(odata) => odata.get_orbit_patch(self.time),
             },
             FocusPoint::Ship(id) => {
                 let ship = self.orrery.get_ship(id);
-                ship.orbit_data.get_orbit_patch()
+                ship.orbit_data.get_orbit_patch(self.time)
             }
         };
 
@@ -481,7 +483,7 @@ FPS: {:.0}",
         for body in self.orrery.bodies() {
             let orbit = match &body.state {
                 BodyState::FixedAtOrigin => continue,
-                BodyState::Orbiting(odata) => odata.get_orbit_patch(),
+                BodyState::Orbiting(odata) => odata.get_orbit_patch(self.time),
             };
             let color = body.info.color;
             let frame = Frame::BodyInertial(orbit.parent_id);
@@ -490,7 +492,7 @@ FPS: {:.0}",
         }
 
         for ship in self.orrery.ships() {
-            let orbit = ship.orbit_data.get_orbit_patch();
+            let orbit = ship.orbit_data.get_orbit_patch(self.time);
             let color = Point3::new(1.0, 1.0, 1.0);
             let frame = Frame::BodyInertial(orbit.parent_id);
             self.renderer

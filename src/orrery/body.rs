@@ -30,8 +30,6 @@ pub enum BodyState {
 pub struct OrbitingData {
     parent_id: BodyID,
     orbit: TimedOrbit<PointMass, ()>,
-    // TODO: can we drop this and get it straight from the orrery?
-    current_time: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -46,8 +44,8 @@ impl Body {
         self.get_orbiting_data().map(|x| x.parent_id)
     }
 
-    pub fn state(&self) -> Option<CartesianState> {
-        self.get_orbiting_data().map(|x| x.state())
+    pub fn state_at_time(&self, time: f64) -> Option<CartesianState> {
+        self.get_orbiting_data().map(|x| x.state_at_time(time))
     }
 
     pub fn get_orbiting_data(&self) -> Option<&OrbitingData> {
@@ -62,24 +60,22 @@ impl OrbitingData {
     pub fn from_orbit(
         parent_id: BodyID,
         orbit: Orbit<PointMass, ()>,
-        time_since_periapsis: f64,
-        current_time: f64,
+        time_at_periapsis: f64,
     ) -> Self {
         Self {
             parent_id,
-            orbit: TimedOrbit::from_orbit(orbit, current_time - time_since_periapsis),
-            current_time,
+            orbit: TimedOrbit::from_orbit(orbit, time_at_periapsis),
         }
     }
 
     pub fn from_state(parent_id: BodyID, state: CartesianState, current_time: f64) -> Self {
         let orbit = state.get_orbit();
         let time_since_periapsis = orbit.s_to_tsp(state.get_universal_anomaly());
-        Self::from_orbit(parent_id, orbit, time_since_periapsis, current_time)
+        Self::from_orbit(parent_id, orbit, current_time - time_since_periapsis)
     }
 
-    pub fn get_orbit_patch(&self) -> OrbitPatch {
-        let start_anomaly = self.orbit.s_at_time(self.current_time);
+    pub fn get_orbit_patch(&self, start_time: f64) -> OrbitPatch {
+        let start_anomaly = self.orbit.s_at_time(start_time);
 
         OrbitPatch {
             orbit: self.orbit(),
@@ -93,10 +89,6 @@ impl OrbitingData {
         self.parent_id
     }
 
-    pub fn state(&self) -> CartesianState {
-        self.orbit.state_at_time(self.current_time)
-    }
-
     pub fn state_at_time(&self, time: f64) -> CartesianState {
         self.orbit.state_at_time(time)
     }
@@ -107,9 +99,5 @@ impl OrbitingData {
 
     pub fn orbit(&self) -> Orbit<PointMass, ()> {
         self.orbit.orbit().clone()
-    }
-
-    pub fn update_t_mut(&mut self, delta_t: f64) {
-        self.current_time += delta_t;
     }
 }

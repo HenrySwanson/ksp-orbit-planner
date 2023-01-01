@@ -7,7 +7,7 @@ use crate::orrery::{BodyInfo, Orrery};
 use nalgebra::Point3;
 
 pub fn read_file(filename: &str) -> Orrery {
-    let mut orrery = Orrery::new(0.0);
+    let mut orrery = Orrery::new();
 
     let mut name_to_id = HashMap::new();
     let mut name_to_mu = HashMap::new();
@@ -65,8 +65,9 @@ pub fn read_file(filename: &str) -> Orrery {
                 Orbit::from_kepler(PointMass::with_mu(parent_mu), (), a, ecc, incl, lan, argp);
             // M = 2pi/P (t - t_periapse)
             let time_since_periapsis = maae * orbit.period().unwrap() / 2.0 / PI;
+            let time_at_periapsis = -time_since_periapsis;
 
-            orrery.add_body(body_info, orbit, time_since_periapsis, parent_id)
+            orrery.add_body(body_info, orbit, time_at_periapsis, parent_id)
         };
         name_to_id.insert(name, id);
         name_to_mu.insert(name, mu);

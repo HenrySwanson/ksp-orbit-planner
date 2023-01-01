@@ -33,36 +33,30 @@ pub struct Orrery {
     next_body_id: usize,
     ships: HashMap<ShipID, Ship>,
     next_ship_id: usize,
-    time: f64,
 }
 
 impl<'orr> FramedState<'orr> {
-    pub fn get_position(&self, frame: Frame) -> Point3<f64> {
+    pub fn get_position(&self, frame: Frame, time: f64) -> Point3<f64> {
         self.orrery
-            .convert_frames(self.native_frame, frame)
+            .convert_frames(self.native_frame, frame, time)
             .convert_point(&self.position)
     }
 
-    pub fn get_velocity(&self, frame: Frame) -> Vector3<f64> {
+    pub fn get_velocity(&self, frame: Frame, time: f64) -> Vector3<f64> {
         self.orrery
-            .convert_frames(self.native_frame, frame)
+            .convert_frames(self.native_frame, frame, time)
             .convert_velocity(&self.position, &self.velocity)
     }
 }
 
 impl<'orr> Orrery {
-    pub fn new(start_time: f64) -> Self {
+    pub fn new() -> Self {
         Orrery {
             bodies: HashMap::new(),
             next_body_id: 0,
             ships: HashMap::new(),
             next_ship_id: 0,
-            time: start_time,
         }
-    }
-
-    pub fn get_time(&self) -> f64 {
-        self.time
     }
 
     pub fn bodies(&self) -> impl Iterator<Item = &Body> {
@@ -88,10 +82,10 @@ impl<'orr> Orrery {
         &mut self,
         body_info: BodyInfo,
         orbit: Orbit<PointMass, ()>,
-        time_since_periapsis: f64,
+        time_at_periapsis: f64,
         parent_id: BodyID,
     ) -> BodyID {
-        let odata = OrbitingData::from_orbit(parent_id, orbit, time_since_periapsis, self.time);
+        let odata = OrbitingData::from_orbit(parent_id, orbit, time_at_periapsis);
         self.insert_new_body(body_info, BodyState::Orbiting(odata))
     }
 
@@ -121,6 +115,7 @@ impl<'orr> Orrery {
         &mut self,
         position: Vector3<f64>,
         velocity: Vector3<f64>,
+        current_time: f64,
         parent_id: BodyID,
     ) -> ShipID {
         let new_id = ShipID(self.next_ship_id);
@@ -132,7 +127,7 @@ impl<'orr> Orrery {
             orbit_data: OrbitingData::from_state(
                 parent_id,
                 CartesianState::new(position, velocity, parent_mu),
-                self.get_time(),
+                current_time,
             ),
         };
 
@@ -140,14 +135,14 @@ impl<'orr> Orrery {
         new_id
     }
 
-    pub fn convert_frames(&self, src: Frame, dst: Frame) -> FrameTransform<f64> {
+    pub fn convert_frames(&self, src: Frame, dst: Frame, time: f64) -> FrameTransform<f64> {
         // TODO : do this in a more clever way
-        let src_to_root = self.convert_from_root(src).inverse();
-        let root_to_dst = self.convert_from_root(dst);
+        let src_to_root = self.convert_from_root(src, time).inverse();
+        let root_to_dst = self.convert_from_root(dst, time);
         src_to_root.append_transformation(&root_to_dst)
     }
 
-    fn convert_from_root(&self, frame: Frame) -> FrameTransform<f64> {
+    fn convert_from_root(&self, frame: Frame, time: f64) -> FrameTransform<f64> {
         match frame {
             Frame::Root => FrameTransform::identity(),
             Frame::BodyInertial(k) => {
@@ -159,13 +154,13 @@ impl<'orr> Orrery {
                     BodyState::Orbiting(odata) => {
                         // Get the parent and compute the transform from its reference frame to root
                         let parent_frame = Frame::BodyInertial(odata.parent_id());
-                        let root_to_parent = self.convert_from_root(parent_frame);
+                        let root_to_parent = self.convert_from_root(parent_frame, time);
 
                         // Get the transform from our frame to the parent's
                         let parent_to_self = FrameTransform::from_active(
                             UnitQuaternion::identity(),
-                            odata.state().position(),
-                            odata.state().velocity(),
+                            odata.state_at_time(time).position(),
+                            odata.state_at_time(time).velocity(),
                             Vector3::zeros(),
                         );
                         root_to_parent.append_transformation(&parent_to_self)
@@ -175,23 +170,23 @@ impl<'orr> Orrery {
             Frame::ShipInertial(k) => {
                 let ship = &self.ships[&k];
                 let parent_frame = Frame::BodyInertial(ship.parent_id());
-                let root_to_parent = self.convert_from_root(parent_frame);
+                let root_to_parent = self.convert_from_root(parent_frame, time);
 
                 let parent_to_self = FrameTransform::from_active(
                     UnitQuaternion::identity(),
-                    ship.orbit_data.state().position(),
-                    ship.orbit_data.state().velocity(),
+                    ship.orbit_data.state_at_time(time).position(),
+                    ship.orbit_data.state_at_time(time).velocity(),
                     Vector3::zeros(),
                 );
                 root_to_parent.append_transformation(&parent_to_self)
             }
             Frame::ShipOrbital(k) => {
                 let ship = &self.ships[&k];
-                let root_to_parent = self.convert_from_root(Frame::ShipInertial(k));
+                let root_to_parent = self.convert_from_root(Frame::ShipInertial(k), time);
                 let orbit = ship.orbit_data.orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
-                    &ship.orbit_data.state().velocity(),
+                    &ship.orbit_data.state_at_time(time).velocity(),
                     1e-20,
                 );
                 let parent_to_self = FrameTransform::from_active(
@@ -205,12 +200,12 @@ impl<'orr> Orrery {
         }
     }
 
-    pub fn get_body_state(&'orr self, id: BodyID) -> FramedState<'orr> {
+    pub fn get_body_state(&'orr self, id: BodyID, time: f64) -> FramedState<'orr> {
         let (p, v, frame) = match &self.bodies[&id].state {
             BodyState::FixedAtOrigin => (Vector3::zeros(), Vector3::zeros(), Frame::Root),
             BodyState::Orbiting(odata) => (
-                odata.state().position(),
-                odata.state().velocity(),
+                odata.state_at_time(time).position(),
+                odata.state_at_time(time).velocity(),
                 Frame::BodyInertial(odata.parent_id()),
             ),
         };
@@ -223,13 +218,13 @@ impl<'orr> Orrery {
         }
     }
 
-    pub fn get_ship_state(&'orr self, id: ShipID) -> FramedState<'orr> {
+    pub fn get_ship_state(&'orr self, id: ShipID, time: f64) -> FramedState<'orr> {
         let ship = &self.ships[&id];
 
         FramedState {
             orrery: self,
-            position: Point3::from(ship.orbit_data.state().position()),
-            velocity: ship.orbit_data.state().velocity(),
+            position: Point3::from(ship.orbit_data.state_at_time(time).position()),
+            velocity: ship.orbit_data.state_at_time(time).velocity(),
             native_frame: Frame::BodyInertial(ship.parent_id()),
         }
     }
@@ -248,24 +243,7 @@ impl<'orr> Orrery {
         }
     }
 
-    pub fn update_time(&mut self, delta_t: f64) {
-        // delta_t can be positive, negative, or zero
-
-        for body in self.bodies.values_mut() {
-            match &mut body.state {
-                BodyState::FixedAtOrigin => {}
-                BodyState::Orbiting(odata) => odata.update_t_mut(delta_t),
-            }
-        }
-
-        for ship in self.ships.values_mut() {
-            ship.orbit_data.update_t_mut(delta_t);
-        }
-
-        self.time += delta_t;
-    }
-
-    pub fn change_soi(&mut self, ship_id: ShipID, new_body: BodyID) {
+    pub fn change_soi(&mut self, ship_id: ShipID, new_body: BodyID, event_time: f64) {
         let new_frame = Frame::BodyInertial(new_body);
         let parent_mu = self.bodies[&new_body].info.mu;
 
@@ -274,21 +252,20 @@ impl<'orr> Orrery {
         let old_body = ship.parent_id();
         let state = FramedState {
             orrery: self,
-            position: Point3::from(ship.orbit_data.state().position()),
-            velocity: ship.orbit_data.state().velocity(),
+            position: Point3::from(ship.orbit_data.state_at_time(event_time).position()),
+            velocity: ship.orbit_data.state_at_time(event_time).velocity(),
             native_frame: Frame::BodyInertial(old_body),
         };
 
-        let new_position = state.get_position(new_frame);
-        let new_velocity = state.get_velocity(new_frame);
+        let new_position = state.get_position(new_frame, event_time);
+        let new_velocity = state.get_velocity(new_frame, event_time);
 
         // Re-root the ship to the new body
-        let now = self.get_time();
         let ship = self.ships.get_mut(&ship_id).unwrap();
         ship.orbit_data = OrbitingData::from_state(
             new_body,
             CartesianState::new(new_position.coords, new_velocity, parent_mu),
-            now,
+            event_time,
         );
         println!(
             "Rerooted ship {:?} from {:?} to {:?}. New orbit is: {:?}",
@@ -304,7 +281,7 @@ impl<'orr> Orrery {
         let ship_id = event.ship_id;
         match &event.data {
             EventData::EnteringSOI(soi_change) | EventData::ExitingSOI(soi_change) => {
-                self.change_soi(ship_id, soi_change.new);
+                self.change_soi(ship_id, soi_change.new, event.point.time);
             }
         }
     }
@@ -314,7 +291,7 @@ impl<'orr> Orrery {
         let ship_id = event.ship_id;
         match &event.data {
             EventData::EnteringSOI(soi_change) | EventData::ExitingSOI(soi_change) => {
-                self.change_soi(ship_id, soi_change.old);
+                self.change_soi(ship_id, soi_change.old, event.point.time);
             }
         }
     }

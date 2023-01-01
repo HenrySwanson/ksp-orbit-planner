@@ -63,11 +63,10 @@ impl Timeline {
         }
     }
 
-    pub fn get_orrery_at(&self, time: f64) -> Option<Orrery> {
+    pub fn get_orrery_at(&self, time: f64) -> Option<&Orrery> {
         match self.lookup_segment(time) {
             SegmentLookup::Closed(idx) | SegmentLookup::Open(idx) => {
-                let mut orrery = self.segments[idx].start_state.clone();
-                orrery.update_time(time - self.segments[idx].start_time);
+                let orrery = &self.segments[idx].start_state;
                 Some(orrery)
             }
             SegmentLookup::BeforeStart => None,
@@ -87,8 +86,7 @@ impl Timeline {
         };
 
         // Use the event search to look for an event
-        let delta_t = time - segment.start_time;
-        search_for_events(&segment.start_state, upcoming, delta_t);
+        search_for_events(&segment.start_state, upcoming, segment.start_time, time);
         let event = upcoming.get_next_event_global();
 
         // If we find an event, we should add a new segment! Otherwise do nothing,
@@ -106,7 +104,6 @@ impl Timeline {
             // Get the new state
             let event_time = event.point.time;
             let mut state = segment.start_state.clone();
-            state.update_time(event_time - segment.start_time);
             state.process_event(&event);
 
             // Close out the old segment
@@ -124,14 +121,18 @@ impl Timeline {
 }
 
 // TODO: copied from universe.rs; clean it up for our purposes later
-fn search_for_events(orrery: &Orrery, upcoming_events: &mut UpcomingEvents, delta_t: f64) {
+fn search_for_events(
+    orrery: &Orrery,
+    upcoming_events: &mut UpcomingEvents,
+    start_time: f64,
+    end_time: f64,
+) {
     for id in orrery.ships().map(|s| s.id) {
         if upcoming_events.get_next_event(id).is_some() {
             continue;
         }
 
-        let start_time = orrery.get_time();
-        let end_time = start_time + delta_t;
+        assert!(end_time >= start_time);
 
         // TODO this "check if we should search, and then separately search" is not
         // a great pattern. They should be bundled together better.
