@@ -1,4 +1,4 @@
-use crate::orrery::CartesianState;
+use crate::astro::state::CartesianState;
 
 use super::{HasMass, Orbit};
 

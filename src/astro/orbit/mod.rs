@@ -4,7 +4,7 @@ use nalgebra::{Rotation3, Unit, Vector3};
 
 use crate::math::geometry::{always_find_rotation, directed_angle};
 
-mod state;
+mod state_methods;
 mod timed_orbit;
 
 pub use timed_orbit::TimedOrbit;

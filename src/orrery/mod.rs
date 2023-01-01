@@ -3,13 +3,11 @@ use crate::astro::orbit::PhysicalOrbit;
 mod body;
 mod orrery;
 mod ship;
-mod state;
 
 // TODO restrict imports!
 pub use body::{Body, BodyID, BodyInfo, BodyState};
 pub use orrery::{Frame, FramedState, Orrery};
 pub use ship::{Ship, ShipID};
-pub use state::CartesianState;
 
 // TODO: re-evaluate if we need this
 #[derive(Debug, Clone)]

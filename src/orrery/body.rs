@@ -1,8 +1,11 @@
 use nalgebra::Point3;
 
-use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
+use crate::astro::{
+    orbit::{Orbit, PointMass, TimedOrbit},
+    state::CartesianState,
+};
 
-use super::{state::CartesianState, OrbitPatch};
+use super::OrbitPatch;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyID(pub usize);

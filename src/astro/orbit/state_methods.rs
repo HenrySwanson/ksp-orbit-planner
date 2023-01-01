@@ -1,9 +1,9 @@
 use nalgebra::Vector3;
 
+use crate::astro::state::CartesianState;
 use crate::math::anomaly;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::math::stumpff::stumpff_G;
-use crate::orrery::CartesianState;
 
 use super::{HasMass, Orbit};
 

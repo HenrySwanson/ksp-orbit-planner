@@ -4,9 +4,9 @@ use std::collections::HashMap;
 
 use super::body::{Body, BodyID, BodyInfo, BodyState, OrbitingData};
 use super::ship::{Ship, ShipID};
-use super::state::CartesianState;
 
 use crate::astro::orbit::{Orbit, PointMass};
+use crate::astro::state::CartesianState;
 use crate::events::{Event, EventData};
 use crate::math::frame::FrameTransform;
 
