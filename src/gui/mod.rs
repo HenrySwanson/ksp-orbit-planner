@@ -21,10 +21,12 @@ impl OrbitPatch {
     pub fn new(orbit: &TimedOrbit<PrimaryBody, ()>, start_time: f64) -> OrbitPatch {
         let start_anomaly = orbit.s_at_time(start_time);
         let parent_id = orbit.orbit().primary().id;
-        let mu = orbit.orbit().primary().mu;
 
         Self {
-            orbit: orbit.orbit().clone().with_primary(PointMass::with_mu(mu)),
+            orbit: orbit
+                .orbit()
+                .clone()
+                .map_primary(|p| PointMass::with_mu(p.mu)),
             start_anomaly,
             end_anomaly: None,
             parent_id,

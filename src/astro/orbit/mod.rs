@@ -57,19 +57,29 @@ impl<P, S> Orbit<P, S> {
     }
 
     pub fn with_primary<P2>(self, new_primary: P2) -> Orbit<P2, S> {
-        Orbit {
-            primary: new_primary,
-            secondary: self.secondary,
-            rotation: self.rotation,
-            alpha: self.alpha,
-            slr: self.slr,
-        }
+        self.map_primary(|_| new_primary)
     }
 
     pub fn with_secondary<S2>(self, new_secondary: S2) -> Orbit<P, S2> {
+        self.map_secondary(|_| new_secondary)
+    }
+
+    pub fn map_primary<P2>(self, primary_fn: impl FnOnce(P) -> P2) -> Orbit<P2, S> {
+        self.map(primary_fn, std::convert::identity)
+    }
+
+    pub fn map_secondary<S2>(self, secondary_fn: impl FnOnce(S) -> S2) -> Orbit<P, S2> {
+        self.map(std::convert::identity, secondary_fn)
+    }
+
+    fn map<P2, S2>(
+        self,
+        primary_fn: impl FnOnce(P) -> P2,
+        secondary_fn: impl FnOnce(S) -> S2,
+    ) -> Orbit<P2, S2> {
         Orbit {
-            primary: self.primary,
-            secondary: new_secondary,
+            primary: primary_fn(self.primary),
+            secondary: secondary_fn(self.secondary),
             rotation: self.rotation,
             alpha: self.alpha,
             slr: self.slr,

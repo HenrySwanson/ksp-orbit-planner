@@ -98,11 +98,13 @@ impl<'orr> Orrery {
         time_at_periapsis: f64,
         parent_id: BodyID,
     ) -> BodyID {
-        let primary = PrimaryBody {
-            id: parent_id,
-            mu: orbit.primary().mu(),
-        };
-        let orbit = TimedOrbit::from_orbit(orbit.with_primary(primary), time_at_periapsis);
+        let orbit = TimedOrbit::from_orbit(
+            orbit.map_primary(|p| PrimaryBody {
+                id: parent_id,
+                mu: p.mu(),
+            }),
+            time_at_periapsis,
+        );
         self.insert_new_body(body_info, Some(orbit))
     }
 
