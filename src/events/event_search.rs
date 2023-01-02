@@ -1,6 +1,6 @@
 use super::event::{first_event, Event, EventData, EventPoint, SOIChange};
 
-use crate::astro::orbit::PhysicalOrbit;
+use crate::astro::orbit::TimedOrbit;
 use crate::math::root_finding::{bisection, Bracket};
 use crate::orrery::{BodyID, Orrery, ShipID};
 
@@ -133,24 +133,24 @@ impl UpcomingEventsInner {
 
 // TODO maybe these should be folded into UpcomingEvents? IDK
 pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
-    let ship = orrery.get_ship(ship_id);
-    let current_body = ship.parent_id();
-    let parent_body = match orrery.get_body(current_body).parent_id() {
-        Some(x) => x,
+    let ship_orbit = orrery.orbit_of_ship(ship_id);
+
+    let current_body = ship_orbit.orbit().primary().id;
+    let current_body_orbit = match orrery.orbit_of_body(current_body) {
+        Some(o) => o,
+        // We can never escape the Sun
         None => return SearchResult::Never,
     };
+    let soi_radius = current_body_orbit.orbit().soi_radius();
 
-    let soi_radius = orrery
-        .get_soi_radius(current_body)
-        .expect("Body with parent should have SOI");
+    let parent_body = current_body_orbit.orbit().primary().id;
 
-    let orbit = ship.orbit_data.orbit();
-    let escape_s = match orbit.get_s_at_radius(soi_radius) {
+    let escape_s = match ship_orbit.orbit().get_s_at_radius(soi_radius) {
         Some(s) => s,
         None => return SearchResult::Never,
     };
-    let escape_time = ship.orbit_data.timed_orbit().time_at_s(escape_s);
-    let new_state = orbit.get_state_at_universal_anomaly(escape_s);
+    let escape_time = ship_orbit.time_at_s(escape_s);
+    let new_state = ship_orbit.orbit().get_state_at_universal_anomaly(escape_s);
 
     let event = Event {
         ship_id,
@@ -183,32 +183,35 @@ pub fn search_for_soi_encounter(
     );
     let window = end_time - start_time;
 
-    let ship = orrery.get_ship(ship_id);
-    let parent_id = ship.parent_id();
+    let ship_orbit = orrery.orbit_of_ship(ship_id);
+    let parent_id = ship_orbit.orbit().primary().id;
 
     // Check whether this body and ship are co-orbiting
-    let target_body = orrery.get_body(target_id);
-    match target_body.parent_id() {
-        Some(x) if x == parent_id => {}
-        _ => return SearchResult::Never,
+    let target_orbit = match orrery.orbit_of_body(target_id) {
+        Some(o) => o,
+        // Can't encounter the Sun
+        None => return SearchResult::Never,
+    };
+    if target_orbit.orbit().primary().id != parent_id {
+        return SearchResult::Never;
     }
 
-    let soi_radius = orrery.get_soi_radius(target_id).unwrap();
-
-    // Get their orbits
-    let ship_odata = &ship.orbit_data;
-    let target_odata = target_body
-        .get_orbiting_data()
-        .expect("Cannot SOI encounter the sun");
-    let ship_orbit = ship.orbit_data.orbit();
-    let target_orbit = target_odata.orbit();
+    let soi_radius = target_orbit.orbit().soi_radius();
 
     // Quick check: if one orbit is much smaller than the other, then there's no chance of
     // intersection, so we can skip the rest of the search.
-    let pe_ap_check = |o1: &PhysicalOrbit, o2: &PhysicalOrbit| {
-        o1.apoapsis().is_some() && o1.apoapsis().unwrap() + soi_radius < o2.periapsis()
-    };
-    if pe_ap_check(&ship_orbit, &target_orbit) || pe_ap_check(&target_orbit, &ship_orbit) {
+    fn pe_ap_check<P1, P2, S1, S2>(
+        o1: &TimedOrbit<P1, S1>,
+        o2: &TimedOrbit<P2, S2>,
+        soi_radius: f64,
+    ) -> bool {
+        let o1_ap = o1.orbit().apoapsis();
+        o1_ap.is_some() && o1_ap.unwrap() + soi_radius < o2.orbit().periapsis()
+    }
+
+    if pe_ap_check(&ship_orbit, &target_orbit, soi_radius)
+        || pe_ap_check(&target_orbit, &ship_orbit, soi_radius)
+    {
         return SearchResult::Never;
     }
 
@@ -231,16 +234,16 @@ pub fn search_for_soi_encounter(
     // Method for checking distance between bodies
     let check_distance = |delta_t| {
         let time = start_time + delta_t;
-        let new_self_pos = ship_odata.state_at_time(time).position();
-        let new_target_pos = target_odata.state_at_time(time).position();
-        (new_self_pos - new_target_pos).norm()
+        let new_ship_pos = ship_orbit.state_at_time(time).position();
+        let new_target_pos = target_orbit.state_at_time(time).position();
+        (new_ship_pos - new_target_pos).norm()
     };
 
     // TODO have better algorithm than this!
 
     // We know their maximum relative velocity
-    let ship_max_velocity = ship_orbit.periapsis_velocity();
-    let target_max_velocity = target_orbit.periapsis_velocity();
+    let ship_max_velocity = ship_orbit.orbit().periapsis_velocity();
+    let target_max_velocity = target_orbit.orbit().periapsis_velocity();
     let max_rel_velocity = ship_max_velocity.abs() + target_max_velocity.abs();
     let current_distance = check_distance(0.0);
 
@@ -283,7 +286,7 @@ pub fn search_for_soi_encounter(
     );
 
     // Lastly, figure out anomaly and position at that point
-    let new_state = ship_odata.state_at_time(start_time + entry_time);
+    let new_state = ship_orbit.state_at_time(start_time + entry_time);
 
     let event = Event {
         ship_id,

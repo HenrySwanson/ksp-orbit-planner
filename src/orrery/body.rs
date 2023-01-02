@@ -53,17 +53,9 @@ impl HasMass for PrimaryBody {
 
 impl Body {
     pub fn parent_id(&self) -> Option<BodyID> {
-        self.get_orbiting_data().map(|x| x.parent_id)
-    }
-
-    pub fn state_at_time(&self, time: f64) -> Option<CartesianState> {
-        self.get_orbiting_data().map(|x| x.state_at_time(time))
-    }
-
-    pub fn get_orbiting_data(&self) -> Option<&OrbitingData> {
         match &self.state {
             BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting(x) => Some(x),
+            BodyState::Orbiting(x) => Some(x.parent_id),
         }
     }
 }

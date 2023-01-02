@@ -59,21 +59,26 @@ impl<'orr> Orrery {
         }
     }
 
-    pub fn orbit_of_body(&self, id: BodyID) -> TimedOrbit<PrimaryBody, PrimaryBody> {
+    pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<PrimaryBody, PrimaryBody>> {
         let body = &self.bodies[&id];
         let mu = body.info.mu;
-        let odata = body.get_orbiting_data().unwrap();
+        let odata = match &body.state {
+            BodyState::FixedAtOrigin => return None,
+            BodyState::Orbiting(o) => o,
+        };
+
         let parent_id = odata.parent_id();
         let parent_mu = self.bodies[&parent_id].info.mu;
 
-        odata
+        let orbit = odata
             .timed_orbit()
             .clone()
             .with_primary(PrimaryBody {
                 id: parent_id,
                 mu: parent_mu,
             })
-            .with_secondary(PrimaryBody { id, mu })
+            .with_secondary(PrimaryBody { id, mu });
+        Some(orbit)
     }
 
     pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<PrimaryBody, ShipID> {

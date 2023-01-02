@@ -48,6 +48,14 @@ pub type BareOrbit = Orbit<(), ()>;
 pub type PhysicalOrbit = Orbit<PointMass, ()>;
 
 impl<P, S> Orbit<P, S> {
+    pub fn primary(&self) -> &P {
+        &self.primary
+    }
+
+    pub fn secondary(&self) -> &S {
+        &self.secondary
+    }
+
     pub fn with_primary<P2>(self, new_primary: P2) -> Orbit<P2, S> {
         Orbit {
             primary: new_primary,
