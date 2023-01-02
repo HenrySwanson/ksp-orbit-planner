@@ -26,7 +26,7 @@ impl OrbitPatch {
             orbit: orbit
                 .orbit()
                 .clone()
-                .map_primary(|p| PointMass::with_mu(p.mu)),
+                .map_primary(|p| PointMass::with_mu(p.info.mu)),
             start_anomaly,
             end_anomaly: None,
             parent_id,

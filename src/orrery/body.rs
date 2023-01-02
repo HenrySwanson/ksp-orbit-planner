@@ -17,7 +17,7 @@ pub struct BodyInfo {
 #[derive(Debug, Clone)]
 pub struct PrimaryBody {
     pub id: BodyID,
-    pub mu: f64,
+    pub info: BodyInfo,
 }
 
 #[derive(Debug, Clone)]
@@ -29,7 +29,7 @@ pub struct Body {
 
 impl HasMass for PrimaryBody {
     fn mu(&self) -> f64 {
-        self.mu
+        self.info.mu
     }
 }
 

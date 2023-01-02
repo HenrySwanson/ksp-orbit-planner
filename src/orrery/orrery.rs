@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use super::body::{Body, BodyID, BodyInfo, PrimaryBody};
 use super::ship::{Ship, ShipID};
 
-use crate::astro::orbit::{HasMass, Orbit, PointMass, TimedOrbit};
+use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
 use crate::astro::state::CartesianState;
 use crate::events::{Event, EventData};
 use crate::math::frame::FrameTransform;
@@ -61,9 +61,10 @@ impl<'orr> Orrery {
 
     pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<PrimaryBody, PrimaryBody>> {
         let body = &self.bodies[&id];
-        let mu = body.info.mu;
-
-        let orbit = body.orbit()?.clone().with_secondary(PrimaryBody { id, mu });
+        let orbit = body.orbit()?.clone().with_secondary(PrimaryBody {
+            id,
+            info: body.info.clone(),
+        });
         Some(orbit)
     }
 
@@ -99,9 +100,9 @@ impl<'orr> Orrery {
         parent_id: BodyID,
     ) -> BodyID {
         let orbit = TimedOrbit::from_orbit(
-            orbit.map_primary(|p| PrimaryBody {
+            orbit.map_primary(|_| PrimaryBody {
                 id: parent_id,
-                mu: p.mu(),
+                info: self.bodies[&parent_id].info.clone(),
             }),
             time_at_periapsis,
         );
@@ -146,7 +147,7 @@ impl<'orr> Orrery {
 
         let primary = PrimaryBody {
             id: parent_id,
-            mu: self.bodies[&parent_id].info.mu,
+            info: self.bodies[&parent_id].info.clone(),
         };
 
         let ship = Ship {
@@ -269,7 +270,7 @@ impl<'orr> Orrery {
 
     pub fn change_soi(&mut self, ship_id: ShipID, new_body: BodyID, event_time: f64) {
         let new_frame = Frame::BodyInertial(new_body);
-        let parent_mu = self.bodies[&new_body].info.mu;
+        let new_parent_body = &self.bodies[&new_body];
 
         // Get the new state of the ship
         let ship = &self.ships[&ship_id];
@@ -290,7 +291,7 @@ impl<'orr> Orrery {
             CartesianState::new(
                 PrimaryBody {
                     id: new_body,
-                    mu: parent_mu,
+                    info: new_parent_body.info.clone(),
                 },
                 new_position.coords,
                 new_velocity,
