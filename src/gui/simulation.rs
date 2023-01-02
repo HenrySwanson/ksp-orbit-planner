@@ -17,7 +17,7 @@ use super::OrbitPatch;
 
 use crate::astro::orbit::Orbit;
 use crate::model::Timeline;
-use crate::orrery::{BodyID, Frame, Orrery, PrimaryBody, Ship, ShipID};
+use crate::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -182,7 +182,7 @@ impl Simulation {
         simulation
     }
 
-    fn create_body_object(window: &mut Window, body: &PrimaryBody) -> SceneNode {
+    fn create_body_object(window: &mut Window, body: &Body) -> SceneNode {
         // Make the sphere that represents the body
         let mut sphere = window.add_sphere(body.info.radius);
         let color = &body.info.color;
@@ -331,7 +331,7 @@ impl Simulation {
         }
     }
 
-    fn draw_orbital_axes(&self, window: &mut Window, orbit: &Orbit<PrimaryBody, PrimaryBody>) {
+    fn draw_orbital_axes(&self, window: &mut Window, orbit: &Orbit<Body, Body>) {
         // TODO: this renders the axes at the center of the body; I think we probably want center
         // of the orbit instead. But only do that if you're doing this only for the focused body.
         let body = orbit.secondary();

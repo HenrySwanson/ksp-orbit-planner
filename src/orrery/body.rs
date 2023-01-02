@@ -6,6 +6,7 @@ use crate::astro::orbit::{HasMass, TimedOrbit};
 pub struct BodyID(pub usize);
 
 // All the immutable info about a body
+// TODO: merge with Body?
 #[derive(Debug, Clone)]
 pub struct BodyInfo {
     pub name: String,
@@ -15,27 +16,27 @@ pub struct BodyInfo {
 }
 
 #[derive(Debug, Clone)]
-pub struct PrimaryBody {
+pub struct Body {
     pub id: BodyID,
     pub info: BodyInfo,
 }
 
 // TODO: don't leak outside of this module
 #[derive(Debug, Clone)]
-pub(super) struct Body {
+pub(super) struct BodyWrapper {
     pub id: BodyID,
     pub info: BodyInfo,
-    orbit: Option<TimedOrbit<PrimaryBody, ()>>,
+    orbit: Option<TimedOrbit<Body, ()>>,
 }
 
-impl HasMass for PrimaryBody {
+impl HasMass for Body {
     fn mu(&self) -> f64 {
         self.info.mu
     }
 }
 
-impl Body {
-    pub fn new(id: BodyID, info: BodyInfo, orbit: Option<TimedOrbit<PrimaryBody, ()>>) -> Self {
+impl BodyWrapper {
+    pub fn new(id: BodyID, info: BodyInfo, orbit: Option<TimedOrbit<Body, ()>>) -> Self {
         Self { id, info, orbit }
     }
 
@@ -43,9 +44,9 @@ impl Body {
         self.orbit.as_ref().map(|orbit| orbit.orbit().primary().id)
     }
 
-    pub fn orbit(&self) -> Option<TimedOrbit<PrimaryBody, PrimaryBody>> {
+    pub fn orbit(&self) -> Option<TimedOrbit<Body, Body>> {
         self.orbit.as_ref().map(|orbit| {
-            let secondary = PrimaryBody {
+            let secondary = Body {
                 id: self.id,
                 info: self.info.clone(),
             };
@@ -53,8 +54,8 @@ impl Body {
         })
     }
 
-    pub fn to_primary_body(&self) -> PrimaryBody {
-        PrimaryBody {
+    pub fn to_primary_body(&self) -> Body {
+        Body {
             id: self.id,
             info: self.info.clone(),
         }

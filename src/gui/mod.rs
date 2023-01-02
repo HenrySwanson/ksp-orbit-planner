@@ -6,7 +6,7 @@ mod simulation;
 pub use simulation::Simulation;
 
 use crate::astro::orbit::{PhysicalOrbit, PointMass, TimedOrbit};
-use crate::orrery::{BodyID, PrimaryBody};
+use crate::orrery::{Body, BodyID};
 
 // TODO: re-evaluate if we need this
 #[derive(Debug, Clone)]
@@ -18,7 +18,7 @@ pub struct OrbitPatch {
 }
 
 impl OrbitPatch {
-    pub fn new<S: Clone>(orbit: &TimedOrbit<PrimaryBody, S>, start_time: f64) -> OrbitPatch {
+    pub fn new<S: Clone>(orbit: &TimedOrbit<Body, S>, start_time: f64) -> OrbitPatch {
         let start_anomaly = orbit.s_at_time(start_time);
         let parent_id = orbit.orbit().primary().id;
 

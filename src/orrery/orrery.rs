@@ -2,7 +2,7 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
-use super::body::{Body, BodyID, BodyInfo, PrimaryBody};
+use super::body::{Body, BodyID, BodyInfo, BodyWrapper};
 use super::ship::{Ship, ShipID};
 
 use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
@@ -29,7 +29,7 @@ pub struct FramedState<'orr> {
 // does not clone, and lives forever?
 #[derive(Debug, Clone)]
 pub struct Orrery {
-    bodies: HashMap<BodyID, Body>,
+    bodies: HashMap<BodyID, BodyWrapper>,
     next_body_id: usize,
     ships: HashMap<ShipID, Ship>,
     next_ship_id: usize,
@@ -63,24 +63,24 @@ impl<'orr> Orrery {
         self.bodies[&id].parent_id()
     }
 
-    pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<PrimaryBody, PrimaryBody>> {
+    pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<Body, Body>> {
         self.bodies[&id].orbit()
     }
 
-    pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<PrimaryBody, ShipID> {
+    pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<Body, ShipID> {
         let ship = &self.ships[&id];
         ship.orbit.clone().with_secondary(id)
     }
 
-    pub fn bodies(&self) -> impl Iterator<Item = PrimaryBody> + '_ {
-        self.bodies.values().map(Body::to_primary_body)
+    pub fn bodies(&self) -> impl Iterator<Item = Body> + '_ {
+        self.bodies.values().map(BodyWrapper::to_primary_body)
     }
 
-    pub fn body_orbits(&self) -> impl Iterator<Item = TimedOrbit<PrimaryBody, PrimaryBody>> + '_ {
-        self.bodies.values().filter_map(Body::orbit)
+    pub fn body_orbits(&self) -> impl Iterator<Item = TimedOrbit<Body, Body>> + '_ {
+        self.bodies.values().filter_map(BodyWrapper::orbit)
     }
 
-    pub fn get_body(&self, id: BodyID) -> PrimaryBody {
+    pub fn get_body(&self, id: BodyID) -> Body {
         self.bodies[&id].to_primary_body()
     }
 
@@ -92,7 +92,7 @@ impl<'orr> Orrery {
         parent_id: BodyID,
     ) -> BodyID {
         let orbit = TimedOrbit::from_orbit(
-            orbit.map_primary(|_| PrimaryBody {
+            orbit.map_primary(|_| Body {
                 id: parent_id,
                 info: self.bodies[&parent_id].info.clone(),
             }),
@@ -105,15 +105,11 @@ impl<'orr> Orrery {
         self.insert_new_body(body_info, None)
     }
 
-    fn insert_new_body(
-        &mut self,
-        info: BodyInfo,
-        orbit: Option<TimedOrbit<PrimaryBody, ()>>,
-    ) -> BodyID {
+    fn insert_new_body(&mut self, info: BodyInfo, orbit: Option<TimedOrbit<Body, ()>>) -> BodyID {
         let id = BodyID(self.next_body_id);
         self.next_body_id += 1;
 
-        let body = Body::new(id, info, orbit);
+        let body = BodyWrapper::new(id, info, orbit);
 
         self.bodies.insert(id, body);
         id
@@ -137,7 +133,7 @@ impl<'orr> Orrery {
         let new_id = ShipID(self.next_ship_id);
         self.next_ship_id += 1;
 
-        let primary = PrimaryBody {
+        let primary = Body {
             id: parent_id,
             info: self.bodies[&parent_id].info.clone(),
         };
@@ -276,7 +272,7 @@ impl<'orr> Orrery {
         let ship = self.ships.get_mut(&ship_id).unwrap();
         ship.orbit = TimedOrbit::from_state(
             CartesianState::new(
-                PrimaryBody {
+                Body {
                     id: new_body,
                     info: new_parent_body.info.clone(),
                 },
