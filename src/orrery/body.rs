@@ -20,8 +20,9 @@ pub struct PrimaryBody {
     pub info: BodyInfo,
 }
 
+// TODO: don't leak outside of this module
 #[derive(Debug, Clone)]
-pub struct Body {
+pub(super) struct Body {
     pub id: BodyID,
     pub info: BodyInfo,
     orbit: Option<TimedOrbit<PrimaryBody, ()>>,
@@ -39,10 +40,23 @@ impl Body {
     }
 
     pub fn parent_id(&self) -> Option<BodyID> {
-        self.orbit().map(|orbit| orbit.orbit().primary().id)
+        self.orbit.as_ref().map(|orbit| orbit.orbit().primary().id)
     }
 
-    pub fn orbit(&self) -> Option<&TimedOrbit<PrimaryBody, ()>> {
-        self.orbit.as_ref()
+    pub fn orbit(&self) -> Option<TimedOrbit<PrimaryBody, PrimaryBody>> {
+        self.orbit.as_ref().map(|orbit| {
+            let secondary = PrimaryBody {
+                id: self.id,
+                info: self.info.clone(),
+            };
+            orbit.clone().with_secondary(secondary)
+        })
+    }
+
+    pub fn to_primary_body(&self) -> PrimaryBody {
+        PrimaryBody {
+            id: self.id,
+            info: self.info.clone(),
+        }
     }
 }

@@ -1,4 +1,3 @@
-use rust_ksp::astro::orbit::PointMass;
 use rust_ksp::file::read_file;
 
 use clap::Parser;
@@ -12,18 +11,12 @@ fn main() {
     let args = Args::parse();
 
     let orrery = read_file("ksp-bodies.txt");
-    for body in orrery.bodies() {
+    for orbit in orrery.body_orbits() {
+        let orbit = orbit.orbit();
+        let body = orbit.secondary();
         if body.info.name.to_lowercase() != args.name.to_lowercase() {
             continue;
         }
-
-        let orbit = match body.orbit() {
-            None => continue,
-            Some(orbit) => orbit
-                .orbit()
-                .clone()
-                .with_secondary(PointMass::with_mu(body.info.mu)),
-        };
 
         // Order is the same as on the KSP wiki for ease of sanity-checking
         println!("Orbital characteristics for {}", body.info.name);

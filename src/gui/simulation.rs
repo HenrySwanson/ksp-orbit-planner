@@ -15,8 +15,9 @@ use super::camera::ZoomableCamera;
 use super::renderer::CompoundRenderer;
 use super::OrbitPatch;
 
+use crate::astro::orbit::Orbit;
 use crate::model::Timeline;
-use crate::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
+use crate::orrery::{BodyID, Frame, Orrery, PrimaryBody, Ship, ShipID};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -151,7 +152,7 @@ impl Simulation {
         // Create objects for bodies
         let mut body_spheres = HashMap::new();
         for body in orrery.bodies() {
-            let sphere = Simulation::create_body_object(window, body);
+            let sphere = Simulation::create_body_object(window, &body);
             body_spheres.insert(body.id, sphere);
         }
 
@@ -181,7 +182,7 @@ impl Simulation {
         simulation
     }
 
-    fn create_body_object(window: &mut Window, body: &Body) -> SceneNode {
+    fn create_body_object(window: &mut Window, body: &PrimaryBody) -> SceneNode {
         // Make the sphere that represents the body
         let mut sphere = window.add_sphere(body.info.radius);
         let color = &body.info.color;
@@ -283,8 +284,8 @@ impl Simulation {
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
         // Draw orbital axes
-        for body in self.orrery.bodies() {
-            self.draw_orbital_axes(window, body);
+        for orbit in self.orrery.body_orbits() {
+            self.draw_orbital_axes(window, orbit.orbit());
         }
 
         // Draw text
@@ -330,14 +331,10 @@ impl Simulation {
         }
     }
 
-    fn draw_orbital_axes(&self, window: &mut Window, body: &Body) {
+    fn draw_orbital_axes(&self, window: &mut Window, orbit: &Orbit<PrimaryBody, PrimaryBody>) {
         // TODO: this renders the axes at the center of the body; I think we probably want center
         // of the orbit instead. But only do that if you're doing this only for the focused body.
-        let orbit = match body.orbit() {
-            None => return,
-            Some(o) => o.orbit().clone(),
-        };
-
+        let body = orbit.secondary();
         let axis_length = 2.0 * body.info.radius;
         let transform = self.transform_to_focus_space(Frame::BodyInertial(body.id));
         let origin = transform * Point3::origin();
@@ -370,7 +367,7 @@ impl Simulation {
     fn left_hand_text(&self) -> String {
         let (state, frame) = match self.camera_focus.point() {
             FocusPoint::Body(id) => {
-                let frame = match self.orrery.get_body(id).parent_id() {
+                let frame = match self.orrery.get_parent(id) {
                     Some(id) => Frame::BodyInertial(id),
                     None => Frame::Root,
                 };
@@ -399,7 +396,7 @@ Orbiting: {}",
         match self.camera_focus.point() {
             FocusPoint::Body(id) => {
                 let body = self.orrery.get_body(id);
-                body.info.name.to_owned()
+                body.info.name
             }
             FocusPoint::Ship(_) => {
                 format!(
@@ -478,16 +475,13 @@ FPS: {:.0}",
     }
 
     fn prep_orbits(&mut self) {
-        for body in self.orrery.bodies() {
-            let orbit = match body.orbit() {
-                None => continue,
-                Some(o) => o,
-            };
+        for orbit in self.orrery.body_orbits() {
+            let secondary = orbit.orbit().secondary();
 
-            let color = body.info.color;
+            let color = secondary.info.color;
             let frame = Frame::BodyInertial(orbit.orbit().primary().id);
             self.renderer.draw_orbit(
-                OrbitPatch::new(orbit, self.time),
+                OrbitPatch::new(&orbit, self.time),
                 color,
                 self.transform_to_focus_space(frame),
             );

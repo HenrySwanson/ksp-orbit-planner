@@ -59,13 +59,12 @@ impl<'orr> Orrery {
         }
     }
 
+    pub fn get_parent(&self, id: BodyID) -> Option<BodyID> {
+        self.bodies[&id].parent_id()
+    }
+
     pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<PrimaryBody, PrimaryBody>> {
-        let body = &self.bodies[&id];
-        let orbit = body.orbit()?.clone().with_secondary(PrimaryBody {
-            id,
-            info: body.info.clone(),
-        });
-        Some(orbit)
+        self.bodies[&id].orbit()
     }
 
     pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<PrimaryBody, ShipID> {
@@ -73,23 +72,16 @@ impl<'orr> Orrery {
         ship.orbit.clone().with_secondary(id)
     }
 
-    pub fn bodies(&self) -> impl Iterator<Item = &Body> {
-        self.bodies.values()
+    pub fn bodies(&self) -> impl Iterator<Item = PrimaryBody> + '_ {
+        self.bodies.values().map(Body::to_primary_body)
     }
 
-    pub fn get_body(&self, id: BodyID) -> &Body {
-        &self.bodies[&id]
+    pub fn body_orbits(&self) -> impl Iterator<Item = TimedOrbit<PrimaryBody, PrimaryBody>> + '_ {
+        self.bodies.values().filter_map(Body::orbit)
     }
 
-    pub fn child_bodies(&self, id: BodyID) -> impl Iterator<Item = &Body> {
-        self.bodies()
-            .filter(move |body| body.parent_id() == Some(id))
-    }
-
-    pub fn sibling_bodies(&self, id: BodyID) -> impl Iterator<Item = &Body> {
-        let parent_id = self.bodies[&id].parent_id();
-        self.bodies()
-            .filter(move |body| body.parent_id() == parent_id && body.id != id)
+    pub fn get_body(&self, id: BodyID) -> PrimaryBody {
+        self.bodies[&id].to_primary_body()
     }
 
     pub fn add_body(
@@ -259,12 +251,7 @@ impl<'orr> Orrery {
     pub fn get_soi_radius(&self, id: BodyID) -> Option<f64> {
         let body = &self.bodies[&id];
 
-        let soi_radius = body
-            .orbit()?
-            .orbit()
-            .clone()
-            .with_secondary(PointMass::with_mu(body.info.mu))
-            .soi_radius();
+        let soi_radius = body.orbit()?.orbit().soi_radius();
         Some(soi_radius)
     }
 
