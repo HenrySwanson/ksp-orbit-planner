@@ -1,6 +1,6 @@
 use crate::astro::state::CartesianState;
 
-use super::{HasMass, Orbit, PointMass};
+use super::{HasMass, Orbit};
 
 #[derive(Debug, Clone)]
 pub struct TimedOrbit<P, S> {
@@ -35,8 +35,12 @@ impl<P, S> TimedOrbit<P, S> {
     }
 }
 
-impl<P: HasMass, S> TimedOrbit<P, S> {
-    pub fn state_at_time(&self, time: f64) -> CartesianState {
+// TODO: how can i drop this clone bound?
+impl<P: HasMass + Clone, S> TimedOrbit<P, S> {
+    pub fn state_at_time(&self, time: f64) -> CartesianState<P>
+    where
+        P: Clone,
+    {
         self.orbit.get_state_at_tsp(time - self.time_at_periapsis)
     }
 
@@ -49,9 +53,9 @@ impl<P: HasMass, S> TimedOrbit<P, S> {
     }
 }
 
-impl TimedOrbit<PointMass, ()> {
+impl<P: HasMass + Clone> TimedOrbit<P, ()> {
     // TODO: adjust with primary and secondary
-    pub fn from_state(state: CartesianState, current_time: f64) -> Self {
+    pub fn from_state(state: CartesianState<P>, current_time: f64) -> Self {
         let orbit = state.get_orbit();
         let time_since_periapsis = orbit.s_to_tsp(state.get_universal_anomaly());
         Self::from_orbit(orbit, current_time - time_since_periapsis)

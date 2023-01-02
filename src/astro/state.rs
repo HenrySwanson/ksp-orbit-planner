@@ -1,21 +1,24 @@
 use nalgebra::Vector3;
 
-use crate::astro::orbit::{Orbit, PointMass};
+use crate::astro::orbit::Orbit;
 use crate::math::geometry::directed_angle;
 
+use super::orbit::HasMass;
+
 #[derive(Debug, Clone)]
-pub struct CartesianState {
+pub struct CartesianState<P> {
+    primary: P,
+    // TODO secondary: S,
     position: Vector3<f64>,
     velocity: Vector3<f64>,
-    parent_mu: f64,
 }
 
-impl CartesianState {
-    pub fn new(position: Vector3<f64>, velocity: Vector3<f64>, parent_mu: f64) -> Self {
+impl<P> CartesianState<P> {
+    pub fn new(primary: P, position: Vector3<f64>, velocity: Vector3<f64>) -> Self {
         CartesianState {
+            primary,
             position,
             velocity,
-            parent_mu,
         }
     }
 
@@ -26,14 +29,11 @@ impl CartesianState {
     pub fn velocity(&self) -> Vector3<f64> {
         self.velocity
     }
+}
 
-    pub fn get_orbit(&self) -> Orbit<PointMass, ()> {
-        Orbit::from_cartesian(
-            PointMass::with_mu(self.parent_mu),
-            (),
-            &self.position(),
-            &self.velocity(),
-        )
+impl<P: HasMass + Clone> CartesianState<P> {
+    pub fn get_orbit(&self) -> Orbit<P, ()> {
+        Orbit::from_cartesian(self.primary.clone(), (), &self.position, &self.velocity)
     }
 
     pub fn get_universal_anomaly(&self) -> f64 {
@@ -53,10 +53,10 @@ impl CartesianState {
 
 // TODO: see how many of these are actually needed outside testing
 #[cfg(test)]
-impl CartesianState {
+impl<P: HasMass> CartesianState<P> {
     fn energy(&self) -> f64 {
         // KE = 1/2 v^2, PE = - mu/r
-        self.velocity.norm_squared() / 2.0 - self.parent_mu / self.position.norm()
+        self.velocity.norm_squared() / 2.0 - self.primary.mu() / self.position.norm()
     }
 
     #[allow(non_snake_case)]
@@ -64,7 +64,7 @@ impl CartesianState {
         use crate::math::stumpff::stumpff_G;
 
         let beta = -2.0 * self.energy();
-        let mu = self.parent_mu;
+        let mu = self.primary.mu();
         let G: [f64; 4] = stumpff_G(beta, delta_s);
 
         let r_0 = self.position.norm();
@@ -94,8 +94,11 @@ impl CartesianState {
 mod tests {
     use super::*;
 
-    use crate::consts::{
-        get_circular_velocity, get_period, KERBIN_ORBIT_PERIOD, KERBIN_ORBIT_RADIUS, KERBOL_MU,
+    use crate::{
+        astro::orbit::PointMass,
+        consts::{
+            get_circular_velocity, get_period, KERBIN_ORBIT_PERIOD, KERBIN_ORBIT_RADIUS, KERBOL_MU,
+        },
     };
 
     use std::f64::consts::PI;
@@ -135,7 +138,11 @@ mod tests {
         let initial_position = Vector3::x() * KERBIN_ORBIT_RADIUS;
         let initial_velocity = Vector3::y() * get_circular_velocity(KERBIN_ORBIT_RADIUS, KERBOL_MU);
 
-        let mut state = CartesianState::new(initial_position, initial_velocity, KERBOL_MU);
+        let mut state = CartesianState::new(
+            PointMass::with_mu(KERBOL_MU),
+            initial_position,
+            initial_velocity,
+        );
         let mut elapsed_time = 0.0;
 
         // Advance for one full orbit.
@@ -171,7 +178,11 @@ mod tests {
 
         let initial_position = Vector3::x() * radius;
         let initial_velocity = Vector3::z() * velocity;
-        let mut state = CartesianState::new(initial_position, initial_velocity, KERBOL_MU);
+        let mut state = CartesianState::new(
+            PointMass::with_mu(KERBOL_MU),
+            initial_position,
+            initial_velocity,
+        );
         let mut elapsed_time = 0.0;
 
         // Compute s for a whole orbit. Since r doesn't change, s varies linearly with t.

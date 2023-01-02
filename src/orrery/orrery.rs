@@ -141,18 +141,18 @@ impl<'orr> Orrery {
     ) -> ShipID {
         let new_id = ShipID(self.next_ship_id);
         self.next_ship_id += 1;
-        let parent_mu = self.bodies[&parent_id].info.mu;
+
+        let primary = PrimaryBody {
+            id: parent_id,
+            mu: self.bodies[&parent_id].info.mu,
+        };
 
         let ship = Ship {
             id: new_id,
             orbit: TimedOrbit::from_state(
-                CartesianState::new(position, velocity, parent_mu),
+                CartesianState::new(primary, position, velocity),
                 current_time,
-            )
-            .with_primary(PrimaryBody {
-                id: parent_id,
-                mu: parent_mu,
-            }),
+            ),
         };
 
         self.ships.insert(new_id, ship);
@@ -285,13 +285,16 @@ impl<'orr> Orrery {
         // Re-root the ship to the new body
         let ship = self.ships.get_mut(&ship_id).unwrap();
         ship.orbit = TimedOrbit::from_state(
-            CartesianState::new(new_position.coords, new_velocity, parent_mu),
+            CartesianState::new(
+                PrimaryBody {
+                    id: new_body,
+                    mu: parent_mu,
+                },
+                new_position.coords,
+                new_velocity,
+            ),
             event_time,
-        )
-        .with_primary(PrimaryBody {
-            id: new_body,
-            mu: parent_mu,
-        });
+        );
         println!(
             "Rerooted ship {:?} from {:?} to {:?}. New orbit is: {:?}",
             ship_id,
