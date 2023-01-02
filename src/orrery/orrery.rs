@@ -2,10 +2,10 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
-use super::body::{Body, BodyID, BodyInfo, BodyState, OrbitingData};
+use super::body::{Body, BodyID, BodyInfo, BodyState, OrbitingData, PrimaryBody};
 use super::ship::{Ship, ShipID};
 
-use crate::astro::orbit::{Orbit, PointMass};
+use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
 use crate::astro::state::CartesianState;
 use crate::events::{Event, EventData};
 use crate::math::frame::FrameTransform;
@@ -57,6 +57,38 @@ impl<'orr> Orrery {
             ships: HashMap::new(),
             next_ship_id: 0,
         }
+    }
+
+    pub fn orbit_of_body(&self, id: BodyID) -> TimedOrbit<PrimaryBody, PrimaryBody> {
+        let body = &self.bodies[&id];
+        let mu = body.info.mu;
+        let odata = body.get_orbiting_data().unwrap();
+        let parent_id = odata.parent_id();
+        let parent_mu = self.bodies[&parent_id].info.mu;
+
+        odata
+            .timed_orbit()
+            .clone()
+            .with_primary(PrimaryBody {
+                id: parent_id,
+                mu: parent_mu,
+            })
+            .with_secondary(PrimaryBody { id, mu })
+    }
+
+    pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<PrimaryBody, ShipID> {
+        let ship = &self.ships[&id];
+        let parent_id = ship.orbit_data.parent_id();
+        let parent_mu = self.bodies[&parent_id].info.mu;
+
+        ship.orbit_data
+            .timed_orbit()
+            .clone()
+            .with_primary(PrimaryBody {
+                id: parent_id,
+                mu: parent_mu,
+            })
+            .with_secondary(id)
     }
 
     pub fn bodies(&self) -> impl Iterator<Item = &Body> {

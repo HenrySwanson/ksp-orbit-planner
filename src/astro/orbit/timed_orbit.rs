@@ -8,7 +8,7 @@ pub struct TimedOrbit<P, S> {
     time_at_periapsis: f64,
 }
 
-impl<P: HasMass, S> TimedOrbit<P, S> {
+impl<P, S> TimedOrbit<P, S> {
     pub fn from_orbit(orbit: Orbit<P, S>, time_at_periapsis: f64) -> Self {
         Self {
             orbit,
@@ -20,6 +20,22 @@ impl<P: HasMass, S> TimedOrbit<P, S> {
         &self.orbit
     }
 
+    pub fn with_primary<P2>(self, new_primary: P2) -> TimedOrbit<P2, S> {
+        TimedOrbit {
+            orbit: self.orbit.with_primary(new_primary),
+            time_at_periapsis: self.time_at_periapsis,
+        }
+    }
+
+    pub fn with_secondary<S2>(self, new_secondary: S2) -> TimedOrbit<P, S2> {
+        TimedOrbit {
+            orbit: self.orbit.with_secondary(new_secondary),
+            time_at_periapsis: self.time_at_periapsis,
+        }
+    }
+}
+
+impl<P: HasMass, S> TimedOrbit<P, S> {
     pub fn state_at_time(&self, time: f64) -> CartesianState {
         self.orbit.get_state_at_tsp(time - self.time_at_periapsis)
     }

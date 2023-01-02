@@ -1,7 +1,7 @@
 use nalgebra::Point3;
 
 use crate::astro::{
-    orbit::{Orbit, PointMass, TimedOrbit},
+    orbit::{HasMass, Orbit, PointMass, TimedOrbit},
     state::CartesianState,
 };
 
@@ -25,6 +25,12 @@ pub enum BodyState {
     Orbiting(OrbitingData),
 }
 
+#[derive(Debug, Clone)]
+pub struct PrimaryBody {
+    pub id: BodyID,
+    pub mu: f64,
+}
+
 // TODO: come up with better name? generalize to ships?
 #[derive(Debug, Clone)]
 pub struct OrbitingData {
@@ -37,6 +43,12 @@ pub struct Body {
     pub id: BodyID,
     pub info: BodyInfo,
     pub state: BodyState,
+}
+
+impl HasMass for PrimaryBody {
+    fn mu(&self) -> f64 {
+        self.mu
+    }
 }
 
 impl Body {
