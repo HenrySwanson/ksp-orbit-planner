@@ -13,9 +13,10 @@ use std::time::Instant;
 
 use super::camera::ZoomableCamera;
 use super::renderer::CompoundRenderer;
+use super::OrbitPatch;
 
 use crate::model::Timeline;
-use crate::orrery::{Body, BodyID, BodyState, Frame, Orrery, Ship, ShipID};
+use crate::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -332,9 +333,9 @@ impl Simulation {
     fn draw_orbital_axes(&self, window: &mut Window, body: &Body) {
         // TODO: this renders the axes at the center of the body; I think we probably want center
         // of the orbit instead. But only do that if you're doing this only for the focused body.
-        let orbit = match &body.state {
-            BodyState::FixedAtOrigin => return,
-            BodyState::Orbiting(odata) => odata.get_orbit_patch(self.time),
+        let orbit = match body.orbit() {
+            None => return,
+            Some(o) => o.orbit().clone(),
         };
 
         let axis_length = 2.0 * body.info.radius;
@@ -350,17 +351,17 @@ impl Simulation {
         };
 
         draw_ray(
-            orbit.orbit.periapse_vector(),
+            orbit.periapse_vector(),
             axis_length,
             Point3::new(1.0, 0.0, 0.0),
         );
         draw_ray(
-            orbit.orbit.asc_node_vector(),
+            orbit.asc_node_vector(),
             axis_length,
             Point3::new(0.0, 1.0, 0.0),
         );
         draw_ray(
-            orbit.orbit.normal_vector(),
+            orbit.normal_vector(),
             axis_length,
             Point3::new(0.0, 0.0, 1.0),
         );
@@ -415,18 +416,15 @@ Orbiting: {}",
 
     fn orbit_summary_text(&self) -> String {
         let orbit = match self.camera_focus.point() {
-            FocusPoint::Body(id) => match &self.orrery.get_body(id).state {
-                BodyState::FixedAtOrigin => return String::from("N/A"),
-                BodyState::Orbiting(odata) => odata.get_orbit_patch(self.time),
+            FocusPoint::Body(id) => match &self.orrery.orbit_of_body(id) {
+                None => return String::from("N/A"),
+                Some(orbit) => orbit.clone().with_secondary(()),
             },
-            FocusPoint::Ship(id) => {
-                let ship = self.orrery.get_ship(id);
-                ship.orbit_data.get_orbit_patch(self.time)
-            }
+            FocusPoint::Ship(id) => self.orrery.orbit_of_ship(id).with_secondary(()),
         };
 
-        let parent_body = self.orrery.get_body(orbit.parent_id);
-        let orbit = orbit.orbit;
+        let parent_body = self.orrery.get_body(orbit.orbit().primary().id);
+        let orbit = orbit.orbit();
 
         // Indentation is intentional
         format!(
@@ -481,22 +479,30 @@ FPS: {:.0}",
 
     fn prep_orbits(&mut self) {
         for body in self.orrery.bodies() {
-            let orbit = match &body.state {
-                BodyState::FixedAtOrigin => continue,
-                BodyState::Orbiting(odata) => odata.get_orbit_patch(self.time),
+            let orbit = match body.orbit() {
+                None => continue,
+                Some(o) => o,
             };
+
             let color = body.info.color;
-            let frame = Frame::BodyInertial(orbit.parent_id);
-            self.renderer
-                .draw_orbit(orbit, color, self.transform_to_focus_space(frame));
+            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
+            self.renderer.draw_orbit(
+                OrbitPatch::new(&orbit, self.time),
+                color,
+                self.transform_to_focus_space(frame),
+            );
         }
 
         for ship in self.orrery.ships() {
-            let orbit = ship.orbit_data.get_orbit_patch(self.time);
+            let orbit = self.orrery.orbit_of_ship(ship.id).with_secondary(());
+
             let color = Point3::new(1.0, 1.0, 1.0);
-            let frame = Frame::BodyInertial(orbit.parent_id);
-            self.renderer
-                .draw_orbit(orbit, color, self.transform_to_focus_space(frame));
+            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
+            self.renderer.draw_orbit(
+                OrbitPatch::new(&orbit, self.time),
+                color,
+                self.transform_to_focus_space(frame),
+            );
         }
     }
 }

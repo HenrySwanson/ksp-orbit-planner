@@ -62,22 +62,8 @@ impl<'orr> Orrery {
     pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<PrimaryBody, PrimaryBody>> {
         let body = &self.bodies[&id];
         let mu = body.info.mu;
-        let odata = match &body.state {
-            BodyState::FixedAtOrigin => return None,
-            BodyState::Orbiting(o) => o,
-        };
 
-        let parent_id = odata.parent_id();
-        let parent_mu = self.bodies[&parent_id].info.mu;
-
-        let orbit = odata
-            .timed_orbit()
-            .clone()
-            .with_primary(PrimaryBody {
-                id: parent_id,
-                mu: parent_mu,
-            })
-            .with_secondary(PrimaryBody { id, mu });
+        let orbit = body.orbit()?.with_secondary(PrimaryBody { id, mu });
         Some(orbit)
     }
 
@@ -134,7 +120,7 @@ impl<'orr> Orrery {
         let id = BodyID(self.next_body_id);
         self.next_body_id += 1;
 
-        let body = Body { id, info, state };
+        let body = Body::new(id, info, state);
 
         self.bodies.insert(id, body);
         id
@@ -183,21 +169,21 @@ impl<'orr> Orrery {
         match frame {
             Frame::Root => FrameTransform::identity(),
             Frame::BodyInertial(k) => {
-                match &self.bodies[&k].state {
-                    BodyState::FixedAtOrigin => {
+                match &self.bodies[&k].orbit() {
+                    None => {
                         // This is equivalent to the root frame; return the identity
                         FrameTransform::identity()
                     }
-                    BodyState::Orbiting(odata) => {
+                    Some(orbit) => {
                         // Get the parent and compute the transform from its reference frame to root
-                        let parent_frame = Frame::BodyInertial(odata.parent_id());
+                        let parent_frame = Frame::BodyInertial(orbit.orbit().primary().id);
                         let root_to_parent = self.convert_from_root(parent_frame, time);
 
                         // Get the transform from our frame to the parent's
                         let parent_to_self = FrameTransform::from_active(
                             UnitQuaternion::identity(),
-                            odata.state_at_time(time).position(),
-                            odata.state_at_time(time).velocity(),
+                            orbit.state_at_time(time).position(),
+                            orbit.state_at_time(time).velocity(),
                             Vector3::zeros(),
                         );
                         root_to_parent.append_transformation(&parent_to_self)
@@ -238,12 +224,12 @@ impl<'orr> Orrery {
     }
 
     pub fn get_body_state(&'orr self, id: BodyID, time: f64) -> FramedState<'orr> {
-        let (p, v, frame) = match &self.bodies[&id].state {
-            BodyState::FixedAtOrigin => (Vector3::zeros(), Vector3::zeros(), Frame::Root),
-            BodyState::Orbiting(odata) => (
-                odata.state_at_time(time).position(),
-                odata.state_at_time(time).velocity(),
-                Frame::BodyInertial(odata.parent_id()),
+        let (p, v, frame) = match &self.bodies[&id].orbit() {
+            None => (Vector3::zeros(), Vector3::zeros(), Frame::Root),
+            Some(orbit) => (
+                orbit.state_at_time(time).position(),
+                orbit.state_at_time(time).velocity(),
+                Frame::BodyInertial(orbit.orbit().primary().id),
             ),
         };
 
@@ -269,15 +255,13 @@ impl<'orr> Orrery {
     pub fn get_soi_radius(&self, id: BodyID) -> Option<f64> {
         let body = &self.bodies[&id];
 
-        match &body.state {
-            BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting(odata) => Some(
-                odata
-                    .orbit()
-                    .with_secondary(PointMass::with_mu(body.info.mu))
-                    .soi_radius(),
-            ),
-        }
+        let soi_radius = body
+            .orbit()?
+            .orbit()
+            .clone()
+            .with_secondary(PointMass::with_mu(body.info.mu))
+            .soi_radius();
+        Some(soi_radius)
     }
 
     pub fn change_soi(&mut self, ship_id: ShipID, new_body: BodyID, event_time: f64) {

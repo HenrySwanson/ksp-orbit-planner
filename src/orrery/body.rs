@@ -5,8 +5,6 @@ use crate::astro::{
     state::CartesianState,
 };
 
-use super::OrbitPatch;
-
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyID(pub usize);
 
@@ -42,7 +40,7 @@ pub struct OrbitingData {
 pub struct Body {
     pub id: BodyID,
     pub info: BodyInfo,
-    pub state: BodyState,
+    state: BodyState,
 }
 
 impl HasMass for PrimaryBody {
@@ -52,10 +50,27 @@ impl HasMass for PrimaryBody {
 }
 
 impl Body {
+    pub fn new(id: BodyID, info: BodyInfo, state: BodyState) -> Self {
+        Self { id, info, state }
+    }
+
     pub fn parent_id(&self) -> Option<BodyID> {
+        self.odata().map(|odata| odata.parent_id)
+    }
+
+    pub fn orbit(&self) -> Option<TimedOrbit<PrimaryBody, ()>> {
+        self.odata().map(|odata| {
+            odata.timed_orbit().clone().with_primary(PrimaryBody {
+                id: odata.parent_id,
+                mu: odata.orbit().primary().mu(),
+            })
+        })
+    }
+
+    fn odata(&self) -> Option<&OrbitingData> {
         match &self.state {
             BodyState::FixedAtOrigin => None,
-            BodyState::Orbiting(x) => Some(x.parent_id),
+            BodyState::Orbiting(x) => Some(x),
         }
     }
 }
@@ -76,17 +91,6 @@ impl OrbitingData {
         let orbit = state.get_orbit();
         let time_since_periapsis = orbit.s_to_tsp(state.get_universal_anomaly());
         Self::from_orbit(parent_id, orbit, current_time - time_since_periapsis)
-    }
-
-    pub fn get_orbit_patch(&self, start_time: f64) -> OrbitPatch {
-        let start_anomaly = self.orbit.s_at_time(start_time);
-
-        OrbitPatch {
-            orbit: self.orbit(),
-            start_anomaly,
-            end_anomaly: None,
-            parent_id: self.parent_id,
-        }
     }
 
     pub fn parent_id(&self) -> BodyID {

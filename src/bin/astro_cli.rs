@@ -1,6 +1,5 @@
 use rust_ksp::astro::orbit::PointMass;
 use rust_ksp::file::read_file;
-use rust_ksp::orrery::BodyState;
 
 use clap::Parser;
 
@@ -18,10 +17,11 @@ fn main() {
             continue;
         }
 
-        let orbit = match &body.state {
-            BodyState::FixedAtOrigin => continue,
-            BodyState::Orbiting(odata) => odata
+        let orbit = match body.orbit() {
+            None => continue,
+            Some(orbit) => orbit
                 .orbit()
+                .clone()
                 .with_secondary(PointMass::with_mu(body.info.mu)),
         };
 

@@ -3,9 +3,8 @@ use kiss3d::renderer::Renderer;
 
 use nalgebra::{Isometry3, Point3};
 
-use crate::orrery::OrbitPatch;
-
 use super::renderers::{OrbitRenderer, SphereRenderer};
+use super::OrbitPatch;
 
 pub struct CompoundRenderer {
     sphere_renderer: SphereRenderer,
