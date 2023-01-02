@@ -487,7 +487,7 @@ FPS: {:.0}",
             let color = body.info.color;
             let frame = Frame::BodyInertial(orbit.orbit().primary().id);
             self.renderer.draw_orbit(
-                OrbitPatch::new(&orbit, self.time),
+                OrbitPatch::new(orbit, self.time),
                 color,
                 self.transform_to_focus_space(frame),
             );

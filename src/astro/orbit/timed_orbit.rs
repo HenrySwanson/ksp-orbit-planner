@@ -1,6 +1,6 @@
 use crate::astro::state::CartesianState;
 
-use super::{HasMass, Orbit};
+use super::{HasMass, Orbit, PointMass};
 
 #[derive(Debug, Clone)]
 pub struct TimedOrbit<P, S> {
@@ -46,5 +46,14 @@ impl<P: HasMass, S> TimedOrbit<P, S> {
 
     pub fn time_at_s(&self, s: f64) -> f64 {
         self.time_at_periapsis + self.orbit.s_to_tsp(s)
+    }
+}
+
+impl TimedOrbit<PointMass, ()> {
+    // TODO: adjust with primary and secondary
+    pub fn from_state(state: CartesianState, current_time: f64) -> Self {
+        let orbit = state.get_orbit();
+        let time_since_periapsis = orbit.s_to_tsp(state.get_universal_anomaly());
+        Self::from_orbit(orbit, current_time - time_since_periapsis)
     }
 }

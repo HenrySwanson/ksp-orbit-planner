@@ -2,10 +2,10 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
-use super::body::{Body, BodyID, BodyInfo, BodyState, OrbitingData, PrimaryBody};
+use super::body::{Body, BodyID, BodyInfo, PrimaryBody};
 use super::ship::{Ship, ShipID};
 
-use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
+use crate::astro::orbit::{HasMass, Orbit, PointMass, TimedOrbit};
 use crate::astro::state::CartesianState;
 use crate::events::{Event, EventData};
 use crate::math::frame::FrameTransform;
@@ -63,23 +63,13 @@ impl<'orr> Orrery {
         let body = &self.bodies[&id];
         let mu = body.info.mu;
 
-        let orbit = body.orbit()?.with_secondary(PrimaryBody { id, mu });
+        let orbit = body.orbit()?.clone().with_secondary(PrimaryBody { id, mu });
         Some(orbit)
     }
 
     pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<PrimaryBody, ShipID> {
         let ship = &self.ships[&id];
-        let parent_id = ship.orbit_data.parent_id();
-        let parent_mu = self.bodies[&parent_id].info.mu;
-
-        ship.orbit_data
-            .timed_orbit()
-            .clone()
-            .with_primary(PrimaryBody {
-                id: parent_id,
-                mu: parent_mu,
-            })
-            .with_secondary(id)
+        ship.orbit.clone().with_secondary(id)
     }
 
     pub fn bodies(&self) -> impl Iterator<Item = &Body> {
@@ -108,19 +98,27 @@ impl<'orr> Orrery {
         time_at_periapsis: f64,
         parent_id: BodyID,
     ) -> BodyID {
-        let odata = OrbitingData::from_orbit(parent_id, orbit, time_at_periapsis);
-        self.insert_new_body(body_info, BodyState::Orbiting(odata))
+        let primary = PrimaryBody {
+            id: parent_id,
+            mu: orbit.primary().mu(),
+        };
+        let orbit = TimedOrbit::from_orbit(orbit.with_primary(primary), time_at_periapsis);
+        self.insert_new_body(body_info, Some(orbit))
     }
 
     pub fn add_fixed_body(&mut self, body_info: BodyInfo) -> BodyID {
-        self.insert_new_body(body_info, BodyState::FixedAtOrigin)
+        self.insert_new_body(body_info, None)
     }
 
-    fn insert_new_body(&mut self, info: BodyInfo, state: BodyState) -> BodyID {
+    fn insert_new_body(
+        &mut self,
+        info: BodyInfo,
+        orbit: Option<TimedOrbit<PrimaryBody, ()>>,
+    ) -> BodyID {
         let id = BodyID(self.next_body_id);
         self.next_body_id += 1;
 
-        let body = Body::new(id, info, state);
+        let body = Body::new(id, info, orbit);
 
         self.bodies.insert(id, body);
         id
@@ -147,11 +145,14 @@ impl<'orr> Orrery {
 
         let ship = Ship {
             id: new_id,
-            orbit_data: OrbitingData::from_state(
-                parent_id,
+            orbit: TimedOrbit::from_state(
                 CartesianState::new(position, velocity, parent_mu),
                 current_time,
-            ),
+            )
+            .with_primary(PrimaryBody {
+                id: parent_id,
+                mu: parent_mu,
+            }),
         };
 
         self.ships.insert(new_id, ship);
@@ -197,8 +198,8 @@ impl<'orr> Orrery {
 
                 let parent_to_self = FrameTransform::from_active(
                     UnitQuaternion::identity(),
-                    ship.orbit_data.state_at_time(time).position(),
-                    ship.orbit_data.state_at_time(time).velocity(),
+                    ship.orbit.state_at_time(time).position(),
+                    ship.orbit.state_at_time(time).velocity(),
                     Vector3::zeros(),
                 );
                 root_to_parent.append_transformation(&parent_to_self)
@@ -206,10 +207,10 @@ impl<'orr> Orrery {
             Frame::ShipOrbital(k) => {
                 let ship = &self.ships[&k];
                 let root_to_parent = self.convert_from_root(Frame::ShipInertial(k), time);
-                let orbit = ship.orbit_data.orbit();
+                let orbit = ship.orbit.orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
                     &orbit.normal_vector(),
-                    &ship.orbit_data.state_at_time(time).velocity(),
+                    &ship.orbit.state_at_time(time).velocity(),
                     1e-20,
                 );
                 let parent_to_self = FrameTransform::from_active(
@@ -246,8 +247,8 @@ impl<'orr> Orrery {
 
         FramedState {
             orrery: self,
-            position: Point3::from(ship.orbit_data.state_at_time(time).position()),
-            velocity: ship.orbit_data.state_at_time(time).velocity(),
+            position: Point3::from(ship.orbit.state_at_time(time).position()),
+            velocity: ship.orbit.state_at_time(time).velocity(),
             native_frame: Frame::BodyInertial(ship.parent_id()),
         }
     }
@@ -273,8 +274,8 @@ impl<'orr> Orrery {
         let old_body = ship.parent_id();
         let state = FramedState {
             orrery: self,
-            position: Point3::from(ship.orbit_data.state_at_time(event_time).position()),
-            velocity: ship.orbit_data.state_at_time(event_time).velocity(),
+            position: Point3::from(ship.orbit.state_at_time(event_time).position()),
+            velocity: ship.orbit.state_at_time(event_time).velocity(),
             native_frame: Frame::BodyInertial(old_body),
         };
 
@@ -283,17 +284,20 @@ impl<'orr> Orrery {
 
         // Re-root the ship to the new body
         let ship = self.ships.get_mut(&ship_id).unwrap();
-        ship.orbit_data = OrbitingData::from_state(
-            new_body,
+        ship.orbit = TimedOrbit::from_state(
             CartesianState::new(new_position.coords, new_velocity, parent_mu),
             event_time,
-        );
+        )
+        .with_primary(PrimaryBody {
+            id: new_body,
+            mu: parent_mu,
+        });
         println!(
             "Rerooted ship {:?} from {:?} to {:?}. New orbit is: {:?}",
             ship_id,
             old_body,
             new_body,
-            ship.orbit_data.orbit()
+            ship.orbit.orbit()
         );
     }
 
