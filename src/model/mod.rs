@@ -1,7 +1,5 @@
-use crate::events::event_search::{
-    search_for_soi_encounter, search_for_soi_escape, EventTag, UpcomingEvents,
-};
 use crate::events::Event;
+use crate::events::{search_for_soi_encounter, search_for_soi_escape, EventTag, UpcomingEvents};
 use crate::orrery::Orrery;
 
 pub struct Timeline {

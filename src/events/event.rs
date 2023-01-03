@@ -17,6 +17,21 @@ pub enum EventData {
     ExitingSOI(SOIChange),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum EventTag {
+    EscapeSOI,
+    EncounterSOI(BodyID),
+}
+
+impl EventTag {
+    pub fn from_event(event: &Event) -> Self {
+        match &event.data {
+            EventData::EnteringSOI(soi_change) => EventTag::EncounterSOI(soi_change.new),
+            EventData::ExitingSOI(_) => EventTag::EscapeSOI,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EventPoint {
     pub time: f64,

@@ -1,4 +1,7 @@
 mod event;
-pub mod event_search;
+mod soi_change;
+mod upcoming_events;
 
-pub use event::{Event, EventData, EventPoint, SOIChange};
+pub use event::{Event, EventData, EventPoint, EventTag, SOIChange};
+pub use soi_change::{search_for_soi_encounter, search_for_soi_escape};
+pub use upcoming_events::UpcomingEvents;
