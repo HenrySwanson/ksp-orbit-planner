@@ -17,15 +17,17 @@ pub enum EventData {
     ExitingSOI(SOIChange),
 }
 
+/// Used for tracking the type of event within [UpcomingEvents]. Events with different
+/// tags will have their search horizons tracked separately.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventTag {
     EscapeSOI,
     EncounterSOI(BodyID),
 }
 
-impl EventTag {
-    pub fn from_event(event: &Event) -> Self {
-        match &event.data {
+impl EventData {
+    pub fn tag(&self) -> EventTag {
+        match &self {
             EventData::EnteringSOI(soi_change) => EventTag::EncounterSOI(soi_change.new),
             EventData::ExitingSOI(_) => EventTag::EscapeSOI,
         }

@@ -32,25 +32,19 @@ impl UpcomingEvents {
     }
 
     pub fn get_next_event(&self, id: ShipID) -> Option<&Event> {
-        self.ship_map
-            .get(&id)
-            .and_then(|inner| inner.get_next_event())
+        self.ship_map.get(&id)?.get_next_event()
     }
 
     pub fn get_next_event_global(&self) -> Option<&Event> {
         first_event(
             self.ship_map
                 .values()
-                .flat_map(|inner| inner.get_next_event()),
+                .flat_map(UpcomingEventsInner::get_next_event),
         )
     }
 
     pub fn insert_event(&mut self, id: ShipID, event: Event) {
-        let inner = self
-            .ship_map
-            .entry(id)
-            .or_insert_with(UpcomingEventsInner::new);
-        inner.insert(event);
+        self.get_inner_mut(id).insert(event);
     }
 
     pub fn update(
@@ -60,11 +54,13 @@ impl UpcomingEvents {
         end_time: f64,
         search_fn: impl FnOnce(Option<f64>) -> SearchResult,
     ) {
-        let inner = self
-            .ship_map
+        self.get_inner_mut(id).update(tag, end_time, search_fn);
+    }
+
+    fn get_inner_mut(&mut self, id: ShipID) -> &mut UpcomingEventsInner {
+        self.ship_map
             .entry(id)
-            .or_insert_with(UpcomingEventsInner::new);
-        inner.update(tag, end_time, search_fn);
+            .or_insert_with(UpcomingEventsInner::new)
     }
 
     pub fn clear_events(&mut self, id: ShipID) {
@@ -72,6 +68,8 @@ impl UpcomingEvents {
     }
 }
 
+// TODO: re-think how this works. we only need to store one event in the end!
+// still though, multiple search horizons. maybe there's a different way to do this
 #[derive(Debug, Default)]
 struct UpcomingEventsInner {
     map: HashMap<EventTag, SearchResult>,
@@ -83,12 +81,12 @@ impl UpcomingEventsInner {
     }
 
     fn get_next_event(&self) -> Option<&Event> {
-        first_event(self.map.values().filter_map(|search| search.event()))
+        first_event(self.map.values().filter_map(SearchResult::event))
     }
 
     fn insert(&mut self, event: Event) {
         self.map
-            .insert(EventTag::from_event(&event), SearchResult::Found(event));
+            .insert(event.data.tag(), SearchResult::Found(event));
     }
 
     fn update(
@@ -97,6 +95,8 @@ impl UpcomingEventsInner {
         end_time: f64,
         search_fn: impl FnOnce(Option<f64>) -> SearchResult,
     ) {
+        // If we've already found an event, or if we know no such event can occur,
+        // then we bail out. Otherwise, get the start of our search window.
         let searched_until = match self.map.get(&tag) {
             None => None,
             Some(SearchResult::Found(_)) => return,
@@ -106,7 +106,8 @@ impl UpcomingEventsInner {
 
         // Perform a search if we haven't already searched far enough
         if searched_until.map_or(true, |ts| ts <= end_time) {
-            self.map.insert(tag, search_fn(searched_until));
+            let search_result = search_fn(searched_until);
+            self.map.insert(tag, search_result);
         }
     }
 }
