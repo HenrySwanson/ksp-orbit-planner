@@ -34,7 +34,7 @@ impl Timeline {
         let initial_segment = Segment {
             start_time: 0.0,
             start_state: orrery,
-            end: SegmentEnd::Open(UpcomingEvents::new()),
+            end: SegmentEnd::Open(UpcomingEvents::new(0.0)),
         };
         Self {
             segments: vec![initial_segment],
@@ -111,7 +111,7 @@ impl Timeline {
             let new_segment = Segment {
                 start_time: event_time,
                 start_state: state,
-                end: SegmentEnd::Open(UpcomingEvents::new()),
+                end: SegmentEnd::Open(UpcomingEvents::new(event_time)),
             };
             self.segments.push(new_segment);
         }
@@ -126,6 +126,7 @@ fn search_for_events(
     end_time: f64,
 ) {
     for id in orrery.ships().map(|s| s.id) {
+        // TODO: i don't think i need this, and it may actually be wrong
         if upcoming_events.get_next_event(id).is_some() {
             continue;
         }
@@ -136,7 +137,7 @@ fn search_for_events(
         // a great pattern. They should be bundled together better.
 
         // Check for an SOI escape event
-        upcoming_events.update(id, EventTag::EscapeSOI, end_time, |_| {
+        upcoming_events.update(id, EventTag::EscapeSOI, end_time, |_, _| {
             search_for_soi_escape(orrery, id)
         });
 
@@ -146,14 +147,8 @@ fn search_for_events(
                 id,
                 EventTag::EncounterSOI(body.id),
                 end_time,
-                |searched_until| {
-                    search_for_soi_encounter(
-                        orrery,
-                        id,
-                        body.id,
-                        searched_until.unwrap_or(start_time),
-                        end_time,
-                    )
+                |search_start, search_end: f64| {
+                    search_for_soi_encounter(orrery, id, body.id, search_start, search_end)
                 },
             );
         }
