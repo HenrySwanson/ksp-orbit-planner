@@ -84,3 +84,32 @@ fn parse_color(s: &str) -> Point3<f32> {
 
     Point3::new(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::orrery::BodyID;
+    use approx::assert_relative_eq;
+
+    #[test]
+    fn test() {
+        let orrery = read_file("ksp-bodies.txt");
+        let eeloo = orrery.orbit_of_body(BodyID(16)).unwrap().orbit().clone();
+        assert_eq!(eeloo.primary().info.name, "Kerbol");
+        assert_eq!(eeloo.secondary().info.name, "Eeloo");
+
+        assert_relative_eq!(eeloo.semimajor_axis(), 90_118_820_000.0);
+        assert_relative_eq!(eeloo.eccentricity(), 0.26);
+        assert_relative_eq!(eeloo.inclination().to_degrees(), 6.15, max_relative = 1e-14);
+        assert_relative_eq!(
+            eeloo.arg_periapse().to_degrees(),
+            260.0,
+            max_relative = 1e-14
+        );
+        assert_relative_eq!(
+            eeloo.long_asc_node().to_degrees(),
+            50.0,
+            max_relative = 1e-14
+        );
+    }
+}
