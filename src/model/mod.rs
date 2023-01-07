@@ -2,69 +2,78 @@ use crate::events::Event;
 use crate::events::{search_for_soi_encounter, search_for_soi_escape, EventTag, UpcomingEvents};
 use crate::orrery::Orrery;
 
+#[derive(Debug)]
 pub struct Timeline {
     // Invariants:
-    //   - The `start_time` of each segment are sorted in ascending order
-    //   - Only the last segment has SegmentEnd::Open
-    segments: Vec<Segment>,
+    //   - The `start_time` of each closed segment are sorted in ascending order,
+    //     and the open segment is later than all of them.
+    closed_segments: Vec<ClosedSegment>,
+    open_segment: OpenSegment,
 }
 
 #[derive(Debug)]
-struct Segment {
+struct ClosedSegment {
     start_time: f64,
-    start_state: Orrery,
-    end: SegmentEnd,
+    orrery: Orrery,
+    ending_event: Event,
 }
 
 #[derive(Debug)]
-enum SegmentEnd {
-    Closed(Event),
-    Open(UpcomingEvents),
+struct OpenSegment {
+    start_time: f64,
+    orrery: Orrery,
+    upcoming_events: UpcomingEvents,
 }
 
 #[derive(Debug)]
 enum SegmentLookup {
     Closed(usize),
-    Open(usize),
+    Open,
     BeforeStart,
 }
 
 impl Timeline {
+    // TODO: take time as input
     pub fn new(orrery: Orrery) -> Self {
-        let initial_segment = Segment {
-            start_time: 0.0,
-            start_state: orrery,
-            end: SegmentEnd::Open(UpcomingEvents::new(0.0)),
-        };
+        let start_time = 0.0;
         Self {
-            segments: vec![initial_segment],
+            closed_segments: vec![],
+            open_segment: OpenSegment::new(start_time, orrery),
         }
     }
 
     fn lookup_segment(&self, time: f64) -> SegmentLookup {
-        // Get the first segment to strictly precede this time.
-        let next_segment_idx = self.segments.partition_point(|s| s.start_time <= time);
+        // Check whether it's in the open segment
+        if time >= self.open_segment.start_time {
+            return SegmentLookup::Open;
+        }
+
+        // Otherwise, look for the first closed segment to strictly precede this time.
+        // This is the segment right after the one we're looking for.
+        let next_segment_idx = self
+            .closed_segments
+            .partition_point(|s| s.start_time <= time);
+
         // If that's the first segment, then this time is before the model starts.
         if next_segment_idx == 0 {
             return SegmentLookup::BeforeStart;
         }
 
+        // Otherwise, return the segment before.
         let segment_idx = next_segment_idx - 1;
-        let segment = &self.segments[segment_idx];
-        assert!(time - segment.start_time >= 0.0);
-
-        // Check whether this is the last segment
-        if next_segment_idx == self.segments.len() {
-            SegmentLookup::Open(segment_idx)
-        } else {
-            SegmentLookup::Closed(segment_idx)
-        }
+        let segment = &self.closed_segments[segment_idx];
+        assert!(time >= segment.start_time);
+        SegmentLookup::Closed(segment_idx)
     }
 
     pub fn get_orrery_at(&self, time: f64) -> Option<&Orrery> {
         match self.lookup_segment(time) {
-            SegmentLookup::Closed(idx) | SegmentLookup::Open(idx) => {
-                let orrery = &self.segments[idx].start_state;
+            SegmentLookup::Closed(idx) => {
+                let orrery = &self.closed_segments[idx].orrery;
+                Some(orrery)
+            }
+            SegmentLookup::Open => {
+                let orrery = &self.open_segment.orrery;
                 Some(orrery)
             }
             SegmentLookup::BeforeStart => None,
@@ -72,20 +81,12 @@ impl Timeline {
     }
 
     pub fn extend_end_time(&mut self, time: f64) {
-        let segment = match self.lookup_segment(time) {
-            SegmentLookup::Open(s) => &mut self.segments[s],
-            SegmentLookup::Closed(_) | SegmentLookup::BeforeStart => return,
-        };
+        // Check whether this time lies in the open segment; if not, return early
+        if time < self.open_segment.start_time {
+            return;
+        }
 
-        // Wow this is distasteful. See if you can improve it!
-        let upcoming = match &mut segment.end {
-            SegmentEnd::Open(x) => x,
-            other => panic!("Last segment had {:?} as its end", other),
-        };
-
-        // Use the event search to look for an event
-        search_for_events(&segment.start_state, upcoming, segment.start_time, time);
-        let event = upcoming.get_next_event_global();
+        let event = self.open_segment.extend_until(time);
 
         // If we find an event, we should add a new segment! Otherwise do nothing,
         // the UpcomingEvents struct will have already saved our progress
@@ -93,27 +94,48 @@ impl Timeline {
         // or, wait, does the segmenting save us? do we just render wrong for a hot second?
         // idk.... it might...
         if let Some(event) = event {
+            let event = event.clone();
             println!("Extend to {}: found event {:?}", time, event);
 
-            // Clear the events for the ship
-            let event = event.clone();
-            upcoming.clear_events(event.ship_id);
+            let closed_segment = self.open_segment.close_and_advance(event);
+            self.closed_segments.push(closed_segment);
+        }
+    }
+}
 
-            // Get the new state
-            let event_time = event.point.time;
-            let mut state = segment.start_state.clone();
-            state.process_event(&event);
+impl OpenSegment {
+    fn new(start_time: f64, orrery: Orrery) -> Self {
+        Self {
+            start_time,
+            orrery,
+            upcoming_events: UpcomingEvents::new(start_time),
+        }
+    }
 
-            // Close out the old segment
-            segment.end = SegmentEnd::Closed(event);
+    fn extend_until(&mut self, time: f64) -> Option<&Event> {
+        search_for_events(
+            &self.orrery,
+            &mut self.upcoming_events,
+            self.start_time,
+            time,
+        );
+        self.upcoming_events.get_next_event_global()
+    }
 
-            // Create the new segment and push it
-            let new_segment = Segment {
-                start_time: event_time,
-                start_state: state,
-                end: SegmentEnd::Open(UpcomingEvents::new(event_time)),
-            };
-            self.segments.push(new_segment);
+    fn close_and_advance(&mut self, event: Event) -> ClosedSegment {
+        let event_time = event.point.time;
+
+        // Make a new open segment
+        let mut new_open = OpenSegment::new(event_time, self.orrery.clone());
+        new_open.orrery.process_event(&event);
+
+        let old_open = std::mem::replace(self, new_open);
+
+        // Turn old_open into a closed segment
+        ClosedSegment {
+            start_time: old_open.start_time,
+            orrery: old_open.orrery,
+            ending_event: event,
         }
     }
 }
