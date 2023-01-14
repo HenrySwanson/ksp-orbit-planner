@@ -1,5 +1,4 @@
 use self::upcoming_events::UpcomingEvents;
-
 use super::events::{search_for_soi_encounter, search_for_soi_escape, Event, EventTag};
 use super::orrery::Orrery;
 
@@ -8,8 +7,8 @@ mod upcoming_events;
 #[derive(Debug)]
 pub struct Timeline {
     // Invariants:
-    //   - The `start_time` of each closed segment are sorted in ascending order,
-    //     and the open segment is later than all of them.
+    //   - The `start_time` of each closed segment are sorted in ascending order, and the open
+    //     segment is later than all of them.
     closed_segments: Vec<ClosedSegment>,
     open_segment: OpenSegment,
 }
@@ -94,8 +93,8 @@ impl Timeline {
         // If we find an event, we should add a new segment! Otherwise do nothing,
         // the UpcomingEvents struct will have already saved our progress
         // TODO: if we find an event, we must search again!!!!!!
-        // or, wait, does the segmenting save us? do we just render wrong for a hot second?
-        // idk.... it might...
+        // or, wait, does the segmenting save us? do we just render wrong for a hot
+        // second? idk.... it might...
         if let Some(event) = event {
             let event = event.clone();
             println!("Extend to {}: found event {:?}", time, event);
@@ -185,11 +184,10 @@ mod tests {
     use approx::assert_relative_eq;
     use nalgebra::Vector3;
 
+    use super::*;
     use crate::file::read_file;
     use crate::model::events::{EventData, SOIChange};
     use crate::model::orrery::BodyID;
-
-    use super::*;
 
     const KERBIN: BodyID = BodyID(4);
     const MUN: BodyID = BodyID(5);
@@ -216,16 +214,22 @@ mod tests {
 
     /// This particular scenario is one I've been using for a really long time.
     /// It goes like this:
-    /// - 0d: Ship proceedes in moderately elliptical trajectory (e = 0.7, SMA = 20M)
-    /// - 13d: Encounters Mun and switches to smaller orbit (e = 0.73, SMA = 8.7M)
+    /// - 0d: Ship proceedes in moderately elliptical trajectory (e = 0.7, SMA =
+    ///   20M)
+    /// - 13d: Encounters Mun and switches to smaller orbit (e = 0.73, SMA =
+    ///   8.7M)
     /// - 14d: Immediate re-encounter, enlarges orbit again (e = 0.7, SMA = 21M)
     /// - 22d: Tightens orbit to small and narrow (e = 0.83, SMA = 7.3M)
     /// - 31d: Re-enlarges orbit (e = 0.69, SMA = 17M)
-    /// - 45d: Just grazes Mun, slight modification of orbit (e = 0.66, SMA = 14M)
+    /// - 45d: Just grazes Mun, slight modification of orbit (e = 0.66, SMA =
+    ///   14M)
     /// - 49d: Bounces off the Mun (e = 0.74, SMA = 9.5M)
-    /// - 55d: Clips through the Mun and drops almost into Kerbin (e = 0.92, SMA = 6.7M)
-    /// - 58d: Bounces off the Mun, and enters a hyperbolic orbit (e = 1.95, SMA = -12M)
-    /// - 60d: Escapes Kerbin's orbit, and starts orbiting the Sun (e = 0.097, SMA = 15B)
+    /// - 55d: Clips through the Mun and drops almost into Kerbin (e = 0.92, SMA
+    ///   = 6.7M)
+    /// - 58d: Bounces off the Mun, and enters a hyperbolic orbit (e = 1.95, SMA
+    ///   = -12M)
+    /// - 60d: Escapes Kerbin's orbit, and starts orbiting the Sun (e = 0.097,
+    ///   SMA = 15B)
     #[test]
     fn test_favorite_scenario() {
         let expected_events = vec![

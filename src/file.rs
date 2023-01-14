@@ -2,11 +2,10 @@ use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::fs;
 
-use crate::{
-    astro::orbit::{Orbit, PointMass},
-    model::orrery::{BodyInfo, Orrery},
-};
 use nalgebra::Point3;
+
+use crate::astro::orbit::{Orbit, PointMass};
+use crate::model::orrery::{BodyInfo, Orrery};
 
 pub fn read_file(filename: &str) -> Orrery {
     let mut orrery = Orrery::new();
@@ -89,10 +88,10 @@ fn parse_color(s: &str) -> Point3<f32> {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::orrery::BodyID;
+    use approx::assert_relative_eq;
 
     use super::*;
-    use approx::assert_relative_eq;
+    use crate::model::orrery::BodyID;
 
     #[test]
     fn test() {

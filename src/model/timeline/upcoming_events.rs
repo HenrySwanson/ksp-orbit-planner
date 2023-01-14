@@ -56,7 +56,8 @@ impl UpcomingEvents {
 }
 
 // TODO: re-think how this works. we only need to store one event in the end!
-// still though, multiple search horizons. maybe there's a different way to do this
+// still though, multiple search horizons. maybe there's a different way to do
+// this
 #[derive(Debug)]
 struct UpcomingEventsInner {
     map: HashMap<EventTag, SearchResult>,

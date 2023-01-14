@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::time::Instant;
+
 use kiss3d::camera::Camera;
 use kiss3d::event::{Action, Event, EventManager, Key, WindowEvent};
 use kiss3d::planar_camera::PlanarCamera;
@@ -5,19 +8,14 @@ use kiss3d::post_processing::PostProcessingEffect;
 use kiss3d::renderer::Renderer;
 use kiss3d::scene::SceneNode;
 use kiss3d::window::{State, Window};
-
 use nalgebra::{Isometry3, Point3, Translation3, Unit, Vector3};
-
-use std::collections::HashMap;
-use std::time::Instant;
 
 use super::camera::ZoomableCamera;
 use super::renderer::CompoundRenderer;
 use super::OrbitPatch;
-
 use crate::astro::orbit::Orbit;
-use crate::model::timeline::Timeline;
 use crate::model::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
+use crate::model::timeline::Timeline;
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 
@@ -332,15 +330,17 @@ impl Simulation {
     }
 
     fn draw_orbital_axes(&self, window: &mut Window, orbit: &Orbit<Body, Body>) {
-        // TODO: this renders the axes at the center of the body; I think we probably want center
-        // of the orbit instead. But only do that if you're doing this only for the focused body.
+        // TODO: this renders the axes at the center of the body; I think we probably
+        // want center of the orbit instead. But only do that if you're doing
+        // this only for the focused body.
         let body = orbit.secondary();
         let axis_length = 2.0 * body.info.radius;
         let transform = self.transform_to_focus_space(Frame::BodyInertial(body.id));
         let origin = transform * Point3::origin();
 
-        // Draws a ray starting at the origin of the body, and proceeding in the given direction.
-        // Length and v are separated because one's f32 and the other's f64. Oh well.
+        // Draws a ray starting at the origin of the body, and proceeding in the given
+        // direction. Length and v are separated because one's f32 and the
+        // other's f64. Oh well.
         let mut draw_ray = |v: Unit<Vector3<f64>>, length: f32, color: Point3<f32>| {
             let v: Vector3<f32> = nalgebra::convert(v.into_inner());
             let end_pt = origin + length * (transform * v);
@@ -462,8 +462,8 @@ FPS: {:.0}",
             None => return, // early return if Sun
         };
 
-        // The SOI body is located at the origin in its own frame, which might not be the focus
-        // frame (for example, if we are focused on a ship).
+        // The SOI body is located at the origin in its own frame, which might not be
+        // the focus frame (for example, if we are focused on a ship).
         let body_pt = self.transform_to_focus_space(Frame::BodyInertial(soi_id)) * Point3::origin();
 
         // Make an okayish SOI color by dimming the body color.

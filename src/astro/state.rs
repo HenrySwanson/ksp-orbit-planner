@@ -1,9 +1,8 @@
 use nalgebra::Vector3;
 
+use super::orbit::HasMass;
 use crate::astro::orbit::Orbit;
 use crate::math::geometry::directed_angle;
-
-use super::orbit::HasMass;
 
 #[derive(Debug, Clone)]
 pub struct CartesianState<P> {
@@ -92,16 +91,13 @@ impl<P: HasMass> CartesianState<P> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use crate::{
-        astro::orbit::PointMass,
-        consts::{
-            get_circular_velocity, get_period, KERBIN_ORBIT_PERIOD, KERBIN_ORBIT_RADIUS, KERBOL_MU,
-        },
-    };
-
     use std::f64::consts::PI;
+
+    use super::*;
+    use crate::astro::orbit::PointMass;
+    use crate::consts::{
+        get_circular_velocity, get_period, KERBIN_ORBIT_PERIOD, KERBIN_ORBIT_RADIUS, KERBOL_MU,
+    };
 
     // TODO use approx::assert_relative_eq!
 
@@ -156,8 +152,8 @@ mod tests {
         assert_vectors_close(&initial_position, &state.position(), 1e-14);
         assert_vectors_close(&initial_velocity, &state.velocity(), 1e-14);
 
-        // Time is a little fuzzier, because the velocity constant (and thus this orbit) isn't
-        // perfect.
+        // Time is a little fuzzier, because the velocity constant (and thus this orbit)
+        // isn't perfect.
         let computed_period = get_period(KERBIN_ORBIT_RADIUS, KERBOL_MU);
         println!(
             "Periods:\n\
@@ -185,7 +181,8 @@ mod tests {
         );
         let mut elapsed_time = 0.0;
 
-        // Compute s for a whole orbit. Since r doesn't change, s varies linearly with t.
+        // Compute s for a whole orbit. Since r doesn't change, s varies linearly with
+        // t.
         let beta = -2.0 * state.energy();
         let s = 2.0 * PI / beta.sqrt();
 
@@ -200,9 +197,9 @@ mod tests {
             assert_vectors_close(&expected, &state.position(), 1e-14);
         }
 
-        // Check that the expected amount of time has elapsed. Not sure why we get slightly
-        // less precision here, but whatever. Maybe it's just adding something to itself
-        // a thousand times.
+        // Check that the expected amount of time has elapsed. Not sure why we get
+        // slightly less precision here, but whatever. Maybe it's just adding
+        // something to itself a thousand times.
         let computed_period = 2.0 * PI * radius / velocity;
         assert_close(computed_period, elapsed_time, 1e-12);
     }

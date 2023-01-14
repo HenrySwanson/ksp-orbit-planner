@@ -85,8 +85,8 @@ pub fn newton_plus_bisection(
     mut bracket: Bracket,
     num_iterations: usize,
 ) -> f64 {
-    // Initial setup: we guess right in the middle of the bracket. Also, we need to determine
-    // which way our bracket is oriented.
+    // Initial setup: we guess right in the middle of the bracket. Also, we need to
+    // determine which way our bracket is oriented.
     let mut guess = (bracket.lo + bracket.hi) / 2.0;
     let lo_is_neg = f_and_f_prime(bracket.lo).0 < 0.0;
 
@@ -142,9 +142,9 @@ pub fn newton_plus_bisection(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use approx::assert_relative_eq;
+
+    use super::*;
 
     #[test]
     fn test_bisection() {

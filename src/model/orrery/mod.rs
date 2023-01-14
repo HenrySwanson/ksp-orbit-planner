@@ -1,6 +1,6 @@
-use nalgebra::{Point3, UnitQuaternion, Vector3};
-
 use std::collections::HashMap;
+
+use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use self::body::BodyWrapper;
 use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};

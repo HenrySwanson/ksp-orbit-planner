@@ -1,6 +1,5 @@
-use crate::astro::state::CartesianState;
-
 use super::{HasMass, Orbit};
+use crate::astro::state::CartesianState;
 
 #[derive(Debug, Clone)]
 pub struct TimedOrbit<P, S> {

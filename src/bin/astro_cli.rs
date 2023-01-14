@@ -1,6 +1,5 @@
-use rust_ksp::file::read_file;
-
 use clap::Parser;
+use rust_ksp::file::read_file;
 
 #[derive(Debug, Parser)]
 struct Args {

@@ -1,6 +1,6 @@
-use nalgebra::{Rotation3, Vector3};
-
 use std::f64::consts::PI;
+
+use nalgebra::{Rotation3, Vector3};
 
 pub fn reject(u: &Vector3<f64>, v: &Vector3<f64>) -> Vector3<f64> {
     // Computes the vector rejection of u from v. v must be non-zero.
@@ -18,20 +18,20 @@ pub fn directed_angle(u: &Vector3<f64>, v: &Vector3<f64>, up: &Vector3<f64>) -> 
     }
 }
 
-/// Returns a rotation R that sends the z- and x- axes to point in the specified directions.
-/// The orthogonality of new_z and new_x is not checked.
-/// If new_z or new_x is sufficiently close to zero, then some semi-canonical choices will
-/// be made. Unfortunately, the hairy ball theorem prevents us from doing so in a completely
-/// canonical way.
+/// Returns a rotation R that sends the z- and x- axes to point in the specified
+/// directions. The orthogonality of new_z and new_x is not checked.
+/// If new_z or new_x is sufficiently close to zero, then some semi-canonical
+/// choices will be made. Unfortunately, the hairy ball theorem prevents us from
+/// doing so in a completely canonical way.
 ///
 /// The specific choices we make are:
 /// - if new_z is small:
-///   - R(z) will point as much along the z-axis as possible, while remaining perpendicular
-///     to R(x) = new_x
+///   - R(z) will point as much along the z-axis as possible, while remaining
+///     perpendicular to R(x) = new_x
 ///   - if this is ill-defined (new_x ~= z), then R(z) = y
 /// - similarly, if new_x is small:
-///   - R(x) will point as much along the x-axis as possible, while remaining perpendicular
-///     to R(z) = new_z
+///   - R(x) will point as much along the x-axis as possible, while remaining
+///     perpendicular to R(z) = new_z
 ///   - if this is ill-defined (new_z ~= x), then R(x) = -y
 /// - if both new_z and new_x are small, then this returns the identity
 pub fn always_find_rotation(
@@ -69,8 +69,9 @@ pub fn always_find_rotation(
         (false, false) => return Rotation3::identity(),
     };
 
-    // Unfortunately, the Rotation::face_towards call takes new-z and new-y as arguments,
-    // so we prepend a 90-degree rotation around z (e.g., one taking x to y).
+    // Unfortunately, the Rotation::face_towards call takes new-z and new-y as
+    // arguments, so we prepend a 90-degree rotation around z (e.g., one taking
+    // x to y).
     let mut rotation = Rotation3::face_towards(&new_z, &new_x);
     rotation *= Rotation3::from_axis_angle(&Vector3::z_axis(), PI / 2.0);
     rotation.renormalize();

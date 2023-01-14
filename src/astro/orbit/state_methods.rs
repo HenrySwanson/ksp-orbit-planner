@@ -1,11 +1,10 @@
 use nalgebra::Vector3;
 
+use super::{HasMass, Orbit};
 use crate::astro::state::CartesianState;
 use crate::math::anomaly;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::math::stumpff::stumpff_G;
-
-use super::{HasMass, Orbit};
 
 const NUM_ITERATIONS_DELTA_T: usize = 2000;
 
@@ -67,8 +66,8 @@ impl<P: HasMass + Clone, S> Orbit<P, S> {
 
     #[allow(non_snake_case)]
     pub fn get_state_native_frame(&self, s: f64) -> CartesianState<P> {
-        // Note: this function is only exposed because it makes rendering faster. Would be
-        // nice to have an alternative... :\
+        // Note: this function is only exposed because it makes rendering faster. Would
+        // be nice to have an alternative... :\
 
         let mu = self.primary.mu();
         let beta = mu * self.alpha;
@@ -161,7 +160,8 @@ impl<P: HasMass + Clone, S> Orbit<P, S> {
     }
 
     pub fn get_s_at_radius(&self, radius: f64) -> Option<f64> {
-        // TODO this doesn't work well for radial orbits, try to adjust it so that it does
+        // TODO this doesn't work well for radial orbits, try to adjust it so that it
+        // does
 
         // Since (h^2/mu) / (1 + e cos theta) = r, we can invert that to get
         // a desired theta, which will always be in the first or second quadrant

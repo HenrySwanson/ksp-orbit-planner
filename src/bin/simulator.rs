@@ -6,7 +6,6 @@ use rust_ksp::gui::Simulation;
 use rust_ksp::model::orrery::BodyID;
 use rust_ksp::model::timeline::Timeline;
 
-
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");
     window.set_light(Light::StickToCamera);

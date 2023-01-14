@@ -1,5 +1,4 @@
 use kiss3d::renderer::LineRenderer;
-
 use nalgebra::Point3;
 
 pub fn path_iter_parametric<F, S>(

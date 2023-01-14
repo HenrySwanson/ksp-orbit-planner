@@ -1,6 +1,5 @@
-use crate::astro::orbit::TimedOrbit;
-
 use super::{Body, BodyID};
+use crate::astro::orbit::TimedOrbit;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ShipID(pub usize);

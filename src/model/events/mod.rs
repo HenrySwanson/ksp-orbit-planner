@@ -20,8 +20,8 @@ pub enum EventData {
     ExitingSOI(SOIChange),
 }
 
-/// Used for tracking the type of event within [UpcomingEvents]. Events with different
-/// tags will have their search horizons tracked separately.
+/// Used for tracking the type of event within [UpcomingEvents]. Events with
+/// different tags will have their search horizons tracked separately.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventTag {
     EscapeSOI,

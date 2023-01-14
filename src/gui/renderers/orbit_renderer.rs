@@ -1,17 +1,15 @@
+use std::f64::consts::PI;
+
 use kiss3d::camera::Camera;
 use kiss3d::context::Context;
 use kiss3d::renderer::Renderer;
 use kiss3d::resource::{
     AllocationType, BufferType, Effect, GPUVec, ShaderAttribute, ShaderUniform,
 };
-
 use nalgebra::{Isometry3, Matrix4, Point3, Vector3};
 
-use std::f64::consts::PI;
-
-use crate::gui::OrbitPatch;
-
 use super::utils::path_iter_parametric;
+use crate::gui::OrbitPatch;
 
 struct OrbitData {
     // Orbit path, stored as (pt, color, pt, color)
@@ -73,8 +71,8 @@ impl OrbitRenderer {
             data.push(color);
         }
 
-        // The transform we're given is from the parent body's space to focusspace, but we want
-        // to start out in the orbit's native space.
+        // The transform we're given is from the parent body's space to focusspace, but
+        // we want to start out in the orbit's native space.
         let transform2: Isometry3<f32> = nalgebra::convert(orbit.orbit.rotation());
         let total_transform = transform * transform2;
 
@@ -86,8 +84,8 @@ impl OrbitRenderer {
         self.orbits.push(orbit_data);
     }
 
-    /// Returns a sequence of points tracing out the orbit's path, evaluated in the orbit's native
-    /// frame.
+    /// Returns a sequence of points tracing out the orbit's path, evaluated in
+    /// the orbit's native frame.
     fn get_orbit_points(orbit: &OrbitPatch) -> impl Iterator<Item = Point3<f32>> + '_ {
         // Find the starting and ending anomalies
         let start_s = orbit.start_anomaly;

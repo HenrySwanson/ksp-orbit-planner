@@ -16,11 +16,11 @@ pub struct PointMass(f64);
 pub struct Orbit<P, S> {
     primary: P,
     secondary: S,
-    /// Encodes the orientation of the orbit: it moves the xy plane to the orbital
-    /// plane, and x to point towards periapsis.
+    /// Encodes the orientation of the orbit: it moves the xy plane to the
+    /// orbital plane, and x to point towards periapsis.
     rotation: Rotation3<f64>,
-    /// (semimajor axis)^-1. It's easier to use this instead of a directly, because
-    /// in parabolic orbits, a = infty.
+    /// (semimajor axis)^-1. It's easier to use this instead of a directly,
+    /// because in parabolic orbits, a = infty.
     /// TODO: use apsis instead? might result in no more invalid regions...
     alpha: f64,
     /// Semi-latus rectum
@@ -153,12 +153,14 @@ impl<P, S> Orbit<P, S> {
     }
 
     pub fn long_asc_node(&self) -> f64 {
-        // Longitude of ascending node is the directed angle from x to the ascending node
+        // Longitude of ascending node is the directed angle from x to the ascending
+        // node
         directed_angle(&Vector3::x(), &self.asc_node_vector(), &Vector3::z())
     }
 
     pub fn arg_periapse(&self) -> f64 {
-        // Argument of periapsis is the directed angle from the ascending node to the periapsis
+        // Argument of periapsis is the directed angle from the ascending node to the
+        // periapsis
         directed_angle(
             &self.asc_node_vector(),
             &self.periapse_vector(),
@@ -212,7 +214,8 @@ impl<P: HasMass, S> Orbit<P, S> {
         // close to zero. So we use a particularly cautious method.
         let rotation = always_find_rotation(&ang_mom, &lrl, 1e-20);
 
-        // TODO: slr is always non-negative, do we do the right thing for clockwise orbits?
+        // TODO: slr is always non-negative, do we do the right thing for clockwise
+        // orbits?
 
         Self {
             primary,
@@ -277,10 +280,11 @@ impl<P: HasMass, S: HasMass> Orbit<P, S> {
 }
 
 fn rotation_from_angles(incl: f64, lan: f64, argp: f64) -> Rotation3<f64> {
-    // We have an orbit in the xy plane where the periapsis is pointed along the x-axis.
-    // So first, we rotate it around z until the periapsis is at argp away from the x-axis
-    // (which will now be the ascending node). We then rotate around x to get the inclination,
-    // and then one final turn around z to get the correct longitude of the AN.
+    // We have an orbit in the xy plane where the periapsis is pointed along the
+    // x-axis. So first, we rotate it around z until the periapsis is at argp
+    // away from the x-axis (which will now be the ascending node). We then
+    // rotate around x to get the inclination, and then one final turn around z
+    // to get the correct longitude of the AN.
     Rotation3::from_axis_angle(&Vector3::z_axis(), lan)
         * Rotation3::from_axis_angle(&Vector3::x_axis(), incl)
         * Rotation3::from_axis_angle(&Vector3::z_axis(), argp)
@@ -288,8 +292,9 @@ fn rotation_from_angles(incl: f64, lan: f64, argp: f64) -> Rotation3<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use approx::assert_relative_eq;
+
+    use super::*;
 
     // TODO pull out into common?
     macro_rules! assert_very_large {

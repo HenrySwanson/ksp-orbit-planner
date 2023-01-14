@@ -1,20 +1,21 @@
+use std::f32::consts::PI;
+
 use kiss3d::camera::Camera;
 use kiss3d::event::{Action, MouseButton, WindowEvent};
 use kiss3d::resource::ShaderUniform;
 use kiss3d::window::Canvas;
-
 use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector2, Vector3};
 
-use std::f32::consts::PI;
-
-// This camera is a close cousin of ArcBall. Like ArcBall, this camera can be click-and-dragged to
-// adjust its pitch and yaw, and scrolled to zoom in and out. However, since we're operating over
-// very large length scales, our zooms must also adjust the clipping planes. Since ArcBall doesn't
-// expose those parameters, this prevents us from simply wrapping ArcBall.
+// This camera is a close cousin of ArcBall. Like ArcBall, this camera can be
+// click-and-dragged to adjust its pitch and yaw, and scrolled to zoom in and
+// out. However, since we're operating over very large length scales, our zooms
+// must also adjust the clipping planes. Since ArcBall doesn't expose those
+// parameters, this prevents us from simply wrapping ArcBall.
 //
-// Our possible camera positions are more restricted than ArcBall. The camera always points at the
-// origin, and uses the z-axis as up. This is because we translate the universe so that the origin
-// is at the object we're "focused" on.
+// Our possible camera positions are more restricted than ArcBall. The camera
+// always points at the origin, and uses the z-axis as up. This is because we
+// translate the universe so that the origin is at the object we're "focused"
+// on.
 pub struct ZoomableCamera {
     // -- position --
     theta: f32,  // azimuthal angle

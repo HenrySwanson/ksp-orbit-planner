@@ -1,11 +1,10 @@
 use nalgebra::Point3;
 
+use super::{Event, EventData, EventPoint, SOIChange};
 use crate::astro::orbit::TimedOrbit;
 use crate::math::root_finding::{bisection, Bracket};
 use crate::model::events::SearchResult;
 use crate::model::orrery::{BodyID, Orrery, ShipID};
-
-use super::{Event, EventData, EventPoint, SOIChange};
 
 const NUM_ITERATIONS_SOI_ENCOUNTER: usize = 1000;
 
@@ -76,8 +75,8 @@ pub fn search_for_soi_encounter(
 
     let soi_radius = target_orbit.orbit().soi_radius();
 
-    // Quick check: if one orbit is much smaller than the other, then there's no chance of
-    // intersection, so we can skip the rest of the search.
+    // Quick check: if one orbit is much smaller than the other, then there's no
+    // chance of intersection, so we can skip the rest of the search.
     fn pe_ap_check<P1, P2, S1, S2>(
         o1: &TimedOrbit<P1, S1>,
         o2: &TimedOrbit<P2, S2>,

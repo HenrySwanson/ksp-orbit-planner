@@ -1,6 +1,5 @@
 use kiss3d::camera::Camera;
 use kiss3d::renderer::Renderer;
-
 use nalgebra::{Isometry3, Point3};
 
 use super::renderers::{OrbitRenderer, SphereRenderer};

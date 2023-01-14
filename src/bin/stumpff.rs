@@ -32,10 +32,11 @@ pub fn main() {
     generate_stumpff_coefficients(5, naive_stumpff(5, 1.0));
 }
 
-/// Draw a plot of the given function, on the specified domain (center and scale).
-/// Note: because we're working at the limits of f64, but plotter uses f32 to draw,
-/// we have to rescale and recenter the datapoints before passing them to plotter.
-/// This means the "origin" on the graph is not actually the origin.
+/// Draw a plot of the given function, on the specified domain (center and
+/// scale). Note: because we're working at the limits of f64, but plotter uses
+/// f32 to draw, we have to rescale and recenter the datapoints before passing
+/// them to plotter. This means the "origin" on the graph is not actually the
+/// origin.
 fn draw_plot(
     name: &str,
     func: impl Fn(f64) -> f64,
@@ -97,16 +98,17 @@ fn naive_stumpff(n: usize, x: f64) -> f64 {
     }
 }
 
-/// Prints the coefficients of the kth stumpff function. `bound` is used to estimate
-/// when to stop generating coefficients. Specifically, we should stop when a_k + c_n(X)
-/// is indistinguishable from c_n(X), where X is in our domain of approximation [-1, 1].
+/// Prints the coefficients of the kth stumpff function. `bound` is used to
+/// estimate when to stop generating coefficients. Specifically, we should stop
+/// when a_k + c_n(X) is indistinguishable from c_n(X), where X is in our domain
+/// of approximation [-1, 1].
 ///
-/// So if `bound` is a lower bound for c_n on that interval, we can use it to guarantee
-/// that a_k is too small to affect the outcome. And hopefully that means a_k + a_{k+1}
-/// + ... is too small as well.
+/// So if `bound` is a lower bound for c_n on that interval, we can use it to
+/// guarantee that a_k is too small to affect the outcome. And hopefully that
+/// means a_k + a_{k+1} + ... is too small as well.
 ///
-/// Note that we use the convention with the smaller a_0, so we don't have to multiply
-/// the first coefficient by 1/2 during the evaluation.
+/// Note that we use the convention with the smaller a_0, so we don't have to
+/// multiply the first coefficient by 1/2 during the evaluation.
 pub fn generate_stumpff_coefficients(n: usize, bound: f64) {
     for k in 0.. {
         let a_k = get_coeff_of_stumpff(n, k);

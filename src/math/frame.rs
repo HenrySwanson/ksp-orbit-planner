@@ -20,10 +20,10 @@ pub struct FrameTransform<T: RealField> {
 }
 
 impl<T: RealField> FrameTransform<T> {
-    /// Creates a FrameTransform between the standard basis, and the basis given by applying
-    /// `rotation`, followed by `translation`, to the standard basis vectors.
-    /// The parameters `relative_velocity` and `angular_velocity` have the same meaning as
-    /// they do in the struct.
+    /// Creates a FrameTransform between the standard basis, and the basis given
+    /// by applying `rotation`, followed by `translation`, to the standard
+    /// basis vectors. The parameters `relative_velocity` and
+    /// `angular_velocity` have the same meaning as they do in the struct.
     pub fn from_active(
         rotation: UnitQuaternion<T>,
         translation: Vector3<T>, // TODO should this be a Translation3?
@@ -65,14 +65,15 @@ impl<T: RealField> FrameTransform<T> {
     pub fn append_transformation(&self, other: &Self) -> Self {
         // Say `self` transforms from frame A to B, and `other` from B to C.
 
-        // The relative velocity is the velocity of C's origin in A's coordinates, and this
-        // can be delegated to our helper functions.
+        // The relative velocity is the velocity of C's origin in A's coordinates, and
+        // this can be delegated to our helper functions.
         let relative_velocity = self.inverse_convert_velocity(
             &other.inverse_convert_point(&Point3::origin()),
             &other.relative_velocity,
         );
 
-        // Angular velocities add, but first we have to convert both vectors to A's coordinates.
+        // Angular velocities add, but first we have to convert both vectors to A's
+        // coordinates.
         let angular_velocity =
             &self.angular_velocity + self.inverse_convert_vector(&other.angular_velocity);
 
@@ -108,16 +109,16 @@ impl<T: RealField> FrameTransform<T> {
         self.isometry.inverse_transform_vector(vector)
     }
 
-    /// Given an object's position and velocity in source coordinates, returns the velocity
-    /// converted to target coordinates.
+    /// Given an object's position and velocity in source coordinates, returns
+    /// the velocity converted to target coordinates.
     pub fn convert_velocity(&self, position: &Point3<T>, velocity: &Vector3<T>) -> Vector3<T> {
         let rb_src = position - self.inverse_convert_point(&Point3::origin());
         let vb_src = velocity - &self.relative_velocity - self.angular_velocity.cross(&rb_src);
         self.convert_vector(&vb_src)
     }
 
-    /// Given an object's position and velocity in target coordinates, returns the velocity
-    /// converted to source coordinates.
+    /// Given an object's position and velocity in target coordinates, returns
+    /// the velocity converted to source coordinates.
     pub fn inverse_convert_velocity(
         &self,
         position: &Point3<T>,
@@ -166,10 +167,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::f64::consts::PI;
 
     use approx::assert_relative_eq;
-    use std::f64::consts::PI;
+
+    use super::*;
 
     // TODO why do i need `epsilon = 1e-14` everywhere? Is PI/2 not good enough?
 
@@ -207,8 +209,8 @@ mod tests {
         assert_relative_eq!(xfm.convert_point(&pt), expected_pt, max_relative = 1e-15,);
         assert_relative_eq!(xfm.convert_vector(&dir), expected_dir, epsilon = 1e-14,);
 
-        // Adding in a relative velocity won't change the positional data (but it will change
-        // the velocity).
+        // Adding in a relative velocity won't change the positional data (but it will
+        // change the velocity).
         let xfm_with_velocity = FrameTransform {
             isometry: xfm.isometry,
             relative_velocity: Vector3::new(5.0, 0.0, 0.0),
@@ -231,7 +233,8 @@ mod tests {
     fn test_velocity_transform() {
         let sqrt_2 = 2.0_f64.sqrt();
 
-        // New frame is rotated by 45 degrees around z, and is spinning about its x axis.
+        // New frame is rotated by 45 degrees around z, and is spinning about its x
+        // axis.
         let xfm = FrameTransform::from_active(
             UnitQuaternion::from_axis_angle(&Vector3::z_axis(), PI / 4.0),
             Vector3::zeros(),
@@ -239,8 +242,8 @@ mod tests {
             Vector3::new(1.0, 1.0, 0.0) / sqrt_2,
         );
 
-        // At the origin, velocity transforms like a vector does. Furthermore, this is true for all
-        // points on the rotation axis.
+        // At the origin, velocity transforms like a vector does. Furthermore, this is
+        // true for all points on the rotation axis.
         let velocity = Vector3::new(1.0, 3.0, 8.0);
         assert_relative_eq!(
             xfm.convert_velocity(&Point3::origin(), &velocity),
@@ -397,7 +400,8 @@ mod tests {
             xfm2.prepend_transformation(&xfm1),
         );
 
-        // Applying two transformations should be the same thing as applying their composition
+        // Applying two transformations should be the same thing as applying their
+        // composition
         let test_point = Point3::origin(); // Point3::new(1.0, 2.0, 4.0);
         let test_dir = 0.0 * Vector3::new(4.0, 1.0, 2.0);
 
