@@ -97,7 +97,10 @@ impl Timeline {
         // second? idk.... it might...
         if let Some(event) = event {
             let event = event.clone();
-            println!("Extend to {}: found event {:?}", time, event);
+            println!(
+                "When extending end time to {}, found event at time {} for ship {}: {:?}",
+                time, event.point.time, event.ship_id.0, event.data
+            );
 
             let closed_segment = self.open_segment.close_and_advance(event);
             self.closed_segments.push(closed_segment);

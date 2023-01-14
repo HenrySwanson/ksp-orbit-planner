@@ -287,11 +287,8 @@ impl<'orr> Orrery {
             event_time,
         );
         println!(
-            "Rerooted ship {:?} from {:?} to {:?}. New orbit is: {:?}",
-            ship_id,
-            old_body,
-            new_body,
-            ship.orbit.orbit()
+            "Rerooted ship {} from {} to {}",
+            ship_id.0, self.bodies[&old_body].info.name, self.bodies[&new_body].info.name
         );
     }
 
