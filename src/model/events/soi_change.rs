@@ -2,10 +2,10 @@ use nalgebra::Point3;
 
 use crate::astro::orbit::TimedOrbit;
 use crate::math::root_finding::{bisection, Bracket};
-use crate::orrery::{BodyID, Orrery, ShipID};
+use crate::model::events::SearchResult;
+use crate::model::orrery::{BodyID, Orrery, ShipID};
 
-use super::event::{Event, EventData, EventPoint, SOIChange};
-use super::upcoming_events::SearchResult;
+use super::{Event, EventData, EventPoint, SOIChange};
 
 const NUM_ITERATIONS_SOI_ENCOUNTER: usize = 1000;
 

@@ -3,9 +3,9 @@ use kiss3d::window::Window;
 use nalgebra::Vector3;
 use rust_ksp::file::read_file;
 use rust_ksp::gui::Simulation;
+use rust_ksp::model::orrery::BodyID;
+use rust_ksp::model::timeline::Timeline;
 
-use rust_ksp::model::Timeline;
-use rust_ksp::orrery::BodyID;
 
 fn main() {
     let mut window = Window::new("KSP Orbit Simulator");

@@ -1,25 +1,7 @@
 use std::collections::HashMap;
 
-use crate::orrery::ShipID;
-
-use super::event::{first_event, Event, EventTag};
-
-#[derive(Debug)]
-pub enum SearchResult {
-    Found(Event),
-    NotFound(f64),
-    Never,
-}
-
-impl SearchResult {
-    pub fn event(&self) -> Option<&Event> {
-        match self {
-            SearchResult::Found(event) => Some(event),
-            SearchResult::NotFound(_) => None,
-            SearchResult::Never => None,
-        }
-    }
-}
+use crate::model::events::{first_event, Event, EventTag, SearchResult};
+use crate::model::orrery::ShipID;
 
 #[derive(Debug, Default)]
 pub struct UpcomingEvents {

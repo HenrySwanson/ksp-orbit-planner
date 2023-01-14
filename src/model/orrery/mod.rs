@@ -2,13 +2,18 @@ use nalgebra::{Point3, UnitQuaternion, Vector3};
 
 use std::collections::HashMap;
 
-use super::body::{Body, BodyID, BodyInfo, BodyWrapper};
-use super::ship::{Ship, ShipID};
-
+use self::body::BodyWrapper;
 use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
 use crate::astro::state::CartesianState;
-use crate::events::{Event, EventData};
 use crate::math::frame::FrameTransform;
+
+mod body;
+mod ship;
+
+pub use body::{Body, BodyID, BodyInfo};
+pub use ship::{Ship, ShipID};
+
+use super::events::{Event, EventData};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Frame {

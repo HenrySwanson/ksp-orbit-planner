@@ -2,8 +2,11 @@ use std::borrow::Borrow;
 
 use nalgebra::Point3;
 
-use crate::orrery::BodyID;
-use crate::orrery::ShipID;
+use crate::model::orrery::{BodyID, ShipID};
+
+mod soi_change;
+
+pub use soi_change::{search_for_soi_encounter, search_for_soi_escape};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SOIChange {
@@ -56,4 +59,21 @@ pub struct Event {
 
 pub fn first_event<B: Borrow<Event>>(it: impl Iterator<Item = B>) -> Option<B> {
     it.min_by(|a, b| a.borrow().point.compare_time(&b.borrow().point))
+}
+
+#[derive(Debug)]
+pub enum SearchResult {
+    Found(Event),
+    NotFound(f64),
+    Never,
+}
+
+impl SearchResult {
+    pub fn event(&self) -> Option<&Event> {
+        match self {
+            SearchResult::Found(event) => Some(event),
+            SearchResult::NotFound(_) => None,
+            SearchResult::Never => None,
+        }
+    }
 }

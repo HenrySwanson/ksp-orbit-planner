@@ -16,8 +16,8 @@ use super::renderer::CompoundRenderer;
 use super::OrbitPatch;
 
 use crate::astro::orbit::Orbit;
-use crate::model::Timeline;
-use crate::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
+use crate::model::timeline::Timeline;
+use crate::model::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 
 const TEST_SHIP_SIZE: f32 = 1e6;
 

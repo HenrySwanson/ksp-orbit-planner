@@ -6,7 +6,7 @@ mod simulation;
 pub use simulation::Simulation;
 
 use crate::astro::orbit::{PhysicalOrbit, PointMass, TimedOrbit};
-use crate::orrery::{Body, BodyID};
+use crate::model::orrery::{Body, BodyID};
 
 // TODO: re-evaluate if we need this
 #[derive(Debug, Clone)]
