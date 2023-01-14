@@ -5,13 +5,13 @@ use nalgebra::Point3;
 use crate::orrery::BodyID;
 use crate::orrery::ShipID;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct SOIChange {
     pub old: BodyID,
     pub new: BodyID,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EventData {
     EnteringSOI(SOIChange),
     ExitingSOI(SOIChange),
