@@ -1,7 +1,9 @@
 mod camera;
+mod controller;
 mod renderer;
 mod renderers;
 mod simulation;
+mod view;
 
 pub use simulation::Simulation;
 
