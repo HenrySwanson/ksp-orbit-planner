@@ -174,8 +174,6 @@ impl Renderer for OrbitRenderer {
     }
 }
 
-// TODO add model matrix
-
 /// Vertex shader used by the material to display line.
 static VERTEX_SRC: &str = "#version 100
     attribute vec3 position;

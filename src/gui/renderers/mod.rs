@@ -2,9 +2,11 @@ use kiss3d::camera::Camera;
 use kiss3d::renderer::{LineRenderer, Renderer};
 use nalgebra::{Isometry3, Point3, Unit, Vector3};
 
+use self::marker_renderer::MarkerRenderer;
 use self::orbit_renderer::OrbitRenderer;
 use self::sphere_renderer::SphereRenderer;
 
+mod marker_renderer;
 mod orbit_renderer;
 mod sphere_renderer;
 mod utils;
@@ -15,6 +17,7 @@ pub struct CompoundRenderer {
     sphere_renderer: SphereRenderer,
     orbit_renderer: OrbitRenderer,
     line_renderer: LineRenderer,
+    marker_renderer: MarkerRenderer,
 }
 
 impl CompoundRenderer {
@@ -23,6 +26,7 @@ impl CompoundRenderer {
             sphere_renderer: SphereRenderer::new(),
             orbit_renderer: OrbitRenderer::new(),
             line_renderer: LineRenderer::new(),
+            marker_renderer: MarkerRenderer::new(),
         }
     }
 
@@ -93,6 +97,10 @@ impl CompoundRenderer {
     pub fn draw_orbit(&mut self, orbit: OrbitPatch, color: Point3<f32>, transform: Isometry3<f32>) {
         self.orbit_renderer.add_orbit(orbit, color, transform);
     }
+
+    pub fn draw_marker(&mut self, center: Point3<f32>, radius: f32, color: Point3<f32>) {
+        self.marker_renderer.add_marker(center, radius, color);
+    }
 }
 
 impl Renderer for CompoundRenderer {
@@ -100,5 +108,6 @@ impl Renderer for CompoundRenderer {
         self.sphere_renderer.render(pass, camera);
         self.orbit_renderer.render(pass, camera);
         self.line_renderer.render(pass, camera);
+        self.marker_renderer.render(pass, camera);
     }
 }

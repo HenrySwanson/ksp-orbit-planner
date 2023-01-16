@@ -81,6 +81,10 @@ impl ZoomableCamera {
     pub fn distance(&self) -> f32 {
         self.radius
     }
+
+    pub fn fovy(&self) -> f32 {
+        self.fovy
+    }
 }
 
 impl Camera for ZoomableCamera {

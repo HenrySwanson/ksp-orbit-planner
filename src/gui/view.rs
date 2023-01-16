@@ -224,6 +224,7 @@ impl View {
         self.draw_orbits();
         self.draw_orbital_axes();
         self.draw_soi();
+        self.draw_body_markers();
 
         // Draw text
         use nalgebra::Point2;
@@ -319,6 +320,38 @@ impl View {
 
         self.renderer
             .draw_soi(body_pt, soi_radius as f32, soi_color);
+    }
+
+    fn draw_body_markers(&mut self) {
+        // We draw the marker if we're far enough away that the body is too
+        // small to see, but not if we're far enough away that the orbit is too
+        // small.
+        const MARKER_SIZE: f32 = 0.03;
+        const BODY_CUTOFF: f32 = MARKER_SIZE * 0.5;
+        const ORBIT_CUTOFF: f32 = MARKER_SIZE * 2.0;
+
+        for orbit in self.orrery.body_orbits() {
+            let orbit = orbit.orbit();
+            let body = orbit.secondary();
+
+            // Get the size of some objects in NDC space.
+            // That's computed from the field of view and the distance from
+            // the camera.
+            let plane_height = self.camera.distance() * (self.camera.fovy() / 2.0).tan();
+            let apparent_body_radius = body.info.radius / plane_height;
+            let apparent_orbit_apoapsis = orbit.apoapsis().map(|a| a as f32 / plane_height);
+
+            if apparent_body_radius > BODY_CUTOFF
+                || apparent_orbit_apoapsis.map_or(false, |a| a < ORBIT_CUTOFF)
+            {
+                continue;
+            }
+
+            let body_pt =
+                self.transform_to_focus_space(Frame::BodyInertial(body.id)) * Point3::origin();
+
+            self.renderer.draw_marker(body_pt, 0.03, body.info.color);
+        }
     }
 
     fn left_hand_text(&self) -> String {
