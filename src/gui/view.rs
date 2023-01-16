@@ -6,12 +6,11 @@ use kiss3d::post_processing::PostProcessingEffect;
 use kiss3d::renderer::Renderer;
 use kiss3d::scene::SceneNode;
 use kiss3d::window::Window;
-use nalgebra::{Isometry3, Point3, Translation3, Unit, Vector3};
+use nalgebra::{Isometry3, Point3, Translation3, Unit};
 
 use super::camera::ZoomableCamera;
 use super::controller::Controller;
-use super::renderer::CompoundRenderer;
-use super::OrbitPatch;
+use super::renderers::{CompoundRenderer, OrbitPatch};
 use crate::model::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 use crate::model::timeline::Timeline;
 

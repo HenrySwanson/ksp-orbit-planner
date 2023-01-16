@@ -8,13 +8,13 @@ mod soi_change;
 
 pub use soi_change::{search_for_soi_encounter, search_for_soi_escape};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SOIChange {
     pub old: BodyID,
     pub new: BodyID,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EventData {
     EnteringSOI(SOIChange),
     ExitingSOI(SOIChange),

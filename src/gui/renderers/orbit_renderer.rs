@@ -9,7 +9,35 @@ use kiss3d::resource::{
 use nalgebra::{Isometry3, Matrix4, Point3, Vector3};
 
 use super::utils::path_iter_parametric;
-use crate::gui::OrbitPatch;
+use crate::astro::orbit::{PhysicalOrbit, PointMass, TimedOrbit};
+use crate::model::orrery::{Body, BodyID};
+
+// TODO: re-evaluate if we need this
+#[derive(Debug, Clone)]
+pub struct OrbitPatch {
+    pub orbit: PhysicalOrbit,
+    pub start_anomaly: f64,
+    pub end_anomaly: Option<f64>,
+    pub parent_id: BodyID,
+}
+
+impl OrbitPatch {
+    pub fn new<S: Clone>(orbit: &TimedOrbit<Body, S>, start_time: f64) -> OrbitPatch {
+        let start_anomaly = orbit.s_at_time(start_time);
+        let parent_id = orbit.orbit().primary().id;
+
+        Self {
+            orbit: orbit
+                .orbit()
+                .clone()
+                .map_primary(|p| PointMass::with_mu(p.info.mu))
+                .with_secondary(()),
+            start_anomaly,
+            end_anomaly: None,
+            parent_id,
+        }
+    }
+}
 
 struct OrbitData {
     // Orbit path, stored as (pt, color, pt, color)
