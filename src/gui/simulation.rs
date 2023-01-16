@@ -115,17 +115,13 @@ impl CameraFocus {
     }
 }
 
-pub struct Simulation {
+pub struct View {
     // Object state
     timeline: Timeline,
     orrery: Orrery,
     time: f64,
     body_spheres: HashMap<BodyID, SceneNode>,
     ship_objects: HashMap<ShipID, SceneNode>,
-    // Timestep
-    timestep: f64,
-    paused: bool,
-    fps_counter: FpsCounter,
     // Camera
     camera: ZoomableCamera,
     camera_focus: CameraFocus,
@@ -134,7 +130,18 @@ pub struct Simulation {
     renderer: CompoundRenderer,
 }
 
-impl Simulation {
+pub struct Controller {
+    timestep: f64,
+    paused: bool,
+    fps_counter: FpsCounter,
+}
+
+pub struct Simulation {
+    view: View,
+    controller: Controller,
+}
+
+impl View {
     pub fn new(timeline: Timeline, window: &mut Window) -> Self {
         let orrery = timeline
             .get_orrery_at(0.0)
@@ -150,26 +157,23 @@ impl Simulation {
         // Create objects for bodies
         let mut body_spheres = HashMap::new();
         for body in orrery.bodies() {
-            let sphere = Simulation::create_body_object(window, &body);
+            let sphere = Self::create_body_object(window, &body);
             body_spheres.insert(body.id, sphere);
         }
 
         // Create objects for ships
         let mut ship_objects = HashMap::new();
         for ship in orrery.ships() {
-            let cube = Simulation::create_ship_object(window, ship);
+            let cube = Self::create_ship_object(window, ship);
             ship_objects.insert(ship.id, cube);
         }
 
-        let mut simulation = Simulation {
+        let mut simulation = Self {
             timeline,
             orrery,
             time: 0.0,
             body_spheres,
             ship_objects,
-            timestep: 21600.0 / 60.0, // one Kerbin-day
-            paused: true,
-            fps_counter: FpsCounter::new(1000),
             camera,
             camera_focus,
             ship_camera_inertial,
@@ -195,60 +199,16 @@ impl Simulation {
         cube
     }
 
-    fn process_user_input(&mut self, mut events: EventManager) {
-        // Process events
-        for event in events.iter() {
-            self.process_event(event);
-        }
-    }
-
-    fn process_event(&mut self, event: Event) {
-        match event.value {
-            WindowEvent::Key(KEY_NEXT_FOCUS, Action::Press, _) => {
-                self.camera_focus.next();
-                self.fix_camera_zoom();
-                self.update_scene_objects();
-            }
-            WindowEvent::Key(KEY_PREV_FOCUS, Action::Press, _) => {
-                self.camera_focus.prev();
-                self.fix_camera_zoom();
-                self.update_scene_objects();
-            }
-            WindowEvent::Key(KEY_SPEED_UP, Action::Press, _) => {
-                self.timestep *= 2.0;
-                println!("Timestep is {} s / s", (60.0 * self.timestep).round())
-            }
-            WindowEvent::Key(KEY_SLOW_DOWN, Action::Press, _) => {
-                self.timestep /= 2.0;
-                println!("Timestep is {} s / s", (60.0 * self.timestep).round())
-            }
-            WindowEvent::Key(KEY_REWIND, Action::Press, _) => {
-                self.timestep *= -1.0;
-                self.paused = false;
-            }
-            WindowEvent::Key(KEY_PAUSE, Action::Press, _) => {
-                self.paused = !self.paused;
-            }
-            WindowEvent::Key(KEY_CAMERA_SWAP, Action::Press, _) => {
-                self.ship_camera_inertial = !self.ship_camera_inertial;
-                self.update_scene_objects();
-            }
-            _ => {}
-        }
-    }
-
-    fn update_state(&mut self) {
-        if !self.paused {
-            // Update the universe, then move scene objects to the right places
-            self.time = f64::max(self.time + self.timestep, 0.0);
-            self.timeline.extend_end_time(self.time);
-            self.orrery = self
-                .timeline
-                .get_orrery_at(self.time)
-                .expect("TODO implement model extension")
-                .clone();
-            self.update_scene_objects();
-        }
+    fn update_state_by(&mut self, timestep: f64) {
+        // Update the universe, then move scene objects to the right places
+        self.time = f64::max(self.time + timestep, 0.0);
+        self.timeline.extend_end_time(self.time);
+        self.orrery = self
+            .timeline
+            .get_orrery_at(self.time)
+            .expect("TODO implement model extension")
+            .clone();
+        self.update_scene_objects();
     }
 
     fn fix_camera_zoom(&mut self) {
@@ -277,7 +237,7 @@ impl Simulation {
     }
 
     // the big boy
-    fn prerender_scene(&mut self, window: &mut Window) {
+    fn prerender_scene(&mut self, window: &mut Window, controller: &Controller) {
         // Draw grid
         draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
 
@@ -298,7 +258,7 @@ impl Simulation {
             &text_color,
         );
         window.draw_text(
-            &self.time_summary_text(),
+            &self.time_summary_text(controller.timestep, controller.fps_counter.value()),
             // no idea why i have to multiply by 2.0, but there it is
             &Point2::new(window.width() as f32 * 2.0 - 600.0, 0.0),
             60.0,
@@ -440,14 +400,14 @@ Orbiting: {}",
         )
     }
 
-    fn time_summary_text(&self) -> String {
+    fn time_summary_text(&self, timestep: f64, fps: f64) -> String {
         format!(
             "Time: {}
 Timestep: {} s/frame
 FPS: {:.0}",
             format_seconds(self.time),
-            self.timestep,
-            self.fps_counter.value(),
+            timestep,
+            fps,
         )
     }
 
@@ -501,6 +461,74 @@ FPS: {:.0}",
     }
 }
 
+impl Controller {
+    pub fn new() -> Self {
+        Controller {
+            timestep: 21600.0 / 60.0, // one Kerbin-day
+            paused: true,
+            fps_counter: FpsCounter::new(1000),
+        }
+    }
+}
+
+impl Simulation {
+    pub fn new(timeline: Timeline, window: &mut Window) -> Self {
+        Self {
+            view: View::new(timeline, window),
+            controller: Controller::new(),
+        }
+    }
+
+    fn process_user_input(&mut self, mut events: EventManager) {
+        // Process events
+        for event in events.iter() {
+            self.process_event(event);
+        }
+    }
+
+    fn process_event(&mut self, event: Event) {
+        match event.value {
+            WindowEvent::Key(KEY_NEXT_FOCUS, Action::Press, _) => {
+                // TODO: bundle these into a single public method
+                self.view.camera_focus.next();
+                self.view.fix_camera_zoom();
+                self.view.update_scene_objects();
+            }
+            WindowEvent::Key(KEY_PREV_FOCUS, Action::Press, _) => {
+                self.view.camera_focus.prev();
+                self.view.fix_camera_zoom();
+                self.view.update_scene_objects();
+            }
+            WindowEvent::Key(KEY_SPEED_UP, Action::Press, _) => {
+                self.controller.timestep *= 2.0;
+                println!(
+                    "Timestep is {} s / s",
+                    (60.0 * self.controller.timestep).round()
+                )
+            }
+            WindowEvent::Key(KEY_SLOW_DOWN, Action::Press, _) => {
+                self.controller.timestep /= 2.0;
+                println!(
+                    "Timestep is {} s / s",
+                    (60.0 * self.controller.timestep).round()
+                )
+            }
+            WindowEvent::Key(KEY_REWIND, Action::Press, _) => {
+                self.controller.timestep *= -1.0;
+                self.controller.paused = false;
+            }
+            WindowEvent::Key(KEY_PAUSE, Action::Press, _) => {
+                self.controller.paused = !self.controller.paused;
+            }
+            WindowEvent::Key(KEY_CAMERA_SWAP, Action::Press, _) => {
+                self.view.ship_camera_inertial = !self.view.ship_camera_inertial;
+                self.view.update_scene_objects();
+            }
+            _ => {}
+        }
+    }
+}
+
 impl State for Simulation {
     fn cameras_and_effect_and_renderer(
         &mut self,
@@ -510,16 +538,24 @@ impl State for Simulation {
         Option<&mut dyn Renderer>,
         Option<&mut dyn PostProcessingEffect>,
     ) {
-        self.prep_soi();
-        self.prep_orbits();
-        (Some(&mut self.camera), None, Some(&mut self.renderer), None)
+        // TODO: move these into the actual render
+        self.view.prep_soi();
+        self.view.prep_orbits();
+        (
+            Some(&mut self.view.camera),
+            None,
+            Some(&mut self.view.renderer),
+            None,
+        )
     }
 
     fn step(&mut self, window: &mut Window) {
         self.process_user_input(window.events());
-        self.update_state();
-        self.prerender_scene(window);
-        self.fps_counter.increment();
+        if !self.controller.paused {
+            self.view.update_state_by(self.controller.timestep);
+        }
+        self.view.prerender_scene(window, &self.controller);
+        self.controller.fps_counter.increment();
     }
 }
 
