@@ -12,7 +12,6 @@ use super::camera::ZoomableCamera;
 use super::controller::Controller;
 use super::renderer::CompoundRenderer;
 use super::OrbitPatch;
-use crate::astro::orbit::Orbit;
 use crate::model::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 use crate::model::timeline::Timeline;
 
@@ -180,54 +179,6 @@ impl View {
         self.camera.set_min_distance(dist);
     }
 
-    fn focused_object_frame(&self) -> Frame {
-        match self.camera_focus.point() {
-            FocusPoint::Body(id) => Frame::BodyInertial(id),
-            FocusPoint::Ship(id) => match self.ship_camera_inertial {
-                true => Frame::ShipInertial(id),
-                false => Frame::ShipOrbital(id),
-            },
-        }
-    }
-
-    fn transform_to_focus_space(&self, frame: Frame) -> Isometry3<f32> {
-        let transform = self
-            .orrery
-            .convert_frames(frame, self.focused_object_frame(), self.time);
-        nalgebra::convert(*transform.isometry())
-    }
-
-    // the big boy
-    pub fn prerender_scene(&mut self, window: &mut Window, controller: &Controller) {
-        // Draw grid
-        draw_grid(window, 20, 1.0e9, &Point3::new(0.5, 0.5, 0.5));
-
-        // Draw orbital axes
-        for orbit in self.orrery.body_orbits() {
-            self.draw_orbital_axes(window, orbit.orbit());
-        }
-
-        // Draw text
-        use nalgebra::Point2;
-        let default_font = kiss3d::text::Font::default();
-        let text_color = Point3::new(1.0, 1.0, 1.0);
-        window.draw_text(
-            &self.left_hand_text(),
-            &Point2::origin(),
-            60.0,
-            &default_font,
-            &text_color,
-        );
-        window.draw_text(
-            &self.time_summary_text(controller.timestep, controller.fps_counter.value()),
-            // no idea why i have to multiply by 2.0, but there it is
-            &Point2::new(window.width() as f32 * 2.0 - 600.0, 0.0),
-            60.0,
-            &default_font,
-            &text_color,
-        );
-    }
-
     fn update_scene_objects(&mut self) {
         // does some nice conversions
         fn set_position_helper(obj: &mut SceneNode, position: Point3<f64>) {
@@ -250,39 +201,125 @@ impl View {
         }
     }
 
-    fn draw_orbital_axes(&self, window: &mut Window, orbit: &Orbit<Body, Body>) {
+    fn focused_object_frame(&self) -> Frame {
+        match self.camera_focus.point() {
+            FocusPoint::Body(id) => Frame::BodyInertial(id),
+            FocusPoint::Ship(id) => match self.ship_camera_inertial {
+                true => Frame::ShipInertial(id),
+                false => Frame::ShipOrbital(id),
+            },
+        }
+    }
+
+    fn transform_to_focus_space(&self, frame: Frame) -> Isometry3<f32> {
+        let transform = self
+            .orrery
+            .convert_frames(frame, self.focused_object_frame(), self.time);
+        nalgebra::convert(*transform.isometry())
+    }
+
+    // the big boy
+    pub fn prerender_scene(&mut self, window: &mut Window, controller: &Controller) {
+        // Draw a bunch of stuff
+        self.renderer.draw_grid();
+        self.draw_orbits();
+        self.draw_orbital_axes();
+        self.draw_soi();
+
+        // Draw text
+        use nalgebra::Point2;
+        let default_font = kiss3d::text::Font::default();
+        let text_color = Point3::new(1.0, 1.0, 1.0);
+        window.draw_text(
+            &self.left_hand_text(),
+            &Point2::origin(),
+            60.0,
+            &default_font,
+            &text_color,
+        );
+        window.draw_text(
+            &self.time_summary_text(controller.timestep, controller.fps_counter.value()),
+            // no idea why i have to multiply by 2.0, but there it is
+            &Point2::new(window.width() as f32 * 2.0 - 600.0, 0.0),
+            60.0,
+            &default_font,
+            &text_color,
+        );
+    }
+
+    fn draw_orbits(&mut self) {
+        for orbit in self.orrery.body_orbits() {
+            let secondary = orbit.orbit().secondary();
+
+            let color = secondary.info.color;
+            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
+            self.renderer.draw_orbit(
+                OrbitPatch::new(&orbit, self.time),
+                color,
+                self.transform_to_focus_space(frame),
+            );
+        }
+
+        for ship in self.orrery.ships() {
+            let orbit = self.orrery.orbit_of_ship(ship.id).with_secondary(());
+
+            let color = Point3::new(1.0, 1.0, 1.0);
+            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
+            self.renderer.draw_orbit(
+                OrbitPatch::new(&orbit, self.time),
+                color,
+                self.transform_to_focus_space(frame),
+            );
+        }
+    }
+
+    fn draw_orbital_axes(&mut self) {
         // TODO: this renders the axes at the center of the body; I think we probably
         // want center of the orbit instead. But only do that if you're doing
         // this only for the focused body.
-        let body = orbit.secondary();
-        let axis_length = 2.0 * body.info.radius;
-        let transform = self.transform_to_focus_space(Frame::BodyInertial(body.id));
-        let origin = transform * Point3::origin();
+        for orbit in self.orrery.body_orbits() {
+            let orbit = orbit.orbit();
+            let body = orbit.secondary();
 
-        // Draws a ray starting at the origin of the body, and proceeding in the given
-        // direction. Length and v are separated because one's f32 and the
-        // other's f64. Oh well.
-        let mut draw_ray = |v: Unit<Vector3<f64>>, length: f32, color: Point3<f32>| {
-            let v: Vector3<f32> = nalgebra::convert(v.into_inner());
-            let end_pt = origin + length * (transform * v);
-            window.draw_line(&origin, &end_pt, &color);
+            let axes = [
+                (orbit.periapse_vector(), Point3::new(1.0, 0.0, 0.0)),
+                (orbit.asc_node_vector(), Point3::new(0.0, 1.0, 0.0)),
+                (orbit.normal_vector(), Point3::new(0.0, 0.0, 1.0)),
+            ]
+            .map(|(v, color)| {
+                let v = Unit::new_unchecked(nalgebra::convert(v.into_inner()));
+                (v, color)
+            });
+
+            self.renderer.draw_axes(
+                &axes,
+                2.0 * body.info.radius,
+                self.transform_to_focus_space(Frame::BodyInertial(body.id)),
+            );
+        }
+    }
+
+    fn draw_soi(&mut self) {
+        let soi_id = match self.camera_focus.point() {
+            FocusPoint::Body(id) => id,
+            FocusPoint::Ship(id) => self.orrery.get_ship(id).parent_id(),
         };
 
-        draw_ray(
-            orbit.periapse_vector(),
-            axis_length,
-            Point3::new(1.0, 0.0, 0.0),
-        );
-        draw_ray(
-            orbit.asc_node_vector(),
-            axis_length,
-            Point3::new(0.0, 1.0, 0.0),
-        );
-        draw_ray(
-            orbit.normal_vector(),
-            axis_length,
-            Point3::new(0.0, 0.0, 1.0),
-        );
+        let soi_radius = match self.orrery.get_soi_radius(soi_id) {
+            Some(r) => r,
+            None => return, // early return if Sun
+        };
+
+        // The SOI body is located at the origin in its own frame, which might not be
+        // the focus frame (for example, if we are focused on a ship).
+        let body_pt = self.transform_to_focus_space(Frame::BodyInertial(soi_id)) * Point3::origin();
+
+        // Make an okayish SOI color by dimming the body color.
+        let body_color = self.orrery.get_body(soi_id).info.color;
+        let soi_color = Point3::from(body_color.coords * 0.5);
+
+        self.renderer
+            .draw_soi(body_pt, soi_radius as f32, soi_color);
     }
 
     fn left_hand_text(&self) -> String {
@@ -380,78 +417,7 @@ FPS: {:.0}",
         Option<&mut dyn Renderer>,
         Option<&mut dyn PostProcessingEffect>,
     ) {
-        // TODO: move these into the actual render
-        self.prep_soi();
-        self.prep_orbits();
         (Some(&mut self.camera), None, Some(&mut self.renderer), None)
-    }
-
-    fn prep_soi(&mut self) {
-        let soi_id = match self.camera_focus.point() {
-            FocusPoint::Body(id) => id,
-            FocusPoint::Ship(id) => self.orrery.get_ship(id).parent_id(),
-        };
-
-        let soi_radius = match self.orrery.get_soi_radius(soi_id) {
-            Some(r) => r,
-            None => return, // early return if Sun
-        };
-
-        // The SOI body is located at the origin in its own frame, which might not be
-        // the focus frame (for example, if we are focused on a ship).
-        let body_pt = self.transform_to_focus_space(Frame::BodyInertial(soi_id)) * Point3::origin();
-
-        // Make an okayish SOI color by dimming the body color.
-        let body_color = self.orrery.get_body(soi_id).info.color;
-        let soi_color = Point3::from(body_color.coords * 0.5);
-
-        self.renderer
-            .draw_soi(body_pt, soi_radius as f32, soi_color);
-    }
-
-    fn prep_orbits(&mut self) {
-        for orbit in self.orrery.body_orbits() {
-            let secondary = orbit.orbit().secondary();
-
-            let color = secondary.info.color;
-            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
-            self.renderer.draw_orbit(
-                OrbitPatch::new(&orbit, self.time),
-                color,
-                self.transform_to_focus_space(frame),
-            );
-        }
-
-        for ship in self.orrery.ships() {
-            let orbit = self.orrery.orbit_of_ship(ship.id).with_secondary(());
-
-            let color = Point3::new(1.0, 1.0, 1.0);
-            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
-            self.renderer.draw_orbit(
-                OrbitPatch::new(&orbit, self.time),
-                color,
-                self.transform_to_focus_space(frame),
-            );
-        }
-    }
-}
-
-fn draw_grid(window: &mut Window, num_squares: i32, square_size: f32, color: &Point3<f32>) {
-    let max_coord = square_size * (num_squares as f32);
-    for i in (-num_squares)..(num_squares + 1) {
-        let coord = square_size * (i as f32);
-        // horizontal
-        window.draw_line(
-            &Point3::new(-max_coord, coord, 0.0),
-            &Point3::new(max_coord, coord, 0.0),
-            color,
-        );
-        // vertical
-        window.draw_line(
-            &Point3::new(coord, -max_coord, 0.0),
-            &Point3::new(coord, max_coord, 0.0),
-            color,
-        );
     }
 }
 
