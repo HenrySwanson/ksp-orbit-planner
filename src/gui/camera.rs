@@ -77,6 +77,10 @@ impl ZoomableCamera {
         self.radius_limits.0 = min_dist;
         self.radius = nalgebra::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
     }
+
+    pub fn distance(&self) -> f32 {
+        self.radius
+    }
 }
 
 impl Camera for ZoomableCamera {

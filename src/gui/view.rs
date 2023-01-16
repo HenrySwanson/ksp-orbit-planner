@@ -221,7 +221,7 @@ impl View {
     // the big boy
     pub fn prerender_scene(&mut self, window: &mut Window, controller: &Controller) {
         // Draw a bunch of stuff
-        self.renderer.draw_grid();
+        self.renderer.draw_grid(self.camera.distance());
         self.draw_orbits();
         self.draw_orbital_axes();
         self.draw_soi();
