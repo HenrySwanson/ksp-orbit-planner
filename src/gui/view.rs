@@ -120,6 +120,7 @@ impl View {
             ship_camera_inertial,
             renderer: CompoundRenderer::new(),
         };
+        simulation.fix_camera_zoom();
         simulation.update_scene_objects();
 
         simulation
