@@ -84,10 +84,8 @@ impl CameraFocus {
 
 impl View {
     pub fn new(timeline: Timeline, window: &mut Window) -> Self {
-        let orrery = timeline
-            .get_orrery_at(0.0)
-            .expect("Timeline starts after 0")
-            .clone();
+        let start_time = timeline.start_time();
+        let orrery = timeline.get_orrery_at(start_time).unwrap().clone();
 
         // Set up camera
         // TODO figure out what distance to put the camera...
@@ -112,7 +110,7 @@ impl View {
         let mut simulation = Self {
             timeline,
             orrery,
-            time: 0.0,
+            time: start_time,
             body_spheres,
             ship_objects,
             camera,

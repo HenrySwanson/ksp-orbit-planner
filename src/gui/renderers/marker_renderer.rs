@@ -4,7 +4,7 @@ use kiss3d::renderer::Renderer;
 use kiss3d::resource::{
     AllocationType, BufferType, Effect, GPUVec, ShaderAttribute, ShaderUniform,
 };
-use nalgebra::{Point3, Vector3};
+use nalgebra::Point3;
 
 // TODO: would it be a better idea to render a rectangle, and then use various
 // fragment shaders to draw circles / textures, etc?

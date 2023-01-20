@@ -19,6 +19,6 @@ fn main() {
         BodyID(4),
     );
 
-    let simulation = Simulation::new(Timeline::new(orrery), &mut window);
+    let simulation = Simulation::new(Timeline::new(orrery, 0.0), &mut window);
     window.render_loop(simulation);
 }

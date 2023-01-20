@@ -36,8 +36,7 @@ enum SegmentLookup {
 
 impl Timeline {
     // TODO: take time as input
-    pub fn new(orrery: Orrery) -> Self {
-        let start_time = 0.0;
+    pub fn new(orrery: Orrery, start_time: f64) -> Self {
         Self {
             closed_segments: vec![],
             open_segment: OpenSegment::new(start_time, orrery),
@@ -79,6 +78,14 @@ impl Timeline {
                 Some(orrery)
             }
             SegmentLookup::BeforeStart => None,
+        }
+    }
+
+    pub fn start_time(&self) -> f64 {
+        if let Some(closed_segment) = self.closed_segments.first() {
+            closed_segment.start_time
+        } else {
+            self.open_segment.start_time
         }
     }
 
@@ -267,7 +274,7 @@ mod tests {
         let mut orrery = read_file("ksp-bodies.txt");
         orrery.add_ship(Vector3::x() * 6000000.0, Vector3::y() * 1000.0, 0.0, KERBIN);
 
-        let mut timeline = Timeline::new(orrery);
+        let mut timeline = Timeline::new(orrery, 0.0);
 
         // TODO: fix the extend time to work with just one extension,
         // this is atrocious :)
