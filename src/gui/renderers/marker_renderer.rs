@@ -9,7 +9,14 @@ use nalgebra::Point3;
 // TODO: would it be a better idea to render a rectangle, and then use various
 // fragment shaders to draw circles / textures, etc?
 
-struct MarkerData {
+pub enum MarkerType {
+    Square,
+    Circle,
+}
+
+/// Represents a marker to be drawn on-screen.
+struct Marker {
+    pub mtype: MarkerType,
     pub center: Point3<f32>,
     // Height in NDC
     pub height: f32,
@@ -25,7 +32,7 @@ pub struct MarkerRenderer {
     color: ShaderUniform<Point3<f32>>,
     screen_aspect: ShaderUniform<f32>,
     // Data storage
-    markers: Vec<MarkerData>,
+    markers: Vec<Marker>,
 }
 
 impl MarkerRenderer {
@@ -55,27 +62,46 @@ impl MarkerRenderer {
         }
     }
 
-    pub fn add_marker(&mut self, center: Point3<f32>, height: f32, color: Point3<f32>) {
-        let sphere = MarkerData {
+    pub fn add_marker(
+        &mut self,
+        mtype: MarkerType,
+        center: Point3<f32>,
+        height: f32,
+        color: Point3<f32>,
+    ) {
+        let marker = Marker {
+            mtype,
             center,
             height,
             color,
         };
-        self.markers.push(sphere);
+        self.markers.push(marker);
     }
 
-    fn get_circle_points(n: usize) -> impl Iterator<Item = Point3<f32>> {
+    fn gen_body_marker_triangles(n: usize) -> Vec<Point3<f32>> {
         use std::f32::consts::TAU;
 
-        (0..n).flat_map(move |i| {
-            let theta1 = (i as f32) / (n as f32) * TAU;
-            let theta2 = ((i + 1) as f32) / (n as f32) * TAU;
-            [
-                Point3::origin(),
-                Point3::new(theta1.cos(), theta1.sin(), 0.0),
-                Point3::new(theta2.cos(), theta2.sin(), 0.0),
-            ]
-        })
+        // Generate a circle with a fan of triangles
+        (0..n)
+            .flat_map(move |i| {
+                let theta1 = (i as f32) / (n as f32) * TAU;
+                let theta2 = ((i + 1) as f32) / (n as f32) * TAU;
+                [
+                    Point3::origin(),
+                    Point3::new(theta1.cos(), theta1.sin(), 0.0),
+                    Point3::new(theta2.cos(), theta2.sin(), 0.0),
+                ]
+            })
+            .collect()
+    }
+
+    fn gen_ship_marker_triangles() -> Vec<Point3<f32>> {
+        // make a square with two triangles, oriented CCW
+        let ul = Point3::new(-1.0, 1.0, 0.0);
+        let ur = Point3::new(1.0, 1.0, 0.0);
+        let dl = Point3::new(-1.0, -1.0, 0.0);
+        let dr = Point3::new(1.0, -1.0, 0.0);
+        vec![ul, dr, ur, ul, dl, dr]
     }
 }
 
@@ -85,9 +111,14 @@ impl Renderer for MarkerRenderer {
             return;
         }
 
-        // Come up with the triangles for all circles
-        let mut triangle_points = GPUVec::new(
-            Self::get_circle_points(16).collect(),
+        // Generate the GPUVecs for the marker shapes
+        let mut circle_triangles = GPUVec::new(
+            Self::gen_body_marker_triangles(16),
+            BufferType::Array,
+            AllocationType::StaticDraw,
+        );
+        let mut square_triangles = GPUVec::new(
+            Self::gen_ship_marker_triangles(),
             BufferType::Array,
             AllocationType::StaticDraw,
         );
@@ -114,13 +145,16 @@ impl Renderer for MarkerRenderer {
             let center = vp_transform * marker.center.to_homogeneous();
             let center = Point3::from(center.xyz() / center.w);
 
-            self.offset.bind(&mut triangle_points);
+            self.offset.bind(match marker.mtype {
+                MarkerType::Square => &mut square_triangles,
+                MarkerType::Circle => &mut circle_triangles,
+            });
             self.center.upload(&center);
             self.height.upload(&marker.height);
             self.color.upload(&marker.color);
 
             let ctxt = Context::get();
-            ctxt.draw_arrays(Context::TRIANGLES, 0, triangle_points.len() as i32);
+            ctxt.draw_arrays(Context::TRIANGLES, 0, circle_triangles.len() as i32);
         }
 
         self.offset.disable();

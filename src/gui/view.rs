@@ -11,6 +11,8 @@ use nalgebra::{Isometry3, Point3, Translation3, Unit};
 use super::camera::ZoomableCamera;
 use super::controller::Controller;
 use super::renderers::{CompoundRenderer, OrbitPatch};
+use crate::astro::orbit::BareOrbit;
+use crate::gui::renderers::MarkerType;
 use crate::model::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 use crate::model::timeline::Timeline;
 
@@ -223,7 +225,7 @@ impl View {
         self.draw_orbits();
         self.draw_orbital_axes();
         self.draw_soi();
-        self.draw_body_markers();
+        self.draw_markers();
 
         // Draw text
         use nalgebra::Point2;
@@ -321,7 +323,7 @@ impl View {
             .draw_soi(body_pt, soi_radius as f32, soi_color);
     }
 
-    fn draw_body_markers(&mut self) {
+    fn draw_markers(&mut self) {
         // We draw the marker if we're far enough away that the body is too
         // small to see, but not if we're far enough away that the orbit is too
         // small.
@@ -341,25 +343,50 @@ impl View {
             half_height * 2.0 / self.camera.height() as f32
         };
 
+        let should_draw = |radius: f32, orbit: BareOrbit| -> bool {
+            // Figure out the apparent size of objects in screenspace
+            let apparent_body_radius = radius / pixel_size_worldspace;
+            let apparent_orbit_apoapsis = match orbit.apoapsis() {
+                Some(a) => a as f32 / pixel_size_worldspace,
+                None => return true, // always draw markers when orbit is open
+            };
+
+            // Draw marker if body is too small, unless orbit is also too small
+            apparent_body_radius < BODY_CUTOFF && apparent_orbit_apoapsis > ORBIT_CUTOFF
+        };
+
         for orbit in self.orrery.body_orbits() {
             let orbit = orbit.orbit();
             let body = orbit.secondary();
 
-            let apparent_body_radius = body.info.radius / pixel_size_worldspace;
-            let apparent_orbit_apoapsis =
-                orbit.apoapsis().map(|a| a as f32 / pixel_size_worldspace);
-
-            if apparent_body_radius > BODY_CUTOFF
-                || apparent_orbit_apoapsis.map_or(false, |a| a < ORBIT_CUTOFF)
-            {
+            if !should_draw(body.info.radius, orbit.to_bare()) {
                 continue;
             }
 
             let body_pt =
                 self.transform_to_focus_space(Frame::BodyInertial(body.id)) * Point3::origin();
 
-            self.renderer
-                .draw_marker(body_pt, MARKER_SIZE * pixel_size_ndc, body.info.color);
+            self.renderer.draw_marker(
+                MarkerType::Circle,
+                body_pt,
+                MARKER_SIZE * pixel_size_ndc,
+                body.info.color,
+            );
+        }
+        for ship in self.orrery.ships() {
+            if !should_draw(TEST_SHIP_SIZE / 2.0, ship.orbit.orbit().to_bare()) {
+                continue;
+            }
+
+            let ship_pt =
+                self.transform_to_focus_space(Frame::ShipInertial(ship.id)) * Point3::origin();
+
+            self.renderer.draw_marker(
+                MarkerType::Square,
+                ship_pt,
+                MARKER_SIZE * pixel_size_ndc,
+                Point3::new(1.0, 1.0, 1.0),
+            );
         }
     }
 

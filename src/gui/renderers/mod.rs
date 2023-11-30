@@ -11,6 +11,7 @@ mod orbit_renderer;
 mod sphere_renderer;
 mod utils;
 
+pub use marker_renderer::MarkerType;
 pub use orbit_renderer::OrbitPatch;
 
 pub struct CompoundRenderer {
@@ -98,8 +99,15 @@ impl CompoundRenderer {
         self.orbit_renderer.add_orbit(orbit, color, transform);
     }
 
-    pub fn draw_marker(&mut self, center: Point3<f32>, height: f32, color: Point3<f32>) {
-        self.marker_renderer.add_marker(center, height, color);
+    pub fn draw_marker(
+        &mut self,
+        mtype: MarkerType,
+        center: Point3<f32>,
+        height: f32,
+        color: Point3<f32>,
+    ) {
+        self.marker_renderer
+            .add_marker(mtype, center, height, color);
     }
 }
 

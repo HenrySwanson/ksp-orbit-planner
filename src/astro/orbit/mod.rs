@@ -72,6 +72,16 @@ impl<P, S> Orbit<P, S> {
         self.map(std::convert::identity, secondary_fn)
     }
 
+    pub fn to_bare(&self) -> BareOrbit {
+        Orbit {
+            primary: (),
+            secondary: (),
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
+    }
+
     fn map<P2, S2>(
         self,
         primary_fn: impl FnOnce(P) -> P2,
@@ -194,6 +204,16 @@ impl<P, S> Orbit<P, S> {
 }
 
 impl<P: HasMass, S> Orbit<P, S> {
+    pub fn to_physical(&self) -> PhysicalOrbit {
+        Orbit {
+            primary: PointMass(self.primary.mu()),
+            secondary: (),
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
+    }
+
     pub fn from_cartesian(
         primary: P,
         secondary: S,
