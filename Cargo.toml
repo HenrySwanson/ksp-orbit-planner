@@ -2,11 +2,11 @@
 name = "rust-ksp"
 version = "0.1.0"
 authors = ["Henry Swanson <henryswanson94@gmail.com>"]
-edition = "2018"
+edition = "2021"
 default-run = "simulator"
 
 [dependencies]
-kiss3d = "0.34.0"
+kiss3d = "0.35.0"
 nalgebra = "^0.30"  # Must match that in kiss3d
 simba = "*"  # Must match that in nalgebra
 approx = "^0.5.1"
