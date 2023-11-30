@@ -98,8 +98,8 @@ impl CompoundRenderer {
         self.orbit_renderer.add_orbit(orbit, color, transform);
     }
 
-    pub fn draw_marker(&mut self, center: Point3<f32>, radius: f32, color: Point3<f32>) {
-        self.marker_renderer.add_marker(center, radius, color);
+    pub fn draw_marker(&mut self, center: Point3<f32>, height: f32, color: Point3<f32>) {
+        self.marker_renderer.add_marker(center, height, color);
     }
 }
 

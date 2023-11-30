@@ -325,20 +325,29 @@ impl View {
         // We draw the marker if we're far enough away that the body is too
         // small to see, but not if we're far enough away that the orbit is too
         // small.
-        const MARKER_SIZE: f32 = 0.03;
-        const BODY_CUTOFF: f32 = MARKER_SIZE * 0.5;
-        const ORBIT_CUTOFF: f32 = MARKER_SIZE * 2.0;
+
+        // These sizes are in pixels
+        const MARKER_SIZE: f32 = 18.0;
+        const BODY_CUTOFF: f32 = 3.0;
+        const ORBIT_CUTOFF: f32 = MARKER_SIZE;
+
+        // Figure out the ratio of pixel size to worldspace lengths.
+        // That's determined from the camera distance, the field of view,
+        // and the window size.
+        let pixel_size_ndc = 2.0 / self.camera.height() as f32;
+        let pixel_size_worldspace = {
+            // half of the screen height, in worldspace
+            let half_height = self.camera.distance() * (self.camera.fovy() / 2.0).tan();
+            half_height * 2.0 / self.camera.height() as f32
+        };
 
         for orbit in self.orrery.body_orbits() {
             let orbit = orbit.orbit();
             let body = orbit.secondary();
 
-            // Get the size of some objects in NDC space.
-            // That's computed from the field of view and the distance from
-            // the camera.
-            let plane_height = self.camera.distance() * (self.camera.fovy() / 2.0).tan();
-            let apparent_body_radius = body.info.radius / plane_height;
-            let apparent_orbit_apoapsis = orbit.apoapsis().map(|a| a as f32 / plane_height);
+            let apparent_body_radius = body.info.radius / pixel_size_worldspace;
+            let apparent_orbit_apoapsis =
+                orbit.apoapsis().map(|a| a as f32 / pixel_size_worldspace);
 
             if apparent_body_radius > BODY_CUTOFF
                 || apparent_orbit_apoapsis.map_or(false, |a| a < ORBIT_CUTOFF)
@@ -349,7 +358,8 @@ impl View {
             let body_pt =
                 self.transform_to_focus_space(Frame::BodyInertial(body.id)) * Point3::origin();
 
-            self.renderer.draw_marker(body_pt, 0.03, body.info.color);
+            self.renderer
+                .draw_marker(body_pt, MARKER_SIZE * pixel_size_ndc, body.info.color);
         }
     }
 

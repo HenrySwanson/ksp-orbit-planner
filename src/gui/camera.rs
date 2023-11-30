@@ -22,7 +22,8 @@ pub struct ZoomableCamera {
     phi: f32,    // polar angle
     radius: f32, // distance from origin
     // -- perspective --
-    aspect: f32,
+    width: u32,
+    height: u32,
     fovy: f32,
     // -- other --
     last_cursor_pos: Vector2<f32>,
@@ -43,7 +44,8 @@ impl ZoomableCamera {
             theta: 0.0,
             phi: PI / 2.0,
             radius,
-            aspect: 800.0 / 600.0,
+            width: 800,
+            height: 600,
             fovy: PI / 4.0,
             last_cursor_pos: Vector2::zeros(),
             theta_step: 0.005,
@@ -58,7 +60,7 @@ impl ZoomableCamera {
 
     fn projection(&self) -> Perspective3<f32> {
         Perspective3::new(
-            self.aspect,
+            self.width as f32 / self.height as f32,
             self.fovy,
             self.radius * self.z_near_multiplier,
             self.radius * self.z_far_multipler,
@@ -80,6 +82,14 @@ impl ZoomableCamera {
 
     pub fn distance(&self) -> f32 {
         self.radius
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
     }
 
     pub fn fovy(&self) -> f32 {
@@ -118,7 +128,8 @@ impl Camera for ZoomableCamera {
                     nalgebra::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
             }
             WindowEvent::FramebufferSize(w, h) => {
-                self.aspect = w as f32 / h as f32;
+                self.width = w;
+                self.height = h;
             }
             _ => {}
         }

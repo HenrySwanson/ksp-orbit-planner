@@ -11,8 +11,8 @@ use nalgebra::Point3;
 
 struct MarkerData {
     pub center: Point3<f32>,
-    // Size in NDC space
-    pub radius: f32,
+    // Height in NDC
+    pub height: f32,
     pub color: Point3<f32>,
 }
 
@@ -21,7 +21,7 @@ pub struct MarkerRenderer {
     shader: Effect,
     offset: ShaderAttribute<Point3<f32>>,
     center: ShaderUniform<Point3<f32>>,
-    radius: ShaderUniform<f32>,
+    height: ShaderUniform<f32>,
     color: ShaderUniform<Point3<f32>>,
     screen_aspect: ShaderUniform<f32>,
     // Data storage
@@ -41,8 +41,8 @@ impl MarkerRenderer {
             center: shader
                 .get_uniform::<Point3<f32>>("center")
                 .expect("Failed to get shader uniform."),
-            radius: shader
-                .get_uniform::<f32>("radius")
+            height: shader
+                .get_uniform::<f32>("height")
                 .expect("Failed to get shader uniform."),
             color: shader
                 .get_uniform::<Point3<f32>>("color")
@@ -55,10 +55,10 @@ impl MarkerRenderer {
         }
     }
 
-    pub fn add_marker(&mut self, center: Point3<f32>, radius: f32, color: Point3<f32>) {
+    pub fn add_marker(&mut self, center: Point3<f32>, height: f32, color: Point3<f32>) {
         let sphere = MarkerData {
             center,
-            radius,
+            height,
             color,
         };
         self.markers.push(sphere);
@@ -91,10 +91,10 @@ impl Renderer for MarkerRenderer {
             BufferType::Array,
             AllocationType::StaticDraw,
         );
-        let vp_transform = camera.transformation();
 
         // Deduce the aspect ratio of the window -- it's the inverse of the aspect ratio
         // caused by the camera
+        let vp_transform = camera.transformation();
         let aspect = {
             let inv_transform = camera.inverse_transformation();
             let o_world = inv_transform.transform_point(&Point3::new(0.0, 0.0, 1.0));
@@ -114,9 +114,9 @@ impl Renderer for MarkerRenderer {
             let center = vp_transform * marker.center.to_homogeneous();
             let center = Point3::from(center.xyz() / center.w);
 
-            self.offset.bind_sub_buffer(&mut triangle_points, 0, 0);
+            self.offset.bind(&mut triangle_points);
             self.center.upload(&center);
-            self.radius.upload(&marker.radius);
+            self.height.upload(&marker.height);
             self.color.upload(&marker.color);
 
             let ctxt = Context::get();
@@ -133,12 +133,15 @@ impl Renderer for MarkerRenderer {
 static VERTEX_SRC: &str = "#version 100
     attribute vec3 offset;
     uniform   vec3 center;
-    uniform   float radius;
+    uniform   float height;
     uniform   float screen_aspect;
 
     void main() {
-        vec3 offset2 = offset / vec3(screen_aspect, 1, 1);
-        gl_Position = vec4(center + radius * offset2, 1.0);
+        // Markers fit in [-1, 1], so we divide height by 2.
+        // Then we divide x by screen aspect to pre-compensate for the x-stretching
+        // that NDC -> screen space does
+        vec3 offset2 = (height / 2.0) * offset / vec3(screen_aspect, 1, 1);
+        gl_Position = vec4(center + offset2, 1.0);
     }";
 
 /// Fragment shader used by the material to display line.
