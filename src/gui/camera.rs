@@ -1,10 +1,20 @@
 use std::f32::consts::PI;
 
 use kiss3d::camera::Camera;
-use kiss3d::event::{Action, MouseButton, WindowEvent};
+use kiss3d::event::{Action, Key, MouseButton, WindowEvent};
 use kiss3d::resource::ShaderUniform;
 use kiss3d::window::Canvas;
 use nalgebra::{Isometry3, Matrix4, Perspective3, Point3, Vector2, Vector3};
+
+const KEY_CAMERA_MOVE_UP: Key = Key::W;
+const KEY_CAMERA_MOVE_DOWN: Key = Key::S;
+const KEY_CAMERA_MOVE_LEFT: Key = Key::A;
+const KEY_CAMERA_MOVE_RIGHT: Key = Key::D;
+const KEY_CAMERA_ZOOM_IN: Key = Key::Equals;
+const KEY_CAMERA_ZOOM_OUT: Key = Key::Minus;
+
+const KEY_ANGLE_STEP: f32 = 0.1;
+const KEY_ZOOM_STEP: f32 = 1.2;
 
 // This camera is a close cousin of ArcBall. Like ArcBall, this camera can be
 // click-and-dragged to adjust its pitch and yaw, and scrolled to zoom in and
@@ -95,6 +105,19 @@ impl ZoomableCamera {
     pub fn fovy(&self) -> f32 {
         self.fovy
     }
+
+    pub fn rotate(&mut self, dtheta: f32, dphi: f32) {
+        self.theta = (self.theta + dtheta) % (2.0 * PI);
+        self.phi = nalgebra::clamp(self.phi + dphi, self.phi_limit, PI - self.phi_limit);
+    }
+
+    pub fn zoom(&mut self, factor: f32) {
+        self.radius = nalgebra::clamp(
+            self.radius * factor,
+            self.radius_limits.0,
+            self.radius_limits.1,
+        );
+    }
 }
 
 impl Camera for ZoomableCamera {
@@ -104,14 +127,10 @@ impl Camera for ZoomableCamera {
                 let curr_pos = Vector2::new(x as f32, y as f32);
 
                 if canvas.get_mouse_button(MouseButton::Button1) == Action::Press {
+                    // Rotate the opposite direction as the mouse moves (drag right == camera glides
+                    // left)
                     let dpos = curr_pos - self.last_cursor_pos;
-
-                    self.theta -= dpos.x * self.theta_step;
-                    self.phi -= dpos.y * self.phi_step;
-
-                    // Restrict angles
-                    self.theta %= 2.0 * PI;
-                    self.phi = nalgebra::clamp(self.phi, self.phi_limit, PI - self.phi_limit);
+                    self.rotate(-dpos.x * self.theta_step, -dpos.y * self.phi_step);
                 }
 
                 self.last_cursor_pos = curr_pos;
@@ -119,18 +138,31 @@ impl Camera for ZoomableCamera {
             WindowEvent::Scroll(_, off, _) => {
                 // scroll up == zoom in
                 if off < 0.0 {
-                    self.radius *= self.scroll_ratio;
+                    self.zoom(self.scroll_ratio);
                 } else if off > 0.0 {
-                    self.radius /= self.scroll_ratio;
+                    self.zoom(self.scroll_ratio.recip())
                 }
-
-                self.radius =
-                    nalgebra::clamp(self.radius, self.radius_limits.0, self.radius_limits.1);
             }
             WindowEvent::FramebufferSize(w, h) => {
                 self.width = w;
                 self.height = h;
             }
+            WindowEvent::Key(KEY_CAMERA_MOVE_UP, Action::Press, _) => {
+                self.rotate(0.0, -KEY_ANGLE_STEP)
+            }
+            WindowEvent::Key(KEY_CAMERA_MOVE_DOWN, Action::Press, _) => {
+                self.rotate(0.0, KEY_ANGLE_STEP)
+            }
+            WindowEvent::Key(KEY_CAMERA_MOVE_LEFT, Action::Press, _) => {
+                self.rotate(-KEY_ANGLE_STEP, 0.0)
+            }
+            WindowEvent::Key(KEY_CAMERA_MOVE_RIGHT, Action::Press, _) => {
+                self.rotate(KEY_ANGLE_STEP, 0.0)
+            }
+            WindowEvent::Key(KEY_CAMERA_ZOOM_IN, Action::Press, _) => {
+                self.zoom(KEY_ZOOM_STEP.recip())
+            }
+            WindowEvent::Key(KEY_CAMERA_ZOOM_OUT, Action::Press, _) => self.zoom(KEY_ZOOM_STEP),
             _ => {}
         }
     }

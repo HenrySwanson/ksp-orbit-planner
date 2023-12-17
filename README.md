@@ -11,7 +11,9 @@ Controls
 - Q and E: switch focused body
 - Comma and Period: slow down and speed up time
 - R: reverse direction of time
-- P: pause/unpause
+- Space: pause/unpause
+- WASD: move camera around
+- +/-: zoom in and out
 - Esc: quit
 
 ![screenshot](screenshots/mun-encounter.png)

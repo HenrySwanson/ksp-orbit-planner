@@ -10,7 +10,7 @@ const KEY_NEXT_FOCUS: Key = Key::E;
 const KEY_SPEED_UP: Key = Key::Period;
 const KEY_SLOW_DOWN: Key = Key::Comma;
 const KEY_REWIND: Key = Key::R;
-const KEY_PAUSE: Key = Key::P;
+const KEY_TOGGLE_PAUSE: Key = Key::Space;
 const KEY_CAMERA_SWAP: Key = Key::C;
 
 // TODO: unpublicize
@@ -85,7 +85,7 @@ impl Controller {
                 self.timestep *= -1.0;
                 self.paused = false;
             }
-            WindowEvent::Key(KEY_PAUSE, Action::Press, _) => {
+            WindowEvent::Key(KEY_TOGGLE_PAUSE, Action::Press, _) => {
                 self.paused = !self.paused;
             }
             WindowEvent::Key(KEY_CAMERA_SWAP, Action::Press, _) => {
