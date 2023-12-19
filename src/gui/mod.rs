@@ -49,10 +49,10 @@ impl State for Simulation {
 
     fn step(&mut self, window: &mut Window) {
         self.process_user_input(window.events());
-        if !self.controller.paused {
-            self.view.update_state_by(self.controller.timestep);
+        if !self.controller.is_paused() {
+            self.view.update_state_by(self.controller.timestep());
         }
         self.view.prerender_scene(window, &self.controller);
-        self.controller.fps_counter.increment();
+        self.controller.increment_frame_counter();
     }
 }

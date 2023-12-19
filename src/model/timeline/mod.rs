@@ -35,7 +35,6 @@ enum SegmentLookup {
 }
 
 impl Timeline {
-    // TODO: take time as input
     pub fn new(orrery: Orrery, start_time: f64) -> Self {
         Self {
             closed_segments: vec![],

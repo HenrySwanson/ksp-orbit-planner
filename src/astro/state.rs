@@ -30,20 +30,24 @@ impl<P> CartesianState<P> {
     }
 }
 
-impl<P: HasMass + Clone> CartesianState<P> {
-    pub fn get_orbit(&self) -> Orbit<P, ()> {
-        Orbit::from_cartesian(self.primary.clone(), (), &self.position, &self.velocity)
+impl<P: HasMass> CartesianState<P> {
+    pub fn to_orbit(&self) -> Orbit<&P, ()> {
+        Orbit::from_cartesian(&self.primary, (), &self.position, &self.velocity)
+    }
+
+    pub fn into_orbit(self) -> Orbit<P, ()> {
+        Orbit::from_cartesian(self.primary, (), &self.position, &self.velocity)
     }
 
     pub fn get_universal_anomaly(&self) -> f64 {
         // TODO make this work for radial orbits too!
-        let orbit = self.get_orbit();
+        let orbit = self.to_orbit();
         let my_theta = self.get_theta();
         orbit.true_to_universal(my_theta)
     }
 
     fn get_theta(&self) -> f64 {
-        let orbit = self.get_orbit();
+        let orbit = self.to_orbit();
         let x_vec = orbit.periapse_vector();
         let z_vec = orbit.normal_vector();
         directed_angle(&x_vec, &self.position, &z_vec)
@@ -93,39 +97,14 @@ impl<P: HasMass> CartesianState<P> {
 mod tests {
     use std::f64::consts::PI;
 
+    use approx::assert_relative_eq;
+
     use super::*;
     use crate::astro::orbit::PointMass;
     use crate::consts::{
         get_circular_velocity, get_period, KERBIN_ORBIT_PERIOD, KERBIN_ORBIT_RADIUS, KERBOL_MU,
     };
-
-    // TODO use approx::assert_relative_eq!
-
-    fn assert_close(expected: f64, actual: f64, tolerance: f64) {
-        let difference = actual - expected;
-        if difference.abs() >= tolerance * expected.abs() {
-            panic!("Floats expected to be close: {} vs. {}", actual, expected);
-        }
-    }
-
-    // We'll count this as a success if the difference between the vectors is small,
-    // relative to the length of the expected vector.
-    fn assert_vectors_close(expected: &Vector3<f64>, actual: &Vector3<f64>, tolerance: f64) {
-        let difference = actual - expected;
-        if difference.norm() >= tolerance * expected.norm() {
-            panic!(
-                "Vectors were not as close as expected!\n
-                Expected: {}\n
-                Received: {}\n
-                Difference: {}\n
-                Relative difference: {:e}",
-                expected,
-                actual,
-                difference,
-                difference.norm() / expected.norm(),
-            );
-        }
-    }
+    use crate::testing_utils::assert_vectors_close;
 
     #[test]
     fn test_kerbin() {
@@ -162,7 +141,7 @@ mod tests {
             \t(simulated) {}",
             KERBIN_ORBIT_PERIOD, computed_period, elapsed_time,
         );
-        assert_close(KERBIN_ORBIT_PERIOD, elapsed_time, 1e-6);
+        assert_relative_eq!(KERBIN_ORBIT_PERIOD, elapsed_time, max_relative = 1e-6);
     }
 
     #[test]
@@ -201,6 +180,6 @@ mod tests {
         // slightly less precision here, but whatever. Maybe it's just adding
         // something to itself a thousand times.
         let computed_period = 2.0 * PI * radius / velocity;
-        assert_close(computed_period, elapsed_time, 1e-12);
+        assert_relative_eq!(computed_period, elapsed_time, max_relative = 1e-12);
     }
 }

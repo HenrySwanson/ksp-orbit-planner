@@ -13,11 +13,11 @@ const KEY_REWIND: Key = Key::R;
 const KEY_TOGGLE_PAUSE: Key = Key::Space;
 const KEY_CAMERA_SWAP: Key = Key::C;
 
-// TODO: unpublicize
 pub struct Controller {
-    pub timestep: f64,
-    pub paused: bool,
-    pub fps_counter: FpsCounter,
+    timestep: f64,
+    paused: bool,
+    // TODO: i think this belongs in the view or similar
+    fps_counter: FpsCounter,
 }
 
 pub struct FpsCounter {
@@ -45,6 +45,7 @@ impl FpsCounter {
     pub fn value(&self) -> f64 {
         self.previous_fps
     }
+
     pub fn increment(&mut self) {
         self.counter += 1;
 
@@ -93,5 +94,21 @@ impl Controller {
             }
             _ => {}
         }
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
+
+    pub fn timestep(&self) -> f64 {
+        self.timestep
+    }
+
+    pub fn fps(&self) -> f64 {
+        self.fps_counter.value()
+    }
+
+    pub fn increment_frame_counter(&mut self) {
+        self.fps_counter.increment()
     }
 }

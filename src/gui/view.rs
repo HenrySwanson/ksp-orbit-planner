@@ -90,8 +90,8 @@ impl View {
         let orrery = timeline.get_orrery_at(start_time).unwrap().clone();
 
         // Set up camera
-        // TODO figure out what distance to put the camera...
-        let camera = ZoomableCamera::new(2.0e9);
+        // Initial distance doesn't matter, since we're about to call fix_camera_zoom
+        let camera = ZoomableCamera::new(1.0);
         let camera_focus = CameraFocus::new(&orrery);
         let ship_camera_inertial = true;
 
@@ -148,7 +148,7 @@ impl View {
         self.orrery = self
             .timeline
             .get_orrery_at(self.time)
-            .expect("TODO implement model extension")
+            .expect("Lookup before universe start")
             .clone();
         self.update_scene_objects();
     }
@@ -239,7 +239,7 @@ impl View {
             &text_color,
         );
         window.draw_text(
-            &self.time_summary_text(controller.timestep, controller.fps_counter.value()),
+            &self.time_summary_text(controller.timestep(), controller.fps()),
             // no idea why i have to multiply by 2.0, but there it is
             &Point2::new(window.width() as f32 * 2.0 - 600.0, 0.0),
             60.0,

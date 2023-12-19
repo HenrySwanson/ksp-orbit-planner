@@ -9,6 +9,9 @@ mod timed_orbit;
 
 pub use timed_orbit::TimedOrbit;
 
+// Newton's gravitational constant, in N m^2 / kg^2
+pub const NEWTON_G: f64 = 6.6743015e-11;
+
 #[derive(Debug, Clone, Copy)]
 pub struct PointMass(f64);
 
@@ -29,7 +32,10 @@ pub struct Orbit<P, S> {
 
 pub trait HasMass {
     fn mu(&self) -> f64;
-    // TODO mass = mu / G?
+
+    fn mass(&self) -> f64 {
+        self.mu() / NEWTON_G
+    }
 }
 
 impl PointMass {
@@ -41,6 +47,15 @@ impl PointMass {
 impl HasMass for PointMass {
     fn mu(&self) -> f64 {
         self.0
+    }
+}
+
+impl<T> HasMass for &T
+where
+    T: HasMass,
+{
+    fn mu(&self) -> f64 {
+        (*self).mu()
     }
 }
 
@@ -234,9 +249,6 @@ impl<P: HasMass, S> Orbit<P, S> {
         // close to zero. So we use a particularly cautious method.
         let rotation = always_find_rotation(&ang_mom, &lrl, 1e-20);
 
-        // TODO: slr is always non-negative, do we do the right thing for clockwise
-        // orbits?
-
         Self {
             primary,
             secondary,
@@ -315,13 +327,7 @@ mod tests {
     use approx::assert_relative_eq;
 
     use super::*;
-
-    // TODO pull out into common?
-    macro_rules! assert_very_large {
-        ($exp:expr) => {
-            approx::assert_relative_eq!($exp.recip(), 0.0)
-        };
-    }
+    use crate::testing_utils::assert_very_large;
 
     #[test]
     fn test_orbit_shape() {
