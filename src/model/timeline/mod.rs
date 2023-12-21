@@ -1,4 +1,4 @@
-use self::upcoming_events::UpcomingEvents;
+use self::upcoming_events::EventSearchHorizons;
 use super::events::{search_for_soi_encounter, search_for_soi_escape, Event, EventTag};
 use super::orrery::Orrery;
 
@@ -30,7 +30,7 @@ struct ClosedSegment {
 struct OpenSegment {
     start_time: f64,
     orrery: Orrery,
-    upcoming_events: UpcomingEvents,
+    search_horizons: EventSearchHorizons,
 }
 
 #[derive(Debug)]
@@ -125,18 +125,13 @@ impl OpenSegment {
         Self {
             start_time,
             orrery,
-            upcoming_events: UpcomingEvents::new(start_time),
+            search_horizons: EventSearchHorizons::new(start_time),
         }
     }
 
     fn split_at_next_event(&mut self, time: f64) -> Option<ClosedSegment> {
-        search_for_events(
-            &self.orrery,
-            &mut self.upcoming_events,
-            self.start_time,
-            time,
-        );
-        let event = self.upcoming_events.get_next_event_global()?.clone();
+        self.search_for_events_until(time);
+        let event = self.search_horizons.get_next_event()?.clone();
         let event_time = event.point.time;
 
         // Make a new open segment to replace this one
@@ -153,44 +148,39 @@ impl OpenSegment {
 
         Some(closed_segment)
     }
-}
 
-// TODO: copied from universe.rs; clean it up for our purposes later
-fn search_for_events(
-    orrery: &Orrery,
-    upcoming_events: &mut UpcomingEvents,
-    start_time: f64,
-    end_time: f64,
-) {
-    // Don't search unless the window is non-empty
-    if start_time >= end_time {
-        return;
-    }
-
-    for id in orrery.ships().map(|s| s.id) {
-        // TODO: i don't think i need this, and it may actually be wrong
-        if upcoming_events.get_next_event(id).is_some() {
-            continue;
+    fn search_for_events_until(&mut self, end_time: f64) {
+        // Don't search unless the window is non-empty
+        if self.start_time >= end_time {
+            return;
         }
 
-        // TODO this "check if we should search, and then separately search" is not
-        // a great pattern. They should be bundled together better.
+        for id in self.orrery.ships().map(|s| s.id) {
+            // TODO: can i skip the search if i've advanced all horizons far enough?
 
-        // Check for an SOI escape event
-        upcoming_events.update(id, EventTag::EscapeSOI, end_time, |_, _| {
-            search_for_soi_escape(orrery, id)
-        });
+            // Check for an SOI escape event
+            self.search_horizons
+                .search_until(id, EventTag::EscapeSOI, end_time, |_, _| {
+                    search_for_soi_escape(&self.orrery, id)
+                });
 
-        // Check for SOI encounter events
-        for body in orrery.bodies() {
-            upcoming_events.update(
-                id,
-                EventTag::EncounterSOI(body.id),
-                end_time,
-                |search_start, search_end: f64| {
-                    search_for_soi_encounter(orrery, id, body.id, search_start, search_end)
-                },
-            );
+            // Check for SOI encounter events
+            for body in self.orrery.bodies() {
+                self.search_horizons.search_until(
+                    id,
+                    EventTag::EncounterSOI(body.id),
+                    end_time,
+                    |search_start, search_end: f64| {
+                        search_for_soi_encounter(
+                            &self.orrery,
+                            id,
+                            body.id,
+                            search_start,
+                            search_end,
+                        )
+                    },
+                );
+            }
         }
     }
 }
