@@ -144,7 +144,7 @@ impl View {
     pub fn update_state_by(&mut self, timestep: f64) {
         // Update the universe, then move scene objects to the right places
         self.time = f64::max(self.time + timestep, 0.0);
-        self.timeline.extend_end_time(self.time);
+        self.timeline.extend_until(self.time);
         self.orrery = self
             .timeline
             .get_orrery_at(self.time)

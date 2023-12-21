@@ -4,6 +4,12 @@ use super::orrery::Orrery;
 
 mod upcoming_events;
 
+/// Models the state of the universe as a sequence of [Orrery]s separated by
+/// [Event]s.
+///
+/// The timeline consists of a sequence of [ClosedSegment]s followed by an
+/// [OpenSegment]; segments are considered half-open, including the start time
+/// but not the end.
 #[derive(Debug)]
 pub struct Timeline {
     // Invariants:
@@ -35,6 +41,7 @@ enum SegmentLookup {
 }
 
 impl Timeline {
+    /// Create a new Timeline with the given starting state.
     pub fn new(orrery: Orrery, start_time: f64) -> Self {
         Self {
             closed_segments: vec![],
@@ -42,6 +49,7 @@ impl Timeline {
         }
     }
 
+    /// Search the timeline for the segment containing the given time.
     fn lookup_segment(&self, time: f64) -> SegmentLookup {
         // Check whether it's in the open segment
         if time >= self.open_segment.start_time {
@@ -66,6 +74,7 @@ impl Timeline {
         SegmentLookup::Closed(segment_idx)
     }
 
+    /// Get the orrery corresponding to the given time.
     pub fn get_orrery_at(&self, time: f64) -> Option<&Orrery> {
         match self.lookup_segment(time) {
             SegmentLookup::Closed(idx) => {
@@ -80,6 +89,7 @@ impl Timeline {
         }
     }
 
+    /// Return the start time of this timeline.
     pub fn start_time(&self) -> f64 {
         if let Some(closed_segment) = self.closed_segments.first() {
             closed_segment.start_time
@@ -88,27 +98,23 @@ impl Timeline {
         }
     }
 
-    pub fn extend_end_time(&mut self, time: f64) {
-        // Check whether this time lies in the open segment; if not, return early
-        if time < self.open_segment.start_time {
-            return;
-        }
-
-        let event = self.open_segment.extend_until(time);
+    /// Search until the given time for any new events, potentially creating a
+    /// new segment if an event is found.
+    pub fn extend_until(&mut self, time: f64) {
+        let closed_segment = self.open_segment.split_at_next_event(time);
 
         // If we find an event, we should add a new segment! Otherwise do nothing,
         // the UpcomingEvents struct will have already saved our progress
         // TODO: if we find an event, we must search again!!!!!!
         // or, wait, does the segmenting save us? do we just render wrong for a hot
         // second? idk.... it might...
-        if let Some(event) = event {
-            let event = event.clone();
+        if let Some(closed_segment) = closed_segment {
+            let event = &closed_segment.ending_event;
             println!(
                 "When extending end time to {}, found event at time {} for ship {}: {:?}",
                 time, event.point.time, event.ship_id.0, event.data
             );
 
-            let closed_segment = self.open_segment.close_and_advance(event);
             self.closed_segments.push(closed_segment);
         }
     }
@@ -123,31 +129,29 @@ impl OpenSegment {
         }
     }
 
-    fn extend_until(&mut self, time: f64) -> Option<&Event> {
+    fn split_at_next_event(&mut self, time: f64) -> Option<ClosedSegment> {
         search_for_events(
             &self.orrery,
             &mut self.upcoming_events,
             self.start_time,
             time,
         );
-        self.upcoming_events.get_next_event_global()
-    }
-
-    fn close_and_advance(&mut self, event: Event) -> ClosedSegment {
+        let event = self.upcoming_events.get_next_event_global()?.clone();
         let event_time = event.point.time;
 
-        // Make a new open segment
+        // Make a new open segment to replace this one
         let mut new_open = OpenSegment::new(event_time, self.orrery.clone());
         new_open.orrery.process_event(&event);
 
+        // Swap in the new one, and decompose the old one into a closed segment
         let old_open = std::mem::replace(self, new_open);
-
-        // Turn old_open into a closed segment
-        ClosedSegment {
+        let closed_segment = ClosedSegment {
             start_time: old_open.start_time,
             orrery: old_open.orrery,
             ending_event: event,
-        }
+        };
+
+        Some(closed_segment)
     }
 }
 
@@ -158,13 +162,16 @@ fn search_for_events(
     start_time: f64,
     end_time: f64,
 ) {
+    // Don't search unless the window is non-empty
+    if start_time >= end_time {
+        return;
+    }
+
     for id in orrery.ships().map(|s| s.id) {
         // TODO: i don't think i need this, and it may actually be wrong
         if upcoming_events.get_next_event(id).is_some() {
             continue;
         }
-
-        assert!(end_time >= start_time);
 
         // TODO this "check if we should search, and then separately search" is not
         // a great pattern. They should be bundled together better.
@@ -279,7 +286,7 @@ mod tests {
         // this is atrocious :)
         let mut end_time = 0.0;
         while end_time < (65 * 86400) as f64 {
-            timeline.extend_end_time(end_time);
+            timeline.extend_until(end_time);
             end_time += 86400.0;
         }
 
