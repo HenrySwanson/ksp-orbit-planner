@@ -1,0 +1,593 @@
+\documentclass{article}
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true, %set true if you want colored links
+    linktoc=all,     %set to all if you want both sections and subsections linked
+    linkcolor=blue,  %choose some color if you want links to stand out
+}
+
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\der}[2]{\frac{\dd #1}{\dd #2}}
+\DeclareMathOperator\arctanh{arctanh}
+
+\numberwithin{equation}{subsection}
+
+\begin{document}
+
+This document contains all the math behind this simulator.
+
+\tableofcontents
+
+
+\section{Basic Orbital Mechanics}
+
+We don't simulate the full $n$-body problem here, only the "patched-conic" approximation, which can be solved in closed-form.
+
+The most basic orbit is a conic section: an ellipse, parabola, or hyperbola. There is also one additional possibility: if the secondary body is moving straight up or down from the primary, it is a "radial" orbit.
+
+
+\subsection{Orbital Parameters}
+
+Here are the physical parameters of an orbit we consider in this document:
+\begin{itemize}
+\item Gravitational parameter ($\mu$): this represents the strength of the primary body's attraction, measured in $\mathrm{m^3/s^2}$. It's more often seen as the mass of the primary times $G$, the gravitational constant. But it turns out, $\mu$ is the only thing we can directly measure, so we know that to more precision.
+\item Semi-major axis ($a$): The major axis of an ellipse is the longest distance across the it; the semi-major axis is half that. For a parabola, this is infinite, and for a hyperbola, it's negative.
+\item Eccentricity ($e$): This represents how "squished" the orbit is. A circle has an eccentricity of zero, an ellipse's is between zero and one, a parabola has exactly one, and a hyperbola's is more than one. A radial orbit also has exactly one, which will prove to be frustrating later.
+\item Specific orbital energy ($\varepsilon$): The total energy of the system, divided by the reduced mass. For our purposes, since the primary body is significantly heavier than the secondary, the reduced mass is just the mass of the secondary. Like the total energy, this is conserved.
+\item Specific angular momentum ($h$): The angular momentum of the system, divided by the reduced mass. Also conserved.
+\item Periapsis ($r_p$): The point in the secondary's orbit where it is closest to the primary.
+\item Apoapsis ($r_a$): The point in the secondary's orbit where it is furthest away. If the orbit is open, no such point exists.
+\item Semilatus rectum ($\ell$): The latus rectum is the chord through the primary body perpendicular to the focal axis. The semilatus rectum is half of that.
+\end{itemize}
+
+Here are some relations between the parameters above:
+
+\[ \varepsilon = -\frac{\mu}{2a} \qquad \ell = \frac{h^2}{\mu} \qquad h^2 = \mu a(1 - e^2) \qquad e^2 - 2 \varepsilon \frac{h^2}{\mu^2} = 1 \]
+
+\[ v^2 = \mu \left( \frac{2}{r} - \frac{1}{a} \right) \quad \textrm{(vis-viva equation)} \]
+
+\[  r_p = a(1 - e) = \frac{h^2}{\mu (1 + e)} \qquad v_p = \frac{h}{r_p} = \frac{\mu(1+e)}{h} \qquad v_p^2 = \frac{h^2}{r_p^2} = \frac{\mu}{a} \frac{1+e}{1-e} \]
+
+\[ r = \frac{h^2/\mu}{1 + e \cos \theta} = a (1 - e \cos E) = a (1 - e \cosh H) \]
+
+For a circular orbit:
+\[ \varepsilon = -\frac{\mu}{2r} \quad e = 0 \quad h = \sqrt{\mu r} \quad \ell = r \quad v = \frac{h}{r} \]
+
+For a parabolic orbit:
+\[ \varepsilon = 0 \quad e = 1 \quad h = \textrm{anything} \quad r_p = \frac{h^2}{2\mu} = \frac{\ell}{2} \quad v_p = \frac{2\mu}{h} \]
+
+TODO keplerian parameters?
+
+\section{Parameterizing the Orbit}
+
+The previous section dealt with the properties that the orbit, as a whole, has. But to simulate the trajectory of an orbiting body, we need to get into the dynamics. Starting from a known position and velocity, we want to travel along the orbit over a period of time, and compute our final state.
+
+It turns out it will be easiest to do this by introducing a new auxiliary variable $s$, which will behave like a modified time variable. This section goes through the derivation of $s$, the equations governing position, velocity, and time, and the relationship of $s$ to the classical anomalies.
+
+
+\subsection{Regularizing the Equation of Motion}
+
+From Newton's law of gravitation, the equation of motion for a body orbiting a stationary mass is
+\begin{equation}
+\label{eq-of-motion-t}
+\ddot{\bm x} + \frac{\mu}{r^3} \bm x = 0
+\end{equation}
+
+We introduce a new variable $s$ such that $\mathrm{d}s/\mathrm{d}t = 1/r$, and $s = 0$ at $t_0$. Since dots are used to represent derivatives with respect to $t$, we'll use primes to represent derivatives with respect to $s$. From the chain rule, we can derive the following relations for any state function $f$, which will be used repeatedly:
+\begin{equation}
+\label{s-and-t-derivatives}
+\dot f = \frac{1}{r} f' \qquad \ddot f = \frac{r f'' - f' r'}{r^3}
+\end{equation}
+
+Using this, we rewrite (\ref{eq-of-motion-t}) in terms of $s$:
+\begin{equation}
+\label{eq-of-motion-s}
+\bm x'' - \frac{r'}{r} \bm x' + \frac{\mu}{r} \bm x = 0
+\end{equation}
+
+This is more complicated than before, but it can be simplified by introducing some conserved physical quantities. In particular, consider the energy and the eccentricity vector. The former is well-known, and can be computed from the kinetic plus potential energy. However, it will be convenient to use the quantity $\beta = -2\varepsilon$:
+\begin{equation}
+\label{energy-def}
+\varepsilon = \frac{v^2}{2} - \frac{\mu}{r} \qquad \beta = \frac{2\mu}{r} - v^2
+\end{equation}
+
+TODO should i use alpha?
+
+The latter is more obscure, but it's also a conserved quantity, and can be expressed as:
+\begin{equation}
+\label{eccentricity-def}
+\bm e = \frac{\bm v \times \bm h}{\mu} - \frac{\bm x}{r} = \left( \frac{v^2}{\mu} - \frac{1}{r} \right) \bm x - \frac{\bm x \cdot \bm v}{\mu} \bm v
+\end{equation}
+
+Multiplying this by $\mu$, substituting in $\beta$, and using the identity $\bm x \cdot \bm v = r \dot{r}$, we get
+\begin{equation}
+\label{mu-e}
+\mu \bm e = \left(\frac{\mu}{r} - \beta \right) \bm x - r \dot{r} \bm v
+\end{equation}
+
+Now, applying (\ref{s-and-t-derivatives}) to $\dot{r}$ and $\bm v = \dot{\bm x}$, we get:
+\begin{equation}
+\mu \bm e = \left(\frac{\mu}{r} - \beta \right) \bm x - \frac{r'}{r} \bm x
+\end{equation}
+
+This now has an $(r'/r)\bm x$ term, which we isolate and plug into (\ref{eq-of-motion-s}), giving us our regularized equation of motion:
+\begin{equation}
+\label{eq-of-motion-best}
+\bm x'' + \beta \bm x = -\mu \bm e
+\end{equation}
+
+This form of the equation, without any $r$s in the denominator, will be easier to solve, and afterwards, we'll delve into the meaning of $s$.
+
+
+\subsection{Separation into \texorpdfstring{$f$}{f} and \texorpdfstring{$g$}{g} Functions}
+
+The independent variable $\bm x$ is a vector, so we want to express it in a convenient basis, and see if we can separate this vector-valued equation into some scalar-valued ones. Since the initial position and velocity span the orbital plane, they are a convenient basis to choose. There are thus some functions $f(s)$ and $g(s)$ such that
+\begin{equation}
+\bm x(s) = f(s) \bm x_0 + g(s) \bm v_0
+\end{equation}
+
+Conveniently, we also know the coefficients of $\mu \bm e$ in this basis, from (\ref{mu-e}). Applying this basis to our equation of motion (\ref{eq-of-motion-best}), we get:
+\begin{align*}
+\bm x'' + \beta \bm x &= -\mu \bm e \\
+(f'' \bm x_0 + g'' \bm v_0) + \beta (f \bm x_0 + g \bm v_0) &= -\left[ \left( \frac{\mu}{r_0} - \beta \right) \bm x_0 - r_0 \dot{r}_0 \bm v_0 \right] \\
+(f'' + \beta f) \bm x_0 + (g'' + \beta g) \bm v_0 &= \left( \beta - \frac{\mu}{r_0} \right) \bm x_0 + r_0 \dot{r}_0 \bm v_0
+\end{align*}
+
+Since $\bm x_0$ and $\bm v_0$ are independent (in the general case), we can separately equate the coefficients on each basis vector, giving us two uncoupled, second-order, inhomogeneous, linear differential equations.
+\begin{equation}
+\label{f-and-g-equations}
+f'' + \beta f = \beta - \frac{\mu}{r_0}  \qquad  g'' + \beta g = r_0 \dot{r}_0
+\end{equation}
+
+Solving these will give us the functions $f(s)$ and $g(s)$, which will give us $\bm x(s)$.
+
+
+\subsection{Stumpff Functions}
+
+To solve the inhomogeneous diffeqs in (\ref{f-and-g-equations}), we first have to solve the associated homogeneous equations. Fortunately, both $f$ and $g$ have the same equation, which has well-known solutions, the form of which depend on the sign of $\beta$:
+\begin{equation}
+\label{homogeneous-solutions}
+f(s) = g(s) = \begin{cases}
+A \cos(\sqrt{\beta} s) + B \sin(\sqrt{\beta} s)     & \beta > 0 \\
+A \cosh(\sqrt{-\beta} s) + B \sinh(\sqrt{-\beta} s) & \beta < 0 \\
+A + B s                                  & \beta = 0 \\
+\end{cases}
+\end{equation}
+
+If we were only dealing with a specific $\beta$, then this would be enough; either we get cosines and sines (and thus, ellipses), or we get hyperbolic trig functions (hyperbolas), or when $\beta$ is exactly zero, we get a linear equation. However, it would be nice to find an approach that is universal in $\beta$, for a few reasons:
+\begin{enumerate}
+\item We don't have to do any casework in subsequent proofs
+\item We don't have to do any casework in the code
+\item The transition from $\beta > 0$ to $\beta < 0$ is smooth and physically realizable; there \textbf{should} be some equations valid in both regimes!
+\end{enumerate}
+
+We can do so with the help of \emph{Stumpff functions}. The $k$th Stumpff function is defined by the following series, which converges absolutely for all $x$:
+\begin{equation}
+c_k(x) = \sum_{i=0}^\infty \frac{(-x)^i}{(k+2i)!}
+= \frac{1}{k!} - \frac{x}{(k+2)!} + \frac{x^2}{(k+4)!} - \frac{x^3}{(k+6)!} + \cdots
+\end{equation}
+
+With some thought, the series for $c_0$ and $c_1$ can be recognized as related to trigonometric series, and are expressible in a nice-ish form.
+\begin{equation}
+c_0(x) = \begin{cases}
+\cos(\sqrt x)    & x > 0 \\
+\cosh(\sqrt{-x}) & x < 0 \\
+1                & x = 0 \\
+\end{cases}
+\end{equation}
+\begin{equation}
+c_1(x) = \begin{cases}
+\sin(\sqrt x) / \sqrt x      & x > 0 \\
+\sinh(\sqrt{-x}) / \sqrt{-x} & x < 0 \\
+1                            & x = 0 \\
+\end{cases}
+\end{equation}
+
+For $k \ge 2$, we can use the following recurrence relation between $c_k$ and $c_{k+2}$:
+\begin{equation}
+c_k(x) = \frac{1}{k!} - x c_{k+2}(x)
+\end{equation}
+
+There's a strong similarity between $c_0$ and $c_1$, and the solutions to our diffeq in (\ref{homogeneous-solutions}). We can rewrite the general solution in terms of these functions (note that the $\sqrt{\pm \beta}$ can get folded into the constant, but the $s$ cannot):
+\begin{equation}
+f(s) = g(s) = A c_0(\beta s^2) + B s c_1(\beta s^2)
+\end{equation}
+
+TODO show any two of them work?
+
+A notation that is somewhat cleaner is to introduce the two-variable functions $G_k(\beta, s)$:
+\begin{equation}
+G_k(\beta, s) = s^k c_k(\beta s^2)
+\end{equation}
+
+Like the $c_k$, these are smooth functions, defined everywhere, and they also form a basis for the solution space:
+\begin{equation}
+f(s) = g(s) = A G_0(\beta, s) + B G_1(\beta, s)
+\end{equation}
+
+The $G_k$ have some nice properties, which will be useful in later derivations.
+\begin{equation*}
+G_k(\beta, s) = \frac{s^k}{k!} - \beta G_{k+2}(\beta, s) \qquad
+\der{}{s} G_{k+1} = G_k \qquad G_k(\beta, 0) = 0 \textrm{ for } k > 0 \qquad G_0(0) = 1
+\end{equation*}
+
+One special case to consider is $\der{}{s} G_0$. Applying the first property, then the second, we get that:
+\begin{equation*}
+\der{}{s} G_0 = \der{}{s} (1 - \beta G_2) = - \beta G_1
+\end{equation*}
+
+%TODO are there other properties that may be nice?
+
+%TODO apparently the G functions have addition formulas?
+% G_3(β,s+t) = G_3(β,s) + G_2(β,s) G_1(β,t) + G_1(β,s) G_2(β,t) + G_3(β,t)
+% try comparing to cosine formulas???
+% also try squared formulas
+
+TODO separate section on computing these, where we expand, talk about catastrophic cancellation, and chebyshev
+
+\textit{Aside: This may seem like sweeping the casework under the rug, but it isn't. The reason that this is acceptable is that $G_k(\beta, s)$ is an analytic function in \textbf{both} variables, and varying $\beta$ lets us smoothly transition between the cases. The casework here is only about how we \textbf{choose to express it} in elementary functions.}
+
+
+\subsection{Solving for Initial Conditions}
+
+Now that we have the solution set for the associated homogeneous diffeq of (\ref{f-and-g-equations}), we need to find some solution to the inhomogeneous equation. Conveniently, constants will work here:
+\begin{equation}
+f(s) = 1 - \frac{\mu}{\beta r_0}  \qquad  g(s) = \frac{r_0 \dot{r}_0}{\beta}
+\end{equation}
+
+So, our full solutions for $f$ and $g$ are of the form:
+\begin{equation}
+\label{general-solution-f}
+f(s) = \left(1 - \frac{\mu}{\beta r_0}\right) + A G_0(\beta, s) + B G_1(\beta, s)
+\end{equation}
+\begin{equation}
+\label{general-solution-g}
+g(s) = \frac{r_0 \dot{r}_0}{\beta} + C G_0(\beta, s) + D G_1(\beta, s)
+\end{equation}
+for some constants $A$, $B$, $C$, and $D$, determined by the initial conditions.
+
+Since we defined $s$ to be $0$ at the initial time, and $\bm x = f(s) \bm x_0 + g(s) \bm v_0$, we get the initial conditions in terms of $f$ and $g$:
+\begin{equation}
+f(0) = 1 \qquad g(0) = 0 \qquad \dot{f}(0) = 0 \qquad \dot{g}(0) = 1
+\end{equation}
+
+Plugging in $s = 0$ to equations (\ref{general-solution-f}) and (\ref{general-solution-g}), and seeing that $G_1$ vanishes, we can get values for $A$ and $C$. To get the other two, we need to look at the time derivatives (not the $s$-derivatives!) of those equations:
+\begin{equation}
+\dot{f}(s) = \frac{1}{r} f'(s) = -\frac{\beta A}{r} G_1(\beta, s) + \frac{B}{r} G_0(\beta, s)
+\end{equation}
+\begin{equation}
+\dot{g}(s) = \frac{1}{r} g'(s) = -\frac{\beta C}{r} G_0(\beta, s) + \frac{D}{r} G_0(\beta, s)
+\end{equation}
+
+Now we can plug in $s = 0$ to get the remaining two constants. The resulting values are:
+\begin{equation}
+A = \frac{\mu}{\beta r_0} \qquad B = 0 \qquad C = -\frac{r_0 \dot{r}_0}{\beta} \qquad D = r_0
+\end{equation}
+
+Plugging back into (\ref{general-solution-f}) and (\ref{general-solution-g}) gives us our complete solutions for $f$ and $g$.
+\begin{equation}
+f(s) = \left( 1 - \frac{\mu}{\beta r_0} \right) + \frac{\mu}{\beta r_0} G_0(\beta, s)
+\end{equation}
+\begin{equation}
+g(s) = \frac{r_0 \dot{r}_0}{\beta} - \frac{r_0 \dot{r}_0}{\beta} G_0(\beta, s) + r_0 G_1(\beta, s)
+\end{equation}
+
+These solutions have a $\beta$ in some denominators, and that could prove troublesome when $\beta = 0$.
+Fortunately, substituting $G_0 = 1 - \beta G_2$ lets us eliminate these denominators:
+\begin{equation}
+\label{solution-for-position}
+f(s) = 1 - \frac{\mu}{r_0} G_2(\beta, s)
+\qquad
+g(s) = r_0 G_1(\beta, s) + r_0 \dot{r}_0 G_2(\beta, s)
+\end{equation}
+
+Together the equations in (\ref{solution-for-position}) give us the position for any value of $s$. To get the velocity, we take the time derivative:
+\begin{equation}
+\label{solution-for-velocity}
+\dot f(s) = - \frac{\mu}{r r_0} G_1(\beta, s)
+\qquad
+\dot g(s) = \frac{r_0}{r} G_0(\beta, s) + \frac{r_0}{r} \dot{r}_0 G_1(\beta, s)
+\end{equation}
+
+At this point, we can now compute $\bm x$ and $\bm v$ at any given $s$. If we want a physical simulation, we next have to connect
+$s$ to $t$.
+
+\subsection{Connecting Time and \texorpdfstring{$s$}{s}}
+
+Given a value of $t$, how do we convert it to a value of $s$? Recall the defining relation $\der{s}{t} = \frac{1}{r}$. Rearranging, we get that $\dd t = r~\dd s$, and if we know $r$ in terms of $s$, we can integrate.
+
+We could try to use the relation $r = \sqrt{\bm x \cdot \bm x}$, but that square root gets really nasty. Instead, start with the equation $r' = r \dot{r} = \bm x \cdot \dot{\bm x}$, and take the time derivative of both sides.
+\begin{equation*}
+\der{}{t} r' = \der{}{t} (\bm x \cdot \dot{\bm x}) = \bm x \cdot \bm{\ddot x} + \bm{\dot x} \cdot \bm{\dot x}
+\end{equation*}
+
+Then apply the equations of motion, and the definition of energy (\ref{energy-def}), and grind a little bit of algebra:
+\begin{equation*}
+\der{}{t} r' = \bm x \left( - \frac{\mu}{r^3} \bm x \right) + 2 \left( \varepsilon + \frac{\mu}{r} \right) = - \frac{\mu}{r} - \beta + 2 \frac{\mu}{r} = \frac{\mu}{r} - \beta 
+\end{equation*}
+
+Rearranging one more time, we get a diffeq describing $r$:
+\begin{equation}
+r'' + \beta r = \mu
+\end{equation}
+
+We've already seen how to solve diffeqs of this form; we know that the solution for $r(s)$ looks like $r(s) = A + B G_1(\beta, s) + C G_2(\beta, s)$. (We could use $G_0$ and $G_1$ here instead, but if we did, we'd have to clear $\beta$ from the denominator, just like before.)
+
+Evaluating this and its $s$-derivatives at $s = 0$, it's straightforward to find these constants:
+\begin{equation}
+A = r(0) = r_0 \qquad B = r'(0) = r_0 \dot{r}_0 \qquad C = r''(0) = \mu - \beta r_0
+\end{equation}
+
+This gives us a clean equation for $r(s)$:
+\begin{equation}
+\label{solution-for-r}
+r(s) = r_0 G_0(\beta, s) + r_0 \dot{r}_0 G_1(\beta, s) + \mu G_2(\beta, s)
+\end{equation}
+
+Integrating this with respect to $s$ bumps up the subscript on the $G_i$, giving us the desired link between $s$ and $t$:
+\begin{equation}
+t = \int r(s)~\dd s = r_0 G_1(\beta, s) + r_0 \dot{r}_0 G_2(\beta, s) + \mu G_3(\beta, s) + C
+\end{equation}
+
+Since we pegged $s$ to zero at our initial conditions, we have that $C = t_0$, or the time at start. This gives our equation for time:
+\begin{equation}
+\label{solution-for-time}
+t - t_0 = r_0 G_1(\beta, s) + r_0 \dot{r}_0 G_2(\beta, s) + \mu G_3(\beta, s)
+\end{equation}
+
+So if we want to advance the system by some $s$, we can update position and velocity using (\ref{solution-for-position}) and (\ref{solution-for-velocity}), and update time using (\ref{solution-for-time}).
+
+As a side note, we can use the expression for $r$ to simplify the $\dot g$ expression in (\ref{solution-for-velocity}):
+\begin{equation}
+\dot g(s) = 1 - \frac{\mu}{r} G_2(\beta, s)
+\end{equation}
+
+(TODO: can i do something similar for $g$?)
+
+
+\subsection{Anchoring to Zero}
+
+Given an initial position and velocity, we now know how to advance the state forward or backward by any $s$. This gives us a parameterization of the orbit, however, depending on where on the orbit we start out, we get a different parameterization. This is somewhat unsatisfying -- what is there a way we can pick a canonical one?
+
+Much like with propagation, the classical approach involves treating parabolic, elliptic, and hyperbolic orbits differently, but using $s$ will allow us to treat them in a uniform manner.
+
+A natural point, present on all orbits, is the periapsis. Other than on a circular orbit, this point is unique, so we'll use it for the initial conditions, at $s = 0$, and describe all other points on the orbit from there. Plugging in the radius at periapsis ($r_p$) into (\ref{solution-for-position}), and noting that velocity is perpendicular to the radius there, we get:
+\begin{equation}
+f(s) = 1 - \frac{\mu}{r_p} G_2(\beta, s) \qquad g(s) = r_p G_1(\beta, s)
+\end{equation}
+
+This looks pretty good, but there's a small problem we have to worry about: collision orbits. For those orbits, $r_p = 0$ and $v_p = \infty$, and conversely, $f(s) = \infty$ and $g(s) = 0$. Fortunately, since $\bm x(s) = f(s) \bm x_p + g(s) \bm v_p$, these $0$s and $\infty$s are paired up and resolve to something finite, so this isn't an irresolvable problem, but it does mean that we should not use $r_p$ and $v_p$ themselves as the parameterizing constants.
+
+To get around this, we'll normalize our coordinate axes. Let's work in a coordinate system where $x$ points towards periapsis, and $y$ points along the velocity vector. Then the $x$ coordinate is just $r_p f(s)$, and the $y$ coordinate is $v_p g(s)$. If we expand the definitions of those, and make use of some of the classic orbital elements ($\varepsilon$, $h$, and $e$), then we arrive at coherent expressions for all orbits:
+\begin{equation}
+x = r_p f(s) = r_p - \mu G_2(\beta, s) = \frac{h^2}{\mu (1+e)} - \mu G_2(\beta, s)
+\end{equation}
+\begin{equation}
+y = v_p g(s) = r_p v_p G_1(\beta, s) = h G_1(\beta, s)
+\end{equation}
+
+Following the same process on equation (\ref{solution-for-velocity}) (or just taking the derivative of the equations above), we get expressions for velocity:
+\begin{equation}
+\dot x = r_p \dot f(s) = - \frac{\mu}{r} G_1(\beta, s)
+\end{equation}
+\begin{equation}
+\dot y = v_p \dot g(s) = \frac{r_p v_p}{r} G_0(\beta, s) = \frac{h}{r} G_0(\beta, s)
+\end{equation}
+
+For time, the coordinates don't matter, so we can just plug in the state at periapsis into equation (\ref{solution-for-time}):
+\begin{equation}
+t(s) - t_0 = r_p G_1(\beta, s) + \mu G_3(\beta, s)
+\end{equation}
+
+By using the recurrence relation on $G_k$, we can simplify this a little further:
+\begin{equation}
+t(s) - t_0 = r_p G_1(\beta, s) + \mu G_3(\beta, s) = r_p s + (\mu - r_p \beta) G_3(\beta, s) = r_p s + \mu e G_3(\beta, s)
+\end{equation}
+
+Taking the $s$ derivative, we get an equation for the radius too:
+\begin{equation}
+r(s) = r_p + \mu e G_2(\beta, s)
+\end{equation}
+
+TODO make sure you use these in the actual code!
+
+
+\subsection{\texorpdfstring{$s$}{s} as Universal Anomaly}
+
+We've gotten a lot of mileage out of $s$, but what exactly is it? It describes how far along an orbit a satellite is, and can be used to propagate the orbit, so in that sense, it's very similar to time. But there's another variable it's even more closely related to: the eccentric anomaly.
+
+TODO use $\chi$ to mean s since periapsis?
+
+\subsubsection*{Elliptical Orbits}
+
+For elliptical orbits, the \emph{true anomaly} is the actual angle that a satellite makes with its focal axis, and is denoted by $\theta$. The \emph{mean anomaly} $M$ is an averaged measure of motion; if $t$ is the time elapsed since periapsis, and $T$ is the period of the orbit, $M = 2 \pi t / T$.
+
+The \emph{eccentric anomaly} is somewhat of a hybrid of these two quantities. The important things for us to know are Kepler's equation, which relates it to the mean anomaly, and a relation to the true-anomaly:
+\begin{equation}
+\label{keplers-equation}
+M = E - e \sin E
+\end{equation}
+\begin{equation}
+\label{eccentric-anomaly}
+\tan{\frac{E}{2}} = \sqrt{\frac{1-e}{1+e}} \tan{\frac{\theta}{2}}
+\end{equation}
+
+To connect $s$ to $E$, we will integrate $\der{s}{t} = \frac{1}{r}$, and miraculously, the $r$ and $t$ quantities will coincide into a single expression in $E$.
+
+First, we expand $r$ using the polar form of an ellipse:
+\begin{equation}
+\label{integrate-ellipse}
+\Delta s = \int \frac{\dd t}{r} = \int \frac{1 + e \cos \theta}{a (1-e^2)}~\dd t
+\end{equation}
+
+Taking the derivative of (\ref{keplers-equation}), we can switch our integration variable to $E$:
+\begin{equation*}
+\der{M}{t} = \frac{2 \pi}{T} = \der{E}{t} - e \cos E \der{E}{t}
+\end{equation*}
+\begin{equation}
+\der{t}{E} = \frac{1 - e \cos E}{2 \pi / T}
+\end{equation}
+
+Plugging it into (\ref{integrate-ellipse}), we get an integrand without time:
+\begin{equation}
+\Delta s = \frac{T / 2 \pi}{a (1-e^2)} \int (1 + e \cos \theta)(1 - e \cos E)~\dd E
+\end{equation}
+
+Lastly, we need to express $\cos \theta$ in terms of $E$. By applying several different half-angle formulas to (\ref{eccentric-anomaly}), and grinding away, we can get
+\begin{equation}
+\cos \theta = \frac{\cos E - e}{1 - e \cos E}
+\end{equation}
+
+which, when plugged back into the previous integral, gives
+\begin{equation}
+\Delta s = \frac{T / 2 \pi}{a(1 - e^2)} \int (1 - e^2)~\dd E = \frac{T}{2 \pi a} \Delta E = \frac{\Delta E}{\sqrt \beta}
+\end{equation}
+where the last equality comes from Kepler's third law.
+
+Surprisingly, $s$ is just a rescaled version of the eccentric anomaly! Since $s = 0$ and $E = 0$ at the periapsis, we can drop the $\Delta$ and simply state that
+\begin{equation}
+s = \frac{E}{\sqrt \beta}
+\end{equation}
+
+\subsubsection*{Non-Elliptical Orbits}
+
+Similarly, hyperbolic orbits have the hyperbolic anomaly, denoted $H$, and related to the true anomaly by:
+\begin{equation}
+\label{hyperbolic-anomaly}
+\tanh{\frac{H}{2}} = \sqrt{\frac{e-1}{e+1}} \tan{\frac{\theta}{2}}
+\end{equation}
+
+If you do the same kind of integral, you get a similar relationship between hyperbolic anomaly and $s$:
+\begin{equation}
+s = \frac{H}{\sqrt{-\beta}}
+\end{equation}
+
+Lastly, we look at the parabola. The polar form of a parabola is $r = \frac{h^2/\mu}{1 + \cos \theta}$, and instead of Kepler's equation, we use Barker's equation:
+\begin{equation}
+\label{barker}
+t = \frac{h^3}{2 \mu^2} (D + \frac{1}{3} D^3)
+\end{equation}
+where $D = \tan \frac{\theta}{2}$ and $h$ is the angular momentum.
+
+Taking the derivative of (\ref{barker}), we can change our integral to be over $D$:
+\begin{equation}
+s = \frac{h}{2 \mu} \int (1 + \cos \theta)(1 + D^2)~\dd D
+\end{equation}
+
+Through double-angle identities, we rephrase $\cos \theta$ to be $(1 - D^2)/(1 + D^2)$, allowing us to simplify the integrand to a constant $2$, and so
+\begin{equation}
+\label{parabolic-anomaly}
+s = \frac{h}{\mu} D
+\end{equation}
+
+In summary, $s$ is a rescaled version of the eccentric, hyperbolic, and parabolic anomalies, and through these, can be related to the true anomaly.
+
+%TODO add the tan (theta/2) = (...s...) formula. i think i can get it from tan(E/2) = [1-cos(E)] / sin(E), and some stumpff substitutions
+
+%TODO I gotta find a way to get s from position and velocity... :|
+
+\section{Orbit Representations in Code}
+
+The space of orbits is five-dimensional, so we need five parameters to represent it. We reduce the problem first by specifying a rotation (3 degrees of freedom), that takes the $x$-axis to the focal axis, and the $z$ axis to the orbital plane. Choosing the remaining two parameters is tricky.
+
+There's a wide set of possible options we can pick from:
+\begin{itemize}
+\item semimajor axis
+\item eccentricity
+\item energy
+\item periapsis
+\item semilatus rectum
+\end{itemize}
+
+If we pick semimajor axis and eccentricity, then all parabolic orbits look the same: $a = \infty$ and $e = 1$. Even if we include energy, we have the same problem. The only things that distinguish parabolic orbits from each other are the periapsis and the semilatus rectum.
+
+If we pick the periapsis, we need to pick energy or semimajor axis as the other parameter, since we need a way to distinguish radial orbits. The problem is that not all pairs of values are valid orbits. For a fixed periapsis $r_p$, the orbit with the least energy is a circular one. Therefore, we must have $\varepsilon \ge -\frac{\mu}{2r_p}$, which is a bit of an awkward constraint to have.
+
+TODO i ended up choosing $\ell$ and $1/a$, but why can't I do $r_p$ and $a$?
+
+\section{SOI Encounter and Escape}
+
+TODO SOI radius computation and also bounding box stuff
+
+\section{Frame Transformation}
+Consider two orthogonal reference frames, $A$ and $B$, which are displaced by a vector $T_{BA}$ and related by a rotation $R_{BA}$. Additionally, frame $B$ is moving w.r.t. frame $A$, with linear velocity $V_{BA}$ and angular velocity (around its origin) $\Omega_{BA}$.
+
+TODO picture
+
+\subsection{Positions and Directions}
+
+Even though the two frames are not aligned, and some rotation $R_{BA}$ is needed to convert between the coordinates, we're not going to really worry about it in this document. Vectors are physical objects, and have coordinate-independent existences, and so we will write them without specifying a basis.
+
+For positions, we'll specify them as vector offsets from the origin of the frame. So, given a point, we can measure both $r_A$, the displacement from the origin of $A$, and $r_B$, the displacement from the origin of $B$. They are related by $r_A = r_B + T_{BA}$.
+
+Of course, in the code itself, we'll need to make use of $R_{BA}$ to convert between coordinates. Specifically, if $R_{BA}$ actively transforms the basis vectors of $A$ to those of $B$, it passively converts coordinates from $B$ to $A$. As an example, the above identity, when expressed in $A$'s coordinates, is $[r_A]_A = R_{BA} [r_B]_B + [T_{BA}]_A$, where $[-]_A$ is ``this vector is expressed in $A$'s coordinates''. But we don't have to worry about that except in code.
+
+\subsection{Derivatives}
+
+These two frames move relative to one another, and so they will disagree on whether objects are moving or not. Let $D_A$ mean "derivative in frame $A$", and likewise for $D_B$. However, they will agree on scalar quantities, and so for those we'll just use the usual $d/dt$.
+
+First, we'd like to determine how the bases move. Let the basis vectors in frame $A$ be $\hat x$, $\hat y$, and $\hat z$, and the ones in frame $B$ be $\hat X$, $\hat Y$, and $\hat Z$. We know from basic geometry that if a vector $u$ is fixed in frame $B$, then $D_A (u) = \Omega_{BA} \times u$. So in particular this is true of the basis vectors.
+
+Now consider some vector, possibly time-dependent, $u(t)$. In frame $A$, it has coordinates $(x, y, z)_A$, where $v = x \hat x + y \hat y + z \hat z$, and in the $B$ frame, it has similar coordinates $(X, Y, Z)_B$.
+
+Let's take the derivative in the $A$ frame. On one hand, it's simply $\der{x}{t} \hat x + \der{y}{t} \hat y + \der{z}{t} \hat z$. But if we expand it in $B$-coordinates, we get:
+\begin{align*}
+D_A (u) &= D_A (X \hat X + Y \hat Y + Z \hat Z) \\
+&= \der{X}{t} \hat X + X D_A (\hat X) + \der{Y}{t} \hat Y + Y D_A (\hat X) + \der{Z}{t} \hat Z + Z D_A (\hat Z) \\
+&= \left( \der{X}{t} \hat X + \der{Y}{t} \hat Y + \der{Z}{t} \hat Z \right) \\
+&\qquad\quad + \left( X (\Omega_{BA} \times \hat X) + Y (\Omega_{BA} \times \hat Y) + Z (\Omega_{BA} \times \hat Z) \right) \\
+&= D_B (u) + (\Omega_{BA} \times u)
+\end{align*}
+
+TODO figure out how to number only the last of these
+
+\subsection{Velocities}
+
+Now that we know how derivatives work, we're equipped to talk about velocities. As mentioned above, if an object has position $r_A$ in frame $A$, and $r_B$ in frame $B$, then the two vectors are related by $r_A = r_B + T_{BA}$. Taking the derivative in the $A$ frame, we have:
+\[ D_A (r_A) = D_A (r_B) + D_A(T_{BA}) = D_B (r_B) + (\Omega_{BA} \times r_B) + D_A (T_{BA}) \]
+
+The $D_A (r_A)$ and $D_B (r_B)$ terms are the component-wise derivatives of position in their respective frames. By definition, these are the velocities $v_A$ and $v_B$. The last term is the velocity (as measured by $A$) of $B$'s origin, in other words, $V_{BA}$. (Note that there is an asymmetry here; $D_B (T_{BA})$ is \textit{not} $V_{BA}$, because there's extra velocity that $A$'s origin acquires from $B$'s rotation!) So our final result is:
+\[ v_A = v_B + (\Omega_{BA} \times r_B) + V_{BA} \]
+
+\subsection{Composition and Inverses}
+
+Let's now try to figure out the inverses by flipping some labels. Since $r_A = r_B + T_{BA}$, it should be the case that $r_B = r_A + T_{AB}$, which would imply that $T_{AB} = -T_{BA}$. Similarly, $D_A(u) = D_B(u) + \Omega_{BA} \times u$ implies that $\Omega_{AB} = \Omega_{BA}$.
+
+The case for velocity is a little trickier, but nothing horrendous. Starting by flipping the labels, and isolating $V_{AB}$:
+\begin{align*}
+v_B &= v_A + (\Omega_{AB} \times r_A) + V_{AB} \\
+V_{AB} &= v_B - v_A - (\Omega_{AB} \times r_A) \\
+V_{AB} &= -v_A + v_B + (\Omega_{BA} \times (r_B + T_{BA})) \\
+V_{AB} &= (v_B + (\Omega_{BA} \times r_B)) - v_A + (\Omega_{BA} \times T_{BA}) \\
+V_{AB} &= -V_{BA} + (\Omega_{BA} \times T_{BA})
+\end{align*}
+
+Physically, what this means is that the velocity of $A$'s origin, w.r.t. $B$, is the negative of the velocity we saw before (as expected), but there's also an additional term that comes from the rotation $\Omega$.
+
+For what it's worth, we could derive this a second way. We know that $D_A(T_{BA}) = V_{BA}$, and so we can use what we already know about derivatives:
+\[ V_{AB} = D_B(T_{AB}) = -D_B(T_{BA}) = -D_A(T_{BA}) - (\Omega_{AB} \times T_{BA}) \]
+\[ = -V_{BA} + (\Omega_{BA} \times T_{BA}) \]
+
+Composition employs some similar tricks. Clearly $T_{CA} = T_{CB} + T_{BA}$ and with some thought, one can justify $\Omega_{CA} = \Omega_{CB} + \Omega{BA}$. As usual, it's the velocity that needs some work.
+
+We can use the fact that $V_{CA} = D_A(T_{CA})$ to derive the correct velocity:
+\begin{align*}
+V_{CA} &= D_A(T_{CA}) \\
+&= D_A(T_{CB}) + D_A(T_{BA}) \\
+&= D_B(T_{CB}) + (\Omega_{BA} \times T_{CB}) + D_A(T_{BA}) \\
+&= V_{CB} + V_{BA} + (\Omega_{BA} \times T_{CB})
+\end{align*}
+
+Another way to read this result is as the conversion of the velocity of $C$'s origin from $B$'s frame to $A$'s frame. (Take the usual velocity transformation from $B$ to $A$, but with $v_B = V_{CB}$ and $r_B = T_{CB}$).
+
+
+\section{Root-Finding Methods}
+
+\section{Computation of Stumpff Functions}
+
+TODO catastrophic cancellation and chebyshev
+
+\end{document}
