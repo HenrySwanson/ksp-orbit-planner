@@ -595,11 +595,11 @@ However, for computational purposes, it will turn out to be easier to transform 
 
 Our goal is to find the range of this expression over an arbitrary interval in $s$. It suffices to find out what range the $G_k$ functions have over a particular interval. If $G_k$ were monotonic, this would be easy, since we can just take the range between the endpoints. Instead, we have to find the intervals on which $G_k$ \textit{is} monotonic, and account for the maxima and minima in between.
 
-Fortunately, we can exploit the similarity to trigonometric functions. Revisiting the expansion of $G_1$ (\ref{expanded-g1}), we split into cases based on $\beta$. When $\beta < 0$, it looks like $\sinh(-)$, so there are no extrema then. When $\beta = 0$, it looks like $s$, so there are no extrema then iether. When $\beta < 0$, the function equals $\sin(s \sqrt \beta) / \sqrt \beta$. In that regime, there is a maximum at every $\left( 2\pi + \frac{1}{2} \right) \pi / \sqrt \beta$, with output $1/\sqrt \beta$, and its minima are similar.
+Fortunately, we can exploit the similarity to trigonometric functions. Revisiting the expansion of $G_1$ (\ref{expanded-g1}), we split into cases based on $\beta$. When $\beta < 0$, it looks like $\sinh(-)$, so there are no extrema then. When $\beta = 0$, it looks like $s$, so there are no extrema then either. When $\beta < 0$, the function equals $\sin(s \sqrt \beta) / \sqrt \beta$. In that regime, there is a maximum at every $\left( 2\pi + \frac{1}{2} \right) \pi / \sqrt \beta$, with output $1/\sqrt \beta$, and its minima are similar.
 
 For $G_2$, we do something similar. When $\beta < 0$, it looks like $(1 - \cosh(s \sqrt{-\beta})) / \beta$. There's only one extremum, a minimum, at the origin. When $\beta = 0$, we have the same situation. When $\beta > 0$, it looks like $(1 - \cos(s \sqrt \beta)) / \beta$, and we're back to periodicity. The minima are at $2n\pi / \beta$, and take a value of $0$; the maxima occur at $(2n+1)\pi/\beta$, and take the value $2/\beta$.
 
-So, if we're evaluating our position over the interval $[s_0, s_1]$, then we check whether the interval contains an extremum. If not, we just take the range over the endpoints. Otherwise, we expand the range to include the extremum.
+So, if we're evaluating our position over the interval $[s_0, s_1]$, then we check whether the interval contains an extremum. If not, we just take the range over the endpoints. Otherwise, we expand the range to include the extremum. Repeat this for each coordinate, and we get our bounding box!
 
 
 \section{Frame Transformation}

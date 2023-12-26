@@ -265,6 +265,10 @@ impl<P: HasMass, S> Orbit<P, S> {
         -self.primary.mu() * self.alpha / 2.0
     }
 
+    pub fn beta(&self) -> f64 {
+        self.primary.mu() * self.alpha
+    }
+
     pub fn angular_momentum(&self) -> f64 {
         // l = h^2/mu
         (self.slr * self.primary.mu()).sqrt()
