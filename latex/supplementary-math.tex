@@ -191,6 +191,22 @@ For $k \ge 2$, we can use the following recurrence relation between $c_k$ and $c
 c_k(x) = \frac{1}{k!} - x c_{k+2}(x)
 \end{equation}
 
+We'll make use of $c_2$ and $c_3$ later, so let's expand them now:
+\begin{equation}
+c_2(x) = \begin{cases}
+(1 - \cos(\sqrt x)) / x    & x > 0 \\
+(1 - \cosh(\sqrt{-x})) / x & x < 0 \\
+1/2                        & x = 0 \\
+\end{cases}
+\end{equation}
+\begin{equation}
+c_3(x) = \begin{cases}
+(\sqrt x - \sin(\sqrt x)) / \sqrt{x^3}      & x > 0 \\
+(\sqrt x - \sinh(\sqrt{-x})) / \sqrt{-x^3}  & x < 0 \\
+1/6                                         & x = 0 \\
+\end{cases}
+\end{equation}
+
 There's a strong similarity between $c_0$ and $c_1$, and the solutions to our diffeq in (\ref{homogeneous-solutions}). We can rewrite the general solution in terms of these functions (note that the $\sqrt{\pm \beta}$ can get folded into the constant, but the $s$ cannot):
 \begin{equation}
 f(s) = g(s) = A c_0(\beta s^2) + B s c_1(\beta s^2)
@@ -206,6 +222,32 @@ G_k(\beta, s) = s^k c_k(\beta s^2)
 Like the $c_k$, these are smooth functions, defined everywhere, and they also form a basis for the solution space:
 \begin{equation}
 f(s) = g(s) = A G_0(\beta, s) + B G_1(\beta, s)
+\end{equation}
+
+We can expand a few of them to get an idea of what they look like:
+\begin{equation}
+\label{expanded-g0}
+G_0(\beta, s) = c_0(\beta s^2) = \begin{cases}
+\cos(s \sqrt \beta)    & \beta > 0 \\
+\cosh(s \sqrt{-\beta}) & \beta < 0 \\
+1                      & \beta = 0 \\
+\end{cases}
+\end{equation}
+\begin{equation}
+\label{expanded-g1}
+G_1(\beta, s) = s c_1(\beta s^2) = \begin{cases}
+\sin(s \sqrt{\beta}) / \sqrt{\beta}    & \beta > 0 \\
+\sinh(s \sqrt{-\beta}) / \sqrt{-\beta} & \beta < 0 \\
+s                                      & \beta = 0 \\
+\end{cases}
+\end{equation}
+\begin{equation}
+\label{expanded-g2}
+G_2(\beta, s) = s^2 c_2(\beta s^2) = \begin{cases}
+(1 - \cos(s \sqrt \beta)) / \beta    & \beta > 0 \\
+(1 - \cosh(s \sqrt{-\beta})) / \beta & \beta < 0 \\
+s^2/2                                & \beta = 0 \\
+\end{cases}
 \end{equation}
 
 The $G_k$ have some nice properties, which will be useful in later derivations.
@@ -356,6 +398,7 @@ Much like with propagation, the classical approach involves treating parabolic, 
 
 A natural point, present on all orbits, is the periapsis. Other than on a circular orbit, this point is unique, so we'll use it for the initial conditions, at $s = 0$, and describe all other points on the orbit from there. Plugging in the radius at periapsis ($r_p$) into (\ref{solution-for-position}), and noting that velocity is perpendicular to the radius there, we get:
 \begin{equation}
+\label{solution-for-position-periapsis}
 f(s) = 1 - \frac{\mu}{r_p} G_2(\beta, s) \qquad g(s) = r_p G_1(\beta, s)
 \end{equation}
 
@@ -508,9 +551,56 @@ If we pick the periapsis, we need to pick energy or semimajor axis as the other 
 
 TODO i ended up choosing $\ell$ and $1/a$, but why can't I do $r_p$ and $a$?
 
+
 \section{SOI Encounter and Escape}
 
-TODO SOI radius computation and also bounding box stuff
+Kerbal Space Program simulates an $n$-body trajectory by patching together arcs from different one-body trajectories. When do we decide that the primary body is the sun, and when is it one of the planets? (Equivalently, when near a planet, do we use the planet or a moon?)
+
+KSP does this by using "spheres of influence". When a satellite is in a body's sphere of influence (SOI), then KSP uses that body as the primary of the orbit. The SOIs form a hierarchy, where the SOI of each moon nests within the SOI of its planet, and the SOI of each of those nests within the SOI of the Sun (infinite).
+
+When a body of mass $m$ orbits a body of mass $M$, then KSP estimates the radius of its SOI as
+\begin{equation}
+r_{SOI} = a \left( \frac{m}{M} \right)^{2/5}
+\end{equation}
+
+When planning a spacecraft's trajectory, we are nearly always interested in a path that crosses multiple spheres of influence. Therefore, we need to figure out when exactly we enter and exit the SOIs in our neighborhood.
+
+\subsection{Escape}
+
+Determining whether a ship ever escapes an SOI is straightforward: does the ship ever reach a radius of $r_{SOI}$?
+
+Since we have formulas for the apoapsis, we can just compute it, and see if it's larger than $r_{SOI}$. If so, then we escape.
+
+However, for accurate simulation, we also have to figure out when we escaped. To do that, we use equation (\ref{solution-for-r}), which relates $r$ to $s$. With some root-finding techniques, we can determine this $s$, and then plug it into equation (\ref{solution-for-time}) to get the elapsed time.
+
+
+\subsection{Encounter}
+
+For SOI encounter, things are hairier. Not only do we have to hit a moving target, instead of a fixed radius, there are multiple possible moons we can encounter, and we have to check for encounter with each of them separately.
+
+TODO note: haven't actually done this yet but it seems promising!
+
+To do this, we do what mathematicians call ``interval analysis'', and programmers call ``bounding box computation''. For a given time interval, we determine the possible range of $x$ coordinates we could have, and same for $y$ and $z$. This gives us a box that we know the ship is contained in. If we repeat the process for the moon, we have two boxes, and it's easy to test whether they intersect.
+
+If they don't intersect, then we know that there is no possibility of encounter. If they do intersect, there could be an encounter, but not necessarily. We split the interval in half, and repeat the test. If we don't intersect in the first half, then we know the possible intersection lies in the second half, and repeat the process, until we TODO well, when do we stop? when we have one foot in and one foot out? that might not suffice to get the \textit{first} intersection though
+
+\subsubsection*{Bounding Boxes}
+
+To compute this bounding box, we need to know what kind of range the $x$ coordinate could take on in an arbitrary time interval. First, we find the corresponding interval in $s$, using (\ref{solution-for-time}). Then, we could take equation (\ref{solution-for-position-periapsis}), and dot it against the $\hat x$ unit vector.
+
+However, for computational purposes, it will turn out to be easier to transform the basis vectors into the frame of the orbit, and then do all our computation in that frame. So instead, let's dot it against an arbitrary unit vector $\hat{u} = (u_x, u_y, u_z)$:
+\begin{equation}
+\bm x \cdot \hat{u} = (r_p - \mu G_2(\beta, s)) u_x + h G_1(\beta, s) u_y
+\end{equation}
+
+Our goal is to find the range of this expression over an arbitrary interval in $s$. It suffices to find out what range the $G_k$ functions have over a particular interval. If $G_k$ were monotonic, this would be easy, since we can just take the range between the endpoints. Instead, we have to find the intervals on which $G_k$ \textit{is} monotonic, and account for the maxima and minima in between.
+
+Fortunately, we can exploit the similarity to trigonometric functions. Revisiting the expansion of $G_1$ (\ref{expanded-g1}), we split into cases based on $\beta$. When $\beta < 0$, it looks like $\sinh(-)$, so there are no extrema then. When $\beta = 0$, it looks like $s$, so there are no extrema then iether. When $\beta < 0$, the function equals $\sin(s \sqrt \beta) / \sqrt \beta$. In that regime, there is a maximum at every $\left( 2\pi + \frac{1}{2} \right) \pi / \sqrt \beta$, with output $1/\sqrt \beta$, and its minima are similar.
+
+For $G_2$, we do something similar. When $\beta < 0$, it looks like $(1 - \cosh(s \sqrt{-\beta})) / \beta$. There's only one extremum, a minimum, at the origin. When $\beta = 0$, we have the same situation. When $\beta > 0$, it looks like $(1 - \cos(s \sqrt \beta)) / \beta$, and we're back to periodicity. The minima are at $2n\pi / \beta$, and take a value of $0$; the maxima occur at $(2n+1)\pi/\beta$, and take the value $2/\beta$.
+
+So, if we're evaluating our position over the interval $[s_0, s_1]$, then we check whether the interval contains an extremum. If not, we just take the range over the endpoints. Otherwise, we expand the range to include the extremum.
+
 
 \section{Frame Transformation}
 Consider two orthogonal reference frames, $A$ and $B$, which are displaced by a vector $T_{BA}$ and related by a rotation $R_{BA}$. Additionally, frame $B$ is moving w.r.t. frame $A$, with linear velocity $V_{BA}$ and angular velocity (around its origin) $\Omega_{BA}$.
