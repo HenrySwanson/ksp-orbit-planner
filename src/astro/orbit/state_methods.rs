@@ -158,18 +158,46 @@ impl<P: HasMass, S> Orbit<P, S> {
         self.ts_and_derivative(s).0
     }
 
+    #[allow(non_snake_case)]
     pub fn get_s_at_radius(&self, radius: f64) -> Option<f64> {
-        // TODO this doesn't work well for radial orbits, try to adjust it so that it
-        // does
+        // We can actually solve this one exactly, using the relationship between r and
+        // s
 
-        // Since (h^2/mu) / (1 + e cos theta) = r, we can invert that to get
-        // a desired theta, which will always be in the first or second quadrant
-        let cos_theta = (self.semilatus_rectum() / radius - 1.0) / self.eccentricity();
-        if cos_theta.abs() > 1.0 {
-            return None;
-        }
+        // Grab some constants
+        let mu = self.primary.mu();
+        let ecc = self.eccentricity();
+        let beta = -2.0 * self.energy();
+        let r_p = self.periapsis();
 
-        let theta = cos_theta.acos();
-        Some(self.true_to_universal(theta))
+        // r = r_p + mu e G_2, so...
+        let desired_G2 = (radius - r_p) / mu / ecc;
+
+        // Split into cases
+        let s = match beta.partial_cmp(&0.0).unwrap() {
+            std::cmp::Ordering::Less => {
+                // Hyperbola: G2 = (1 - cosh(s sqrt -beta)) / beta
+                let tmp = 1.0 - desired_G2 * beta;
+                // Is this in range for acosh?
+                if tmp < 1.0 {
+                    return None;
+                }
+                tmp.acosh() / (-beta).sqrt()
+            }
+            std::cmp::Ordering::Equal => {
+                // Parabola: G2 = s^2 / 2
+                (desired_G2 * 2.0).sqrt()
+            }
+            std::cmp::Ordering::Greater => {
+                // Ellipse: G2 = (1 - cos(s sqrt beta)) / beta
+                let tmp = 1.0 - desired_G2 * beta;
+                // Is this in range for acos?
+                if tmp.abs() > 1.0 {
+                    return None;
+                }
+                tmp.acos() / beta.sqrt()
+            }
+        };
+
+        Some(s)
     }
 }

@@ -2,7 +2,7 @@ use approx::assert_relative_eq;
 use itertools::{EitherOrBoth, Itertools};
 use nalgebra::Vector3;
 use rust_ksp::file::read_file;
-use rust_ksp::model::events::{EventTag, EventData, SOIChange};
+use rust_ksp::model::events::{EventData, SOIChange};
 use rust_ksp::model::orrery::BodyID;
 use rust_ksp::model::timeline::Timeline;
 
@@ -33,20 +33,18 @@ const ESCAPE_KERBIN: EventData = {
 /// It goes like this:
 /// - 0d: Ship proceedes in moderately elliptical trajectory (e = 0.7, SMA =
 ///   20M)
-/// - 13d: Encounters Mun and switches to smaller orbit (e = 0.73, SMA =
-///   8.7M)
+/// - 13d: Encounters Mun and switches to smaller orbit (e = 0.73, SMA = 8.7M)
 /// - 14d: Immediate re-encounter, enlarges orbit again (e = 0.7, SMA = 21M)
 /// - 22d: Tightens orbit to small and narrow (e = 0.83, SMA = 7.3M)
 /// - 31d: Re-enlarges orbit (e = 0.69, SMA = 17M)
-/// - 45d: Just grazes Mun, slight modification of orbit (e = 0.66, SMA =
-///   14M)
+/// - 45d: Just grazes Mun, slight modification of orbit (e = 0.66, SMA = 14M)
 /// - 49d: Bounces off the Mun (e = 0.74, SMA = 9.5M)
-/// - 55d: Clips through the Mun and drops almost into Kerbin (e = 0.92, SMA
-///   = 6.7M)
-/// - 58d: Bounces off the Mun, and enters a hyperbolic orbit (e = 1.95, SMA
-///   = -12M)
-/// - 60d: Escapes Kerbin's orbit, and starts orbiting the Sun (e = 0.097,
-///   SMA = 15B)
+/// - 55d: Clips through the Mun and drops almost into Kerbin (e = 0.92, SMA =
+///   6.7M)
+/// - 58d: Bounces off the Mun, and enters a hyperbolic orbit (e = 1.95, SMA =
+///   -12M)
+/// - 60d: Escapes Kerbin's orbit, and starts orbiting the Sun (e = 0.097, SMA =
+///   15B)
 #[test]
 fn test_favorite_scenario() {
     let expected_events = vec![
@@ -73,9 +71,9 @@ fn test_favorite_scenario() {
         (4803927.607622115, ESCAPE_MUN),
         // 59d
         (5066549.0475938115, ENCOUNTER_MUN),
-        (5075614.547186624, ESCAPE_MUN),
+        (5075614.547186604, ESCAPE_MUN),
         // 60d
-        (5199986.651638684, ESCAPE_KERBIN),
+        (5199986.65163866, ESCAPE_KERBIN),
     ];
 
     let mut orrery = read_file("ksp-bodies.txt");
