@@ -12,3 +12,6 @@ simba = "*"  # Must match that in nalgebra
 approx = "^0.5.1"
 plotters = "*"
 clap = { version = "4.0.32", features = ["derive"] }
+
+[dev-dependencies]
+itertools = "*"
