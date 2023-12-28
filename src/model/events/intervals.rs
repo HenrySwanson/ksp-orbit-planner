@@ -15,6 +15,10 @@ impl Interval {
         }
     }
 
+    pub fn point(val: f64) -> Self {
+        Self { lo: val, hi: val }
+    }
+
     pub fn lo(&self) -> f64 {
         self.lo
     }
@@ -28,9 +32,35 @@ impl Interval {
         self.hi - self.lo
     }
 
+    pub fn midpoint(&self) -> f64 {
+        (self.lo + self.hi) / 2.0
+    }
+
+    pub fn widen(self, value: f64) -> Self {
+        self + Self::new(-value, value)
+    }
+
+    pub fn norm(&self) -> f64 {
+        self.lo.abs().max(self.hi.abs())
+    }
+
     pub fn bisect(&self) -> (Self, Self) {
-        let mid = (self.lo + self.hi) / 2.0;
+        let mid = self.midpoint();
         (Self::new(self.lo, mid), Self::new(mid, self.hi))
+    }
+
+    pub fn intersect(&self, other: &Self) -> Option<Self> {
+        let new_lo = self.lo.max(other.lo);
+        let new_hi = self.hi.min(other.hi);
+        if new_lo <= new_hi {
+            Some(Self::new(new_lo, new_hi))
+        } else {
+            None
+        }
+    }
+
+    pub fn is_subset_of(&self, other: &Self) -> bool {
+        other.lo <= self.lo && self.hi <= other.hi
     }
 
     pub fn monotone_map(&self, f: impl Fn(f64) -> f64) -> Self {
@@ -48,14 +78,6 @@ impl Interval {
         if value > self.hi {
             self.hi = value;
         }
-    }
-
-    pub fn separated_by(&self, other: &Self, threshold: f64) -> bool {
-        debug_assert!(threshold >= 0.0);
-        // They're sufficiently far away if either:
-        // - self.hi << other.lo
-        // - other.hi << self.lo
-        (self.hi + threshold < other.lo) || (other.hi + threshold < self.lo)
     }
 
     /// Returns true if the interval contains an integer of the form mk + a
@@ -76,27 +98,45 @@ impl Interval {
 }
 
 impl std::ops::Add for Interval {
-    type Output = Interval;
+    type Output = Self;
 
     fn add(self, other: Self) -> Self {
         Self::new(self.lo + other.lo, self.hi + other.hi)
     }
 }
 
-impl Display for Interval {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}, {}]", self.lo, self.hi)
+impl std::ops::Neg for Interval {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            lo: self.hi,
+            hi: self.lo,
+        }
     }
 }
 
-pub struct BoundingBox(pub [Interval; 3]);
+impl std::ops::Sub for Interval {
+    type Output = Self;
 
-impl BoundingBox {
-    pub fn separated_by(&self, other: &Self, threshold: f64) -> bool {
-        debug_assert!(threshold >= 0.0);
-        self.0
-            .iter()
-            .zip(&other.0)
-            .any(|(i1, i2)| i1.separated_by(i2, threshold))
+    fn sub(self, other: Self) -> Self {
+        Self::new(self.lo - other.hi, self.hi - other.lo)
+    }
+}
+
+impl std::ops::Mul for Interval {
+    type Output = Interval;
+
+    fn mul(self, other: Self) -> Self::Output {
+        let mut output = Self::new(self.lo * other.lo, self.hi * other.hi);
+        output.include(self.lo * other.hi);
+        output.include(other.lo * self.hi);
+        output
+    }
+}
+
+impl Display for Interval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}, {}]", self.lo, self.hi)
     }
 }

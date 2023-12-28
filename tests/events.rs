@@ -100,6 +100,6 @@ fn test_favorite_scenario() {
         };
 
         assert_eq!(expected_data, actual.data);
-        assert_abs_diff_eq!(expected_time, actual.point.time, epsilon = 0.01);
+        assert_relative_eq!(expected_time, actual.point.time, max_relative = 0.01);
     }
 }

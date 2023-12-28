@@ -3,14 +3,13 @@ use std::f64::INFINITY;
 
 use nalgebra::{Point3, Vector3};
 
-use super::intervals::BoundingBox;
 use super::{Event, EventData, EventPoint, SOIChange};
 use crate::astro::orbit::{HasMass, TimedOrbit};
 use crate::math::root_finding::{bisection, Bracket};
 use crate::math::stumpff::stumpff_G;
 use crate::model::events::intervals::Interval;
 use crate::model::events::SearchResult;
-use crate::model::orrery::{BodyID, Orrery, ShipID};
+use crate::model::orrery::{Body, BodyID, Orrery, ShipID};
 
 const NUM_ITERATIONS_SOI_ENCOUNTER: usize = 1000;
 
@@ -82,33 +81,31 @@ pub fn search_for_soi_encounter(
 
     // Everything seems good, let's start looking for intersections
     let soi_radius = target_orbit.orbit().soi_radius();
+    let soi_radius_sq = soi_radius * soi_radius;
 
     // Quick check: if one orbit is much smaller than the other, then there's no
-    // chance of intersection, so we can skip the rest of the search.
+    // chance of intersection, so we can skip the rest of the search forever.
     let ship_interval = get_apsis_interval(&ship_orbit);
-    let target_interval = get_apsis_interval(&target_orbit);
-    if ship_interval.separated_by(&target_interval, soi_radius) {
+    let target_interval = get_apsis_interval(&target_orbit).widen(soi_radius);
+    if ship_interval.intersect(&target_interval).is_none() {
         return SearchResult::Never;
     }
 
     // Great, preliminary checks pass! Now for the hard part.
 
-    // We do a whole lot of interval analysis here. We start with the original time
-    // interval, and compute the bounding box of the ship and of the target. If
-    // those boxes are sufficiently far apart, then we can discard the interval,
-    // since we know no encounter can occur. However, if the boxes are too
-    // close, we divide the interval in two, and try again.
+    // We want to find a solution of d(t) = soi_radius, where d is the distance
+    // between the two bodies. However, dealing with the square root in the
+    // distance function is nasty, so instead, we'll instead look for a root of
+    // f(t), where f(t) = d^2(t) - soi_radius^2.
+    //
+    // There are many ways of root-finding, but since we're not sure whether a root
+    // exists, and we're interested in the smallest root (not just any root), we
+    // have to get fancy. We'll use the Krawczyk-Moore test to test for roots,
+    // which involves a lot of interval arithmetic.
 
-    // We push the intervals onto the stack so that the earliest one is on top.
+    // We maintain a stack of intervals to search, sorted so that the earliest one
+    // is on top
     let mut interval_stack = vec![Interval::new(start_time, end_time)];
-    let stopping_threshold = 10.0; // stop when delta t is this small
-
-    // Method for checking distance between ship and target
-    let check_distance = |t| {
-        let new_ship_pos = ship_orbit.state_at_time(t).position();
-        let new_target_pos = target_orbit.state_at_time(t).position();
-        (new_ship_pos - new_target_pos).norm()
-    };
 
     let encounter_interval = loop {
         let time_interval = match interval_stack.pop() {
@@ -117,39 +114,75 @@ pub fn search_for_soi_encounter(
             None => return SearchResult::NotFound(end_time),
         };
 
-        // Check the bounding boxes
-        let ship_bbox = get_bbox(&ship_orbit, time_interval.lo(), time_interval.hi());
-        let target_bbox = get_bbox(&target_orbit, time_interval.lo(), time_interval.hi());
-        if ship_bbox.separated_by(&target_bbox, soi_radius) {
+        // Check whether f(t) could hit zero (i.e., d^2(t) = soi_radius_sq)
+        let diff_distance_sq =
+            get_distance_squared_inclusion(&ship_orbit, &target_orbit, time_interval);
+        if !diff_distance_sq.contains(soi_radius_sq) {
             // No chance of intersection? Discard this region
             continue;
         }
 
-        // Is this region small enough that we should bail out?
-        // TODO: use Krawczyk–Moore Existence instead!
-        if time_interval.width() < stopping_threshold {
-            // The bounding box is an over-estimate, let's check that we're really within
-            // the target's SOI.
-            if check_distance(time_interval.hi()) > soi_radius {
-                continue;
-            } else {
-                break time_interval;
+        // Next, we apply the Krawczyk-Moore operator, using y = m(X) and Y = 1/f'(y)
+        let y = time_interval.midpoint();
+        let f_of_y = get_distance_squared(&ship_orbit, &target_orbit, y) - soi_radius_sq;
+        let f_prime_of_y = get_der_distance_squared(&ship_orbit, &target_orbit, y);
+        #[allow(non_snake_case)]
+        let Y = 1.0 / f_prime_of_y;
+        let f_prime_inclusion =
+            get_der_distance_squared_inclusion(&ship_orbit, &target_orbit, time_interval);
+        let possible_contraction = Interval::point(1.0) - Interval::point(Y) * f_prime_inclusion;
+        let krawczyk = Interval::point(y - Y * f_of_y)
+            + possible_contraction * (time_interval - Interval::point(y));
+
+        // Sanity check; our inclusion function should always be good
+        debug_assert!(
+            f_prime_inclusion.contains(f_prime_of_y),
+            "Inclusion function for time interval {} not an inclusion! {} does not contain {}",
+            time_interval,
+            f_prime_inclusion,
+            f_prime_of_y
+        );
+
+        // Check the conditions. If this doesn't overlap at all, no roots! Discard this
+        // region.
+        let intersection = match time_interval.intersect(&krawczyk) {
+            Some(i) => i,
+            None => continue,
+        };
+
+        // If K(X, y, Y) is a subset of X, and r < 1, then we have a unique solution,
+        // and Newton's method will converge to it! Break out.
+        if krawczyk.is_subset_of(&time_interval) && possible_contraction.norm() < 1.0 {
+            println!("Found region with unique root: t = {}", intersection);
+            if f_prime_of_y > 0.0 {
+                println!("Spurious encounter; was exiting the SOI");
+                continue; // we know there are no other roots, so we can discard
+                          // this interval
             }
+            break intersection;
         }
 
-        // Otherwise, subdivide and push it on the stack, second one first
-        let (first, second) = time_interval.bisect();
-        interval_stack.push(second);
-        interval_stack.push(first);
+        // Otherwise, we don't know what's going on, and we should try a smaller
+        // interval. If the intersection is sufficiently small, we'll use that,
+        // otherwise we'll try bisection.
+        if intersection.width() < time_interval.width() / 2.0 {
+            interval_stack.push(intersection);
+        } else {
+            // Otherwise, bisect and push it on the stack, second one first
+            let (first, second) = time_interval.bisect();
+            interval_stack.push(second);
+            interval_stack.push(first);
+        }
     };
 
     println!(
-        "Suspected encounter window for {:?} and {:?}: {}",
+        "Found encounter window for {:?} and {:?}: {}",
         ship_id, target_id, encounter_interval
     );
 
+    // TODO: use newton? is that any faster?
     let entry_time = bisection(
-        |t| check_distance(t) - soi_radius,
+        |time| get_distance_squared(&ship_orbit, &target_orbit, time) - soi_radius_sq,
         Bracket::new(encounter_interval.lo(), encounter_interval.hi()),
         NUM_ITERATIONS_SOI_ENCOUNTER,
     );
@@ -178,12 +211,62 @@ fn get_apsis_interval<P, S>(timed_orbit: &TimedOrbit<P, S>) -> Interval {
     Interval::new(lo, hi)
 }
 
+fn get_distance_squared(
+    ship_orbit: &TimedOrbit<Body, ShipID>,
+    target_orbit: &TimedOrbit<Body, Body>,
+    time: f64,
+) -> f64 {
+    let ship_position = ship_orbit.state_at_time(time).position();
+    let target_position = target_orbit.state_at_time(time).position();
+    (ship_position - target_position).norm_squared()
+}
+
+fn get_distance_squared_inclusion(
+    ship_orbit: &TimedOrbit<Body, ShipID>,
+    target_orbit: &TimedOrbit<Body, Body>,
+    time_interval: Interval,
+) -> Interval {
+    // Compute the bounding boxes
+    let ship_bbox = get_bbox(ship_orbit, time_interval);
+    let target_bbox = get_bbox(target_orbit, time_interval);
+    let displacement = bbox_sub(ship_bbox, target_bbox);
+    bbox_dot(displacement, displacement)
+}
+
+fn get_der_distance_squared(
+    ship_orbit: &TimedOrbit<Body, ShipID>,
+    target_orbit: &TimedOrbit<Body, Body>,
+    time: f64,
+) -> f64 {
+    // d/dt (x dot x) = 2 x dot dx/dt
+    let ship_state = ship_orbit.state_at_time(time);
+    let target_state = target_orbit.state_at_time(time);
+    let displacement = ship_state.position() - target_state.position();
+    let rel_velocity = ship_state.velocity() - target_state.velocity();
+    2.0 * displacement.dot(&rel_velocity)
+}
+
+fn get_der_distance_squared_inclusion(
+    ship_orbit: &TimedOrbit<Body, ShipID>,
+    target_orbit: &TimedOrbit<Body, Body>,
+    time_interval: Interval,
+) -> Interval {
+    // Since d/dt (x dot x) = 2 x dot dx/dt, we'll compute those two quantities
+    // as intervals first, then dot them together manually
+    let ship_bbox = get_bbox(ship_orbit, time_interval);
+    let target_bbox = get_bbox(target_orbit, time_interval);
+    let ship_vel_bbox = get_velocity_bbox(ship_orbit, time_interval);
+    let target_vel_bbox = get_velocity_bbox(target_orbit, time_interval);
+
+    let displacement = bbox_sub(ship_bbox, target_bbox);
+    let rel_velocity = bbox_sub(ship_vel_bbox, target_vel_bbox);
+    Interval::point(2.0) * bbox_dot(displacement, rel_velocity)
+}
+
 fn get_bbox<P: HasMass, S>(
     timed_orbit: &TimedOrbit<P, S>,
-    start_time: f64,
-    end_time: f64,
-) -> BoundingBox {
-    let time_interval = Interval::new(start_time, end_time);
+    time_interval: Interval,
+) -> [Interval; 3] {
     let s_interval = time_interval.monotone_map(|t| timed_orbit.s_at_time(t));
 
     // Get some constants
@@ -201,21 +284,80 @@ fn get_bbox<P: HasMass, S>(
     let unit_vectors = [Vector3::x(), Vector3::y(), Vector3::z()];
     let rotated_unit_vectors =
         unit_vectors.map(|u| timed_orbit.orbit().rotation().inverse_transform_vector(&u));
-    let intervals = rotated_unit_vectors.map(|u| {
+    rotated_unit_vectors.map(|u| {
         g2_interval.monotone_map(|g2| (r_p - mu * g2) * u.x)
             + g1_interval.monotone_map(|g1| h * g1 * u.y)
-    });
+    })
+}
 
-    BoundingBox(intervals)
+fn get_velocity_bbox<P: HasMass, S>(
+    timed_orbit: &TimedOrbit<P, S>,
+    time_interval: Interval,
+) -> [Interval; 3] {
+    let s_interval = time_interval.monotone_map(|t| timed_orbit.s_at_time(t));
+
+    // Get some constants
+    let beta = timed_orbit.orbit().beta();
+    let r_p = timed_orbit.orbit().periapsis();
+    let mu = timed_orbit.orbit().primary().mu();
+    let h = timed_orbit.orbit().angular_momentum();
+    let ecc = timed_orbit.orbit().eccentricity();
+
+    // We want to compute some bounds on v cdot u. We start by getting bounds on the
+    // Stumpff functions
+    let g0_interval: Interval = g0_inclusion(beta, s_interval);
+    let g1_interval = g1_inclusion(beta, s_interval);
+    let g2_interval = g2_inclusion(beta, s_interval);
+
+    let r_interval = g2_interval.monotone_map(|g2| r_p + mu * ecc * g2);
+    assert!(
+        !r_interval.contains(0.0),
+        "radius too close to zero: {}",
+        r_interval
+    );
+    let r_inv_interval = r_interval.monotone_map(|r| r.recip());
+
+    // Now we're ready for the rest
+    let unit_vectors = [Vector3::x(), Vector3::y(), Vector3::z()];
+    let rotated_unit_vectors =
+        unit_vectors.map(|u| timed_orbit.orbit().rotation().inverse_transform_vector(&u));
+    rotated_unit_vectors.map(|u| {
+        let tmp = g1_interval.monotone_map(|g1| -mu * g1 * u.x)
+            + g0_interval.monotone_map(|g0| h * g0 * u.y);
+        tmp * r_inv_interval
+    })
+}
+
+fn g0_inclusion(beta: f64, s_interval: Interval) -> Interval {
+    let mut output = s_interval.monotone_map(|s| stumpff_G(beta, s)[0]);
+
+    if beta > 0.0 {
+        // We want to see whether s sqrt(beta) contains an extremum of cosine, i.e., an
+        // integer multiple of pi.
+        // We'll rescale the interval so that we're looking for integers
+        let test_interval = s_interval.monotone_map(|s| s * beta.sqrt() / PI);
+
+        if test_interval.contains_integer_with_mod_constraint(2, 0) {
+            // We cross a maximum
+            output.include(1.0)
+        }
+        if test_interval.contains_integer_with_mod_constraint(2, 1) {
+            // We cross a minimum
+            output.include(-1.0)
+        }
+    }
+
+    output
 }
 
 fn g1_inclusion(beta: f64, s_interval: Interval) -> Interval {
     let mut output = s_interval.monotone_map(|s| stumpff_G(beta, s)[1]);
 
     if beta > 0.0 {
-        // We want to see whether s sqrt(beta) contains a point of the form (2n +/- 1/2)
-        // pi. We'll rescale the interval so that we're looking for integers of
-        // the form 4n +/- 1
+        // We want to see whether s sqrt(beta) contains a root of sine, i.e., a point of
+        // the form (2n +/- 1/2) pi.
+        // We'll rescale the interval so that we're looking for integers of the form
+        // 4n +/- 1
         let test_interval = s_interval.monotone_map(|s| s * beta.sqrt() / FRAC_PI_2);
 
         if test_interval.contains_integer_with_mod_constraint(4, 3) {
@@ -235,7 +377,8 @@ fn g2_inclusion(beta: f64, s_interval: Interval) -> Interval {
     let mut output = s_interval.monotone_map(|s| stumpff_G(beta, s)[2]);
 
     if beta > 0.0 {
-        // We want to see whether s sqrt(beta) contains an integer multiple of pi
+        // We want to see whether s sqrt(beta) contains an extremum of cosine, i.e., an
+        // integer multiple of pi.
         // We'll rescale the interval so that we're looking for integers
         let test_interval = s_interval.monotone_map(|s| s * beta.sqrt() / PI);
 
@@ -250,4 +393,12 @@ fn g2_inclusion(beta: f64, s_interval: Interval) -> Interval {
     }
 
     output
+}
+
+fn bbox_sub(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn bbox_dot(a: [Interval; 3], b: [Interval; 3]) -> Interval {
+    a[0] * b[0] + a[1] * b[1] + a[2] + b[2]
 }
