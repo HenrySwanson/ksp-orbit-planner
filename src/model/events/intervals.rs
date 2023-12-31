@@ -15,8 +15,13 @@ impl Interval {
         }
     }
 
+    fn new_unchecked(lo: f64, hi: f64) -> Interval {
+        debug_assert!(lo <= hi);
+        Self { lo, hi }
+    }
+
     pub fn point(val: f64) -> Self {
-        Self { lo: val, hi: val }
+        Self::new_unchecked(val, val)
     }
 
     pub fn lo(&self) -> f64 {
@@ -37,7 +42,7 @@ impl Interval {
     }
 
     pub fn widen(self, value: f64) -> Self {
-        self + Self::new(-value, value)
+        self + Self::new_unchecked(-value.abs(), value.abs())
     }
 
     pub fn norm(&self) -> f64 {
@@ -46,14 +51,17 @@ impl Interval {
 
     pub fn bisect(&self) -> (Self, Self) {
         let mid = self.midpoint();
-        (Self::new(self.lo, mid), Self::new(mid, self.hi))
+        (
+            Self::new_unchecked(self.lo, mid),
+            Self::new_unchecked(mid, self.hi),
+        )
     }
 
     pub fn intersect(&self, other: &Self) -> Option<Self> {
         let new_lo = self.lo.max(other.lo);
         let new_hi = self.hi.min(other.hi);
         if new_lo <= new_hi {
-            Some(Self::new(new_lo, new_hi))
+            Some(Self::new_unchecked(new_lo, new_hi))
         } else {
             None
         }
@@ -64,6 +72,7 @@ impl Interval {
     }
 
     pub fn monotone_map(&self, f: impl Fn(f64) -> f64) -> Self {
+        // The map could be monotone decreasing, so we can't use unchecked
         Self::new(f(self.lo), f(self.hi))
     }
 
@@ -97,11 +106,11 @@ impl Interval {
     }
 }
 
-impl std::ops::Add for Interval {
-    type Output = Self;
+impl std::ops::Add<Interval> for Interval {
+    type Output = Interval;
 
-    fn add(self, other: Self) -> Self {
-        Self::new(self.lo + other.lo, self.hi + other.hi)
+    fn add(self, rhs: Self) -> Self {
+        Self::new_unchecked(self.lo + rhs.lo, self.hi + rhs.hi)
     }
 }
 
@@ -135,8 +144,44 @@ impl std::ops::Mul for Interval {
     }
 }
 
+// Division is special, we want to avoid division by zero, so we only allow
+// division by scalars
+// TODO: do we want to allow it anyways and panic if there's a zero?
+impl std::ops::Div<f64> for Interval {
+    type Output = Interval;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        Self::new(self.lo / rhs, self.hi / rhs)
+    }
+}
+
 impl Display for Interval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}, {}]", self.lo, self.hi)
     }
 }
+
+// Extend arithmetic operations to scalar quantities
+macro_rules! extend_to_scalar {
+    ($($trait_path:ident)::*, $fn_name: ident) => {
+        impl $($trait_path)::*<f64> for Interval {
+            type Output = Interval;
+
+            fn $fn_name(self, rhs: f64) -> Self::Output {
+                self.$fn_name(Interval::point(rhs))
+            }
+        }
+
+        impl $($trait_path)::*<Interval> for f64 {
+            type Output = Interval;
+
+            fn $fn_name(self, rhs: Interval) -> Self::Output {
+                Interval::point(self).$fn_name(rhs)
+            }
+        }
+    };
+}
+
+extend_to_scalar!(std::ops::Add, add);
+extend_to_scalar!(std::ops::Sub, sub);
+extend_to_scalar!(std::ops::Mul, mul);

@@ -78,7 +78,7 @@ pub fn bisection(f: impl Fn(f64) -> f64, mut bracket: Bracket, num_iterations: u
     );
 }
 
-// Adapted from `rtsafe` in http://www.grad.hr/nastava/gs/prg/NumericalRecipesinC.pdf\
+// Adapted from `rtsafe` in http://www.grad.hr/nastava/gs/prg/NumericalRecipesinC.pdf
 #[allow(clippy::float_cmp)]
 pub fn newton_plus_bisection(
     f_and_f_prime: impl Fn(f64) -> (f64, f64),

@@ -1,4 +1,4 @@
-use approx::{assert_abs_diff_eq, assert_relative_eq};
+use approx::assert_relative_eq;
 use itertools::{EitherOrBoth, Itertools};
 use nalgebra::Vector3;
 use rust_ksp::file::read_file;
