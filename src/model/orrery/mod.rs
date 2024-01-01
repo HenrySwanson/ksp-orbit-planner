@@ -2,8 +2,7 @@ use std::collections::HashMap;
 
 use nalgebra::{Point3, UnitQuaternion, Vector3};
 
-use crate::astro::orbit::{Orbit, PointMass, TimedOrbit};
-use crate::astro::state::CartesianState;
+use crate::astro::{CartesianState, HasMass, Orbit, PointMass, TimedOrbit};
 use crate::math::frame::FrameTransform;
 
 mod body;
@@ -113,14 +112,10 @@ impl Orrery {
         time_at_periapsis: f64,
         parent_id: BodyID,
     ) -> BodyID {
-        let orbit = TimedOrbit::from_orbit(
-            orbit.map_primary(|p| {
-                let body = self.bodies[&parent_id].body.clone();
-                debug_assert_eq!(body.info.mu, p.mu());
-                body
-            }),
-            time_at_periapsis,
-        );
+        let parent_body = self.bodies[&parent_id].body.clone();
+        debug_assert_eq!(parent_body.info.mu, orbit.primary().mu());
+
+        let orbit = TimedOrbit::from_orbit(orbit.with_primary(parent_body), time_at_periapsis);
         self.insert_new_body(body_info, Some(orbit))
     }
 

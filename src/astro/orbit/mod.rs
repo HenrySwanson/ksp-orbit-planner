@@ -1,21 +1,24 @@
+mod timed_orbit;
+
 use std::f64::consts::PI;
 
 use nalgebra::{Rotation3, Unit, Vector3};
-
-use crate::math::geometry::{always_find_rotation, directed_angle};
-
-mod state_methods;
-mod timed_orbit;
-
 pub use timed_orbit::TimedOrbit;
 
-// Newton's gravitational constant, in N m^2 / kg^2
-pub const NEWTON_G: f64 = 6.6743015e-11;
+use super::{HasMass, PointMass};
+use crate::math::geometry::{always_find_rotation, directed_angle};
 
+/// The base class all other orbits are type aliases for.
+///
+/// Since we are interested in orbits with a variety of different primary and
+/// secondary bodies, these fields are generically typed. Additionally, to
+/// accomodate timing information (or the lack thereof), there is one additional
+/// field, `extra`, which has a generic type.
 #[derive(Debug, Clone, Copy)]
 pub struct OrbitBase<P, S, E> {
     primary: P,
     secondary: S,
+    /// Holds things such as timing information.
     extra: E,
     /// Encodes the orientation of the orbit: it moves the xy plane to the
     /// orbital plane, and x to point towards periapsis.
@@ -33,44 +36,14 @@ pub type Orbit<P, S> = OrbitBase<P, S, ()>;
 pub type BareOrbit = Orbit<(), ()>;
 pub type PhysicalOrbit = Orbit<PointMass, ()>;
 
-pub trait HasMass {
-    fn mu(&self) -> f64;
-
-    fn mass(&self) -> f64 {
-        self.mu() / NEWTON_G
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PointMass(f64);
-
-impl PointMass {
-    pub fn with_mu(mu: f64) -> Self {
-        Self(mu)
-    }
-
-    pub fn mu(&self) -> f64 {
-        self.0
-    }
-}
-
-impl HasMass for PointMass {
-    fn mu(&self) -> f64 {
-        self.0
-    }
-}
-
-impl<T> HasMass for &T
-where
-    T: HasMass,
-{
-    fn mu(&self) -> f64 {
-        (*self).mu()
-    }
-}
-
-// Methods common to all orbits
+///////////////////////////////////////////////////////////////////////////////
+/// Methods common to all orbits
+///////////////////////////////////////////////////////////////////////////////
 impl<P, S, E> OrbitBase<P, S, E> {
+    ///////////////////////////////////////////////////////////////////////////
+    /// Mapping primary, secondary, and extra
+    ///////////////////////////////////////////////////////////////////////////
+
     pub fn primary(&self) -> &P {
         &self.primary
     }
@@ -94,11 +67,25 @@ impl<P, S, E> OrbitBase<P, S, E> {
     }
 
     pub fn with_primary<P2>(self, new_primary: P2) -> OrbitBase<P2, S, E> {
-        self.map_primary(|_| new_primary)
+        OrbitBase {
+            primary: new_primary,
+            secondary: self.secondary,
+            extra: self.extra,
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
     }
 
     pub fn with_secondary<S2>(self, new_secondary: S2) -> OrbitBase<P, S2, E> {
-        self.map_secondary(|_| new_secondary)
+        OrbitBase {
+            primary: self.primary,
+            secondary: new_secondary,
+            extra: self.extra,
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
     }
 
     fn with_extra<E2>(self, new_extra: E2) -> OrbitBase<P, S, E2> {
@@ -112,16 +99,8 @@ impl<P, S, E> OrbitBase<P, S, E> {
         }
     }
 
-    pub fn map_primary<P2>(self, primary_fn: impl FnOnce(P) -> P2) -> OrbitBase<P2, S, E> {
-        self.map(primary_fn, std::convert::identity)
-    }
-
-    pub fn map_secondary<S2>(self, secondary_fn: impl FnOnce(S) -> S2) -> OrbitBase<P, S2, E> {
-        self.map(std::convert::identity, secondary_fn)
-    }
-
     pub fn to_bare(&self) -> BareOrbit {
-        BareOrbit {
+        OrbitBase {
             primary: (),
             secondary: (),
             extra: (),
@@ -131,22 +110,23 @@ impl<P, S, E> OrbitBase<P, S, E> {
         }
     }
 
-    fn map<P2, S2>(
-        self,
-        primary_fn: impl FnOnce(P) -> P2,
-        secondary_fn: impl FnOnce(S) -> S2,
-    ) -> OrbitBase<P2, S2, E> {
+    pub fn to_physical(&self) -> PhysicalOrbit
+    where
+        P: HasMass,
+    {
         OrbitBase {
-            primary: primary_fn(self.primary),
-            secondary: secondary_fn(self.secondary),
-            extra: self.extra,
+            primary: self.primary.to_point_mass(),
+            secondary: (),
+            extra: (),
             rotation: self.rotation,
             alpha: self.alpha,
             slr: self.slr,
         }
     }
 
-    // -- Axes and vectors --
+    ///////////////////////////////////////////////////////////////////////////
+    /// Geometric characteristics
+    ///////////////////////////////////////////////////////////////////////////
 
     pub fn rotation(&self) -> Rotation3<f64> {
         self.rotation
@@ -165,8 +145,6 @@ impl<P, S, E> OrbitBase<P, S, E> {
         let v = Vector3::z().cross(&self.normal_vector());
         Unit::try_new(v, 1e-20).unwrap_or_else(|| self.periapse_vector())
     }
-
-    // -- Orbital elements --
 
     pub fn semimajor_axis(&self) -> f64 {
         self.alpha.recip()
@@ -210,8 +188,6 @@ impl<P, S, E> OrbitBase<P, S, E> {
         )
     }
 
-    // -- Other geometric characteristics --
-
     pub fn is_closed(&self) -> bool {
         self.alpha > 0.0
     }
@@ -235,23 +211,10 @@ impl<P, S, E> OrbitBase<P, S, E> {
     }
 }
 
-// Methods requiring P to have mass
+///////////////////////////////////////////////////////////////////////////////
+/// Methods requiring P to have mass
+///////////////////////////////////////////////////////////////////////////////
 impl<P: HasMass, S, E> OrbitBase<P, S, E> {
-    pub fn to_physical(&self) -> OrbitBase<PointMass, (), E>
-    where
-        P: HasMass,
-        E: Copy,
-    {
-        OrbitBase {
-            primary: PointMass(self.primary.mu()),
-            secondary: (),
-            extra: self.extra,
-            rotation: self.rotation,
-            alpha: self.alpha,
-            slr: self.slr,
-        }
-    }
-
     pub fn soi_radius(&self) -> f64
     where
         S: HasMass,
@@ -268,7 +231,9 @@ impl<P: HasMass, S, E> OrbitBase<P, S, E> {
         sma * (mu_2 / mu_1).powf(0.4)
     }
 
-    // -- Physical orbital characteristics --
+    ///////////////////////////////////////////////////////////////////////////
+    /// Physical orbital characteristics
+    ///////////////////////////////////////////////////////////////////////////
 
     pub fn energy(&self) -> f64 {
         // -2E = mu / a
@@ -310,7 +275,9 @@ impl<P: HasMass, S, E> OrbitBase<P, S, E> {
     }
 }
 
-// Methods for constructing an Orbit
+///////////////////////////////////////////////////////////////////////////////
+/// Methods for constructing an Orbit
+///////////////////////////////////////////////////////////////////////////////
 impl<P, S> Orbit<P, S> {
     pub fn from_kepler(
         primary: P,
@@ -365,6 +332,7 @@ impl<P, S> Orbit<P, S> {
     }
 }
 
+/// Constructs a rotation from the given Keplerian angles
 fn rotation_from_angles(incl: f64, lan: f64, argp: f64) -> Rotation3<f64> {
     // We have an orbit in the xy plane where the periapsis is pointed along the
     // x-axis. So first, we rotate it around z until the periapsis is at argp

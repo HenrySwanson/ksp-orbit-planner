@@ -4,7 +4,7 @@ use std::f64::INFINITY;
 use nalgebra::{Point3, Vector3};
 
 use super::{Event, EventData, EventPoint, SOIChange};
-use crate::astro::orbit::{HasMass, TimedOrbit};
+use crate::astro::{HasMass, TimedOrbit};
 use crate::math::root_finding::{bisection, Bracket};
 use crate::math::stumpff::stumpff_G;
 use crate::model::events::intervals::Interval;

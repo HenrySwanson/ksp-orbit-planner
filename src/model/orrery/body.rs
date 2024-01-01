@@ -1,6 +1,6 @@
 use nalgebra::Point3;
 
-use crate::astro::orbit::HasMass;
+use crate::astro::HasMass;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct BodyID(pub usize);

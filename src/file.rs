@@ -4,7 +4,7 @@ use std::fs;
 
 use nalgebra::Point3;
 
-use crate::astro::orbit::{Orbit, PointMass};
+use crate::astro::{Orbit, PointMass};
 use crate::model::orrery::{BodyInfo, Orrery};
 
 struct LineParser<I> {

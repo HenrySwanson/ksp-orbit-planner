@@ -9,7 +9,7 @@ const NUM_ITERATIONS_DELTA_T: usize = 2000;
 
 impl<P, S, E> OrbitBase<P, S, E> {
     pub fn get_position_at_theta(&self, theta: f64) -> Option<Vector3<f64>> {
-        if self.slr == 0.0 {
+        if self.semilatus_rectum() == 0.0 {
             // Radial orbits
             return None;
         }
@@ -33,8 +33,8 @@ impl<P: HasMass, S, E> OrbitBase<P, S, E> {
         // Note: this function is only exposed because it makes rendering faster. Would
         // be nice to have an alternative... :\
 
-        let mu = self.primary.mu();
-        let beta = mu * self.alpha;
+        let mu = self.primary().mu();
+        let beta = self.beta();
         let h = self.angular_momentum();
         let G: [f64; 4] = stumpff_G(beta, s);
 
@@ -48,16 +48,16 @@ impl<P: HasMass, S, E> OrbitBase<P, S, E> {
         let position = Vector3::new(x, y, 0.0);
         let velocity = Vector3::new(vx, vy, 0.0);
 
-        CartesianState::new(&self.primary, position, velocity)
+        CartesianState::new(self.primary(), position, velocity)
     }
 
     pub fn get_state_at_universal_anomaly(&self, s: f64) -> CartesianState<&P> {
         let native_state = self.get_state_native_frame(s);
 
-        let position = self.rotation * native_state.position();
-        let velocity = self.rotation * native_state.velocity();
+        let position = self.rotation() * native_state.position();
+        let velocity = self.rotation() * native_state.velocity();
 
-        CartesianState::new(&self.primary, position, velocity)
+        CartesianState::new(self.primary(), position, velocity)
     }
 
     pub fn get_state_at_tsp(&self, time_since_periapsis: f64) -> CartesianState<&P> {
@@ -70,7 +70,7 @@ impl<P: HasMass, S, E> OrbitBase<P, S, E> {
         // Taken from https://www.mathworks.com/matlabcentral/fileexchange/35455-convert-keplerian-orbital-elements-to-a-state-vector
         let p = self.semilatus_rectum();
         let ecc = self.eccentricity();
-        let mu = self.primary.mu();
+        let mu = self.primary().mu();
         let rotation = self.rotation();
 
         let position = self.get_position_at_theta(theta).unwrap();
@@ -86,7 +86,7 @@ impl<P: HasMass, S, E> OrbitBase<P, S, E> {
     fn ts_and_derivative(&self, s: f64) -> (f64, f64) {
         // Grab some constants
         let beta = -2.0 * self.energy();
-        let mu = self.primary.mu();
+        let mu = self.primary().mu();
         let r_p = self.periapsis();
 
         let G = stumpff_G(beta, s);
@@ -129,7 +129,7 @@ impl<P: HasMass, S, E> OrbitBase<P, S, E> {
         // s
 
         // Grab some constants
-        let mu = self.primary.mu();
+        let mu = self.primary().mu();
         let ecc = self.eccentricity();
         let beta = -2.0 * self.energy();
         let r_p = self.periapsis();

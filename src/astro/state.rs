@@ -1,7 +1,6 @@
 use nalgebra::Vector3;
 
-use super::orbit::HasMass;
-use crate::astro::orbit::Orbit;
+use super::{HasMass, Orbit};
 
 #[derive(Debug, Clone)]
 pub struct CartesianState<P> {
@@ -85,7 +84,7 @@ mod tests {
     use approx::assert_relative_eq;
 
     use super::*;
-    use crate::astro::orbit::PointMass;
+    use crate::astro::PointMass;
     use crate::consts::{
         get_circular_velocity, get_period, KERBIN_ORBIT_PERIOD, KERBIN_ORBIT_RADIUS, KERBOL_MU,
     };

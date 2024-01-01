@@ -9,7 +9,7 @@ use kiss3d::resource::{
 use nalgebra::{Isometry3, Matrix4, Point3, Vector3};
 
 use super::utils::path_iter_parametric;
-use crate::astro::orbit::{PhysicalOrbit, TimedOrbit};
+use crate::astro::{PhysicalOrbit, TimedOrbit};
 use crate::model::orrery::{Body, BodyID};
 
 // TODO: re-evaluate if we need this
@@ -27,7 +27,7 @@ impl OrbitPatch {
         let parent_id = orbit.primary().id;
 
         Self {
-            orbit: orbit.without_time().to_physical(),
+            orbit: orbit.to_physical(),
             start_anomaly,
             end_anomaly: None,
             parent_id,

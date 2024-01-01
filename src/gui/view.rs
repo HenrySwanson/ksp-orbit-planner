@@ -11,7 +11,7 @@ use nalgebra::{Isometry3, Point3, Translation3, Unit};
 use super::camera::ZoomableCamera;
 use super::controller::Controller;
 use super::renderers::{CompoundRenderer, OrbitPatch};
-use crate::astro::orbit::BareOrbit;
+use crate::astro::BareOrbit;
 use crate::gui::renderers::MarkerType;
 use crate::model::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 use crate::model::timeline::Timeline;
