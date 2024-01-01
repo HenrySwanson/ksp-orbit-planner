@@ -2,7 +2,6 @@ use nalgebra::Vector3;
 
 use super::{HasMass, Orbit};
 use crate::astro::state::CartesianState;
-use crate::math::anomaly;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::math::stumpff::stumpff_G;
 
@@ -29,40 +28,6 @@ impl<P, S> Orbit<P, S> {
 }
 
 impl<P: HasMass, S> Orbit<P, S> {
-    pub fn true_to_universal(&self, true_anomaly: f64) -> f64 {
-        let eccentricity = self.eccentricity();
-        let energy = self.energy();
-        if eccentricity < 1.0 {
-            let ecc = anomaly::true_to_eccentric(true_anomaly, eccentricity);
-            anomaly::eccentric_to_universal(ecc, energy)
-        } else if eccentricity > 1.0 {
-            let hyp = anomaly::true_to_hyperbolic(true_anomaly, eccentricity);
-            anomaly::hyperbolic_to_universal(hyp, energy)
-        } else {
-            let para = anomaly::true_to_parabolic(true_anomaly);
-            anomaly::parabolic_to_universal(para, self.angular_momentum(), self.primary.mu())
-        }
-    }
-
-    pub fn universal_to_true(&self, universal_anomaly: f64) -> f64 {
-        let eccentricity = self.eccentricity();
-        let energy = self.energy();
-        if eccentricity < 1.0 {
-            let ecc = anomaly::universal_to_eccentric(universal_anomaly, energy);
-            anomaly::eccentric_to_true(ecc, eccentricity)
-        } else if eccentricity > 1.0 {
-            let hyp = anomaly::universal_to_hyperbolic(universal_anomaly, energy);
-            anomaly::hyperbolic_to_true(hyp, eccentricity)
-        } else {
-            let para = anomaly::universal_to_parabolic(
-                universal_anomaly,
-                self.angular_momentum(),
-                self.primary.mu(),
-            );
-            anomaly::parabolic_to_true(para)
-        }
-    }
-
     #[allow(non_snake_case)]
     pub fn get_state_native_frame(&self, s: f64) -> CartesianState<&P> {
         // Note: this function is only exposed because it makes rendering faster. Would

@@ -50,8 +50,38 @@ impl<P: HasMass, S> TimedOrbit<P, S> {
 
 impl<P: HasMass> TimedOrbit<P, ()> {
     pub fn from_state(state: CartesianState<P>, current_time: f64) -> Self {
-        let s = state.get_universal_anomaly();
+        // Save for later
+        let position = state.position();
+
+        // Getting the orbit we can do without much fuss
         let orbit = state.into_orbit();
+
+        // Finding the anomaly around the orbit takes some more work. Note that
+        // the value of the anomaly for some orbits (e.g. circular) depends on which
+        // rotation we took.
+        let pos_in_plane = orbit.rotation.inverse_transform_vector(&position);
+
+        // TODO: find something that works for radial orbits!
+        let theta = pos_in_plane.y.atan2(pos_in_plane.x);
+        let tan_half_theta = (theta / 2.0).tan();
+        let h = orbit.angular_momentum();
+        let r_p = orbit.periapsis();
+        let g2_over_g1 = r_p / h * tan_half_theta;
+
+        let beta: f64 = orbit.beta();
+        let beta_sqrt = beta.abs().sqrt();
+        let s = if beta > 0.0 {
+            // Elliptic: g2/g1 = tan(s sqrt(beta) / 2) / sqrt(beta)
+            (g2_over_g1 * beta_sqrt).atan() * 2.0 / beta_sqrt
+        } else if beta < 0.0 {
+            // Hyperbolic: g2/g1 = tanh(s sqrt(-beta) / 2) / sqrt(-beta)
+            (g2_over_g1 * beta_sqrt).atanh() * 2.0 / beta_sqrt
+        } else {
+            // Parabolic: s = h/mu tan_half_theta, and r_p = h^2/2mu, so
+            // g2/g1 = r_p/h mu/h s = s/2
+            2.0 * tan_half_theta
+        };
+
         let time_since_periapsis = orbit.s_to_tsp(s);
         Self::from_orbit(orbit, current_time - time_since_periapsis)
     }

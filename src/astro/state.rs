@@ -2,7 +2,6 @@ use nalgebra::Vector3;
 
 use super::orbit::HasMass;
 use crate::astro::orbit::Orbit;
-use crate::math::geometry::directed_angle;
 
 #[derive(Debug, Clone)]
 pub struct CartesianState<P> {
@@ -37,20 +36,6 @@ impl<P: HasMass> CartesianState<P> {
 
     pub fn into_orbit(self) -> Orbit<P, ()> {
         Orbit::from_cartesian(self.primary, (), &self.position, &self.velocity)
-    }
-
-    pub fn get_universal_anomaly(&self) -> f64 {
-        // TODO make this work for radial orbits too!
-        let orbit = self.to_orbit();
-        let my_theta = self.get_theta();
-        orbit.true_to_universal(my_theta)
-    }
-
-    fn get_theta(&self) -> f64 {
-        let orbit = self.to_orbit();
-        let x_vec = orbit.periapse_vector();
-        let z_vec = orbit.normal_vector();
-        directed_angle(&x_vec, &self.position, &z_vec)
     }
 }
 

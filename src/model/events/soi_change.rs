@@ -191,7 +191,11 @@ pub fn search_for_soi_encounter(
     );
 
     // Lastly, figure out anomaly and position at that point
-    let new_state = encounter_helper.ship_orbit.state_at_time(entry_time);
+    let new_anomaly = encounter_helper.ship_orbit.s_at_time(entry_time);
+    let new_state = encounter_helper
+        .ship_orbit
+        .orbit()
+        .get_state_at_universal_anomaly(new_anomaly);
 
     let event = Event {
         ship_id,
@@ -201,7 +205,7 @@ pub fn search_for_soi_encounter(
         }),
         point: EventPoint {
             time: entry_time,
-            anomaly: new_state.get_universal_anomaly(),
+            anomaly: new_anomaly,
             location: Point3::from(new_state.position()),
         },
     };
