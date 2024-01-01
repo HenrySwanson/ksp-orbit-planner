@@ -22,7 +22,8 @@ pub struct OrbitPatch {
 }
 
 impl OrbitPatch {
-    pub fn new<S: Clone>(orbit: &TimedOrbit<Body, S>, start_time: f64) -> OrbitPatch {
+    // TODO: don't need clone here
+    pub fn new<S: Clone>(orbit: &TimedOrbit<&Body, S>, start_time: f64) -> OrbitPatch {
         let start_anomaly = orbit.s_at_time(start_time);
         let parent_id = orbit.orbit().primary().id;
 

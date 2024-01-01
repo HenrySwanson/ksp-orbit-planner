@@ -42,6 +42,10 @@ impl PointMass {
     pub fn with_mu(mu: f64) -> Self {
         Self(mu)
     }
+
+    pub fn mu(&self) -> f64 {
+        self.0
+    }
 }
 
 impl HasMass for PointMass {

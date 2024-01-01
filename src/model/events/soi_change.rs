@@ -216,12 +216,12 @@ pub fn search_for_soi_encounter(
 }
 
 /// Helper struct for solving an SOI encounter instance
-struct SoiEncounterHelper {
-    ship_orbit: TimedOrbit<Body, ShipID>,
-    target_orbit: TimedOrbit<Body, Body>,
+struct SoiEncounterHelper<'orr> {
+    ship_orbit: TimedOrbit<&'orr Body, ShipID>,
+    target_orbit: TimedOrbit<&'orr Body, &'orr Body>,
 }
 
-impl SoiEncounterHelper {
+impl SoiEncounterHelper<'_> {
     fn get_distance_squared(&self, time: f64) -> f64 {
         let ship_position = self.ship_orbit.state_at_time(time).position();
         let target_position = self.target_orbit.state_at_time(time).position();

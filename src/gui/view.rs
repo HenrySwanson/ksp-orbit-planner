@@ -98,7 +98,7 @@ impl View {
         // Create objects for bodies
         let mut body_spheres = HashMap::new();
         for body in orrery.bodies() {
-            let sphere = Self::create_body_object(window, &body);
+            let sphere = Self::create_body_object(window, body);
             body_spheres.insert(body.id, sphere);
         }
 
@@ -422,7 +422,7 @@ Orbiting: {}",
         match self.camera_focus.point() {
             FocusPoint::Body(id) => {
                 let body = self.orrery.get_body(id);
-                body.info.name
+                body.info.name.clone()
             }
             FocusPoint::Ship(_) => {
                 format!(

@@ -60,10 +60,14 @@ impl FramedState<'_> {
 }
 
 impl BodyState {
-    fn two_body_orbit(&self) -> Option<TimedOrbit<Body, Body>> {
+    fn two_body_orbit(&self) -> Option<TimedOrbit<&Body, &Body>> {
         self.orbit.as_ref().map(|orbit| {
+            let primary = orbit.orbit().primary();
             // Plug self into orbit
-            orbit.clone().with_secondary(self.body.clone())
+            orbit
+                .clone()
+                .with_primary(primary)
+                .with_secondary(&self.body)
         })
     }
 }
@@ -85,25 +89,26 @@ impl Orrery {
             .map(|orbit| orbit.orbit().primary().id)
     }
 
-    pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<Body, Body>> {
+    pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<&Body, &Body>> {
         self.bodies[&id].two_body_orbit()
     }
 
-    pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<Body, ShipID> {
+    pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<&Body, ShipID> {
         let ship = &self.ships[&id];
-        ship.orbit.clone().with_secondary(id)
+        let primary = ship.orbit.orbit().primary();
+        ship.orbit.clone().with_primary(primary).with_secondary(id)
     }
 
-    pub fn bodies(&self) -> impl Iterator<Item = Body> + '_ {
-        self.bodies.values().map(|x| x.body.clone())
+    pub fn bodies(&self) -> impl Iterator<Item = &Body> + '_ {
+        self.bodies.values().map(|x| &x.body)
     }
 
-    pub fn body_orbits(&self) -> impl Iterator<Item = TimedOrbit<Body, Body>> + '_ {
+    pub fn body_orbits(&self) -> impl Iterator<Item = TimedOrbit<&Body, &Body>> + '_ {
         self.bodies.values().filter_map(BodyState::two_body_orbit)
     }
 
-    pub fn get_body(&self, id: BodyID) -> Body {
-        self.bodies[&id].body.clone()
+    pub fn get_body(&self, id: BodyID) -> &Body {
+        &self.bodies[&id].body
     }
 
     pub fn add_body(
@@ -114,9 +119,10 @@ impl Orrery {
         parent_id: BodyID,
     ) -> BodyID {
         let orbit = TimedOrbit::from_orbit(
-            orbit.map_primary(|_| Body {
-                id: parent_id,
-                info: self.bodies[&parent_id].body.info.clone(),
+            orbit.map_primary(|p| {
+                let body = self.bodies[&parent_id].body.clone();
+                debug_assert_eq!(body.info.mu, p.mu());
+                body
             }),
             time_at_periapsis,
         );
