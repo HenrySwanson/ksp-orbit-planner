@@ -62,12 +62,8 @@ impl FramedState<'_> {
 impl BodyState {
     fn two_body_orbit(&self) -> Option<TimedOrbit<&Body, &Body>> {
         self.orbit.as_ref().map(|orbit| {
-            let primary = orbit.orbit().primary();
             // Plug self into orbit
-            orbit
-                .clone()
-                .with_primary(primary)
-                .with_secondary(&self.body)
+            orbit.as_ref().with_secondary(&self.body)
         })
     }
 }
@@ -86,7 +82,7 @@ impl Orrery {
         self.bodies[&id]
             .orbit
             .as_ref()
-            .map(|orbit| orbit.orbit().primary().id)
+            .map(|orbit| orbit.primary().id)
     }
 
     pub fn orbit_of_body(&self, id: BodyID) -> Option<TimedOrbit<&Body, &Body>> {
@@ -95,8 +91,7 @@ impl Orrery {
 
     pub fn orbit_of_ship(&self, id: ShipID) -> TimedOrbit<&Body, ShipID> {
         let ship = &self.ships[&id];
-        let primary = ship.orbit.orbit().primary();
-        ship.orbit.clone().with_primary(primary).with_secondary(id)
+        ship.orbit.as_ref().with_secondary(id)
     }
 
     pub fn bodies(&self) -> impl Iterator<Item = &Body> + '_ {
@@ -249,7 +244,7 @@ impl Orrery {
             Some(orbit) => (
                 orbit.state_at_time(time).position(),
                 orbit.state_at_time(time).velocity(),
-                Frame::BodyInertial(orbit.orbit().primary().id),
+                Frame::BodyInertial(orbit.primary().id),
             ),
         };
 

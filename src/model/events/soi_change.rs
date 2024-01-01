@@ -17,15 +17,15 @@ const NUM_ITERATIONS_SOI_ENCOUNTER: usize = 1000;
 pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
     let ship_orbit = orrery.orbit_of_ship(ship_id);
 
-    let current_body = ship_orbit.orbit().primary().id;
+    let current_body = ship_orbit.primary().id;
     let current_body_orbit = match orrery.orbit_of_body(current_body) {
-        Some(o) => o,
+        Some(o) => *o.orbit(),
         // We can never escape the Sun
         None => return SearchResult::Never,
     };
-    let soi_radius = current_body_orbit.orbit().soi_radius();
+    let soi_radius = current_body_orbit.soi_radius();
 
-    let parent_body = current_body_orbit.orbit().primary().id;
+    let parent_body = current_body_orbit.primary().id;
 
     let escape_s = match ship_orbit.orbit().get_s_at_radius(soi_radius) {
         Some(s) => s,
@@ -67,7 +67,7 @@ pub fn search_for_soi_encounter(
     );
 
     let ship_orbit = orrery.orbit_of_ship(ship_id);
-    let parent_id = ship_orbit.orbit().primary().id;
+    let parent_id = ship_orbit.primary().id;
 
     // Check whether this body and ship are co-orbiting. If not, no encounter.
     let target_orbit = match orrery.orbit_of_body(target_id) {
@@ -75,7 +75,7 @@ pub fn search_for_soi_encounter(
         // Can't encounter the Sun, since you can't leave it
         None => return SearchResult::Never,
     };
-    if target_orbit.orbit().primary().id != parent_id {
+    if target_orbit.primary().id != parent_id {
         return SearchResult::Never;
     }
 

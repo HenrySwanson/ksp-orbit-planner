@@ -13,6 +13,6 @@ pub struct Ship {
 
 impl Ship {
     pub fn parent_id(&self) -> BodyID {
-        self.orbit.orbit().primary().id
+        self.orbit.primary().id
     }
 }

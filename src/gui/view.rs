@@ -250,10 +250,10 @@ impl View {
 
     fn draw_orbits(&mut self) {
         for orbit in self.orrery.body_orbits() {
-            let secondary = orbit.orbit().secondary();
+            let secondary = orbit.secondary();
 
             let color = secondary.info.color;
-            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
+            let frame = Frame::BodyInertial(orbit.primary().id);
             self.renderer.draw_orbit(
                 OrbitPatch::new(&orbit, self.time),
                 color,
@@ -262,10 +262,9 @@ impl View {
         }
 
         for ship in self.orrery.ships() {
-            let orbit = self.orrery.orbit_of_ship(ship.id).with_secondary(());
-
+            let orbit = self.orrery.orbit_of_ship(ship.id);
             let color = Point3::new(1.0, 1.0, 1.0);
-            let frame = Frame::BodyInertial(orbit.orbit().primary().id);
+            let frame = Frame::BodyInertial(orbit.primary().id);
             self.renderer.draw_orbit(
                 OrbitPatch::new(&orbit, self.time),
                 color,
@@ -439,14 +438,14 @@ Orbiting: {}",
 
     fn orbit_summary_text(&self) -> String {
         let orbit = match self.camera_focus.point() {
-            FocusPoint::Body(id) => match &self.orrery.orbit_of_body(id) {
+            FocusPoint::Body(id) => match self.orrery.orbit_of_body(id) {
                 None => return String::from("N/A"),
-                Some(orbit) => orbit.clone().with_secondary(()),
+                Some(orbit) => orbit.with_secondary(()),
             },
             FocusPoint::Ship(id) => self.orrery.orbit_of_ship(id).with_secondary(()),
         };
 
-        let parent_body = self.orrery.get_body(orbit.orbit().primary().id);
+        let parent_body = self.orrery.get_body(orbit.primary().id);
         let orbit = orbit.orbit();
 
         // Indentation is intentional

@@ -19,6 +19,21 @@ impl<P, S> TimedOrbit<P, S> {
         &self.orbit
     }
 
+    pub fn as_ref(&self) -> TimedOrbit<&P, &S> {
+        TimedOrbit {
+            orbit: self.orbit.as_ref(),
+            time_at_periapsis: self.time_at_periapsis,
+        }
+    }
+
+    pub fn primary(&self) -> &P {
+        self.orbit.primary()
+    }
+
+    pub fn secondary(&self) -> &S {
+        self.orbit.secondary()
+    }
+
     pub fn with_primary<P2>(self, new_primary: P2) -> TimedOrbit<P2, S> {
         TimedOrbit {
             orbit: self.orbit.with_primary(new_primary),

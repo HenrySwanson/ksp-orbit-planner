@@ -15,7 +15,7 @@ pub const NEWTON_G: f64 = 6.6743015e-11;
 #[derive(Debug, Clone, Copy)]
 pub struct PointMass(f64);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Orbit<P, S> {
     primary: P,
     secondary: S,
@@ -73,6 +73,16 @@ impl<P, S> Orbit<P, S> {
 
     pub fn secondary(&self) -> &S {
         &self.secondary
+    }
+
+    pub fn as_ref(&self) -> Orbit<&P, &S> {
+        Orbit {
+            primary: &self.primary,
+            secondary: &self.secondary,
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
     }
 
     pub fn with_primary<P2>(self, new_primary: P2) -> Orbit<P2, S> {
