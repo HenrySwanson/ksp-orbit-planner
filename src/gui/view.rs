@@ -16,7 +16,7 @@ use crate::gui::renderers::MarkerType;
 use crate::model::orrery::{Body, BodyID, Frame, Orrery, Ship, ShipID};
 use crate::model::timeline::Timeline;
 
-const TEST_SHIP_SIZE: f32 = 1e6;
+const TEST_SHIP_SIZE: f32 = 1.0;
 
 pub struct View {
     // Object state
