@@ -27,7 +27,7 @@ impl OrbitPatch {
         let parent_id = orbit.primary().id;
 
         Self {
-            orbit: orbit.orbit().to_physical(),
+            orbit: orbit.without_time().to_physical(),
             start_anomaly,
             end_anomaly: None,
             parent_id,

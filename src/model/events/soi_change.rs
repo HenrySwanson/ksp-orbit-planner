@@ -19,7 +19,7 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
 
     let current_body = ship_orbit.primary().id;
     let current_body_orbit = match orrery.orbit_of_body(current_body) {
-        Some(o) => *o.orbit(),
+        Some(o) => o,
         // We can never escape the Sun
         None => return SearchResult::Never,
     };
@@ -27,12 +27,12 @@ pub fn search_for_soi_escape(orrery: &Orrery, ship_id: ShipID) -> SearchResult {
 
     let parent_body = current_body_orbit.primary().id;
 
-    let escape_s = match ship_orbit.orbit().get_s_at_radius(soi_radius) {
+    let escape_s = match ship_orbit.get_s_at_radius(soi_radius) {
         Some(s) => s,
         None => return SearchResult::Never,
     };
     let escape_time = ship_orbit.time_at_s(escape_s);
-    let new_state = ship_orbit.orbit().get_state_at_universal_anomaly(escape_s);
+    let new_state = ship_orbit.get_state_at_universal_anomaly(escape_s);
 
     let event = Event {
         ship_id,
@@ -80,7 +80,7 @@ pub fn search_for_soi_encounter(
     }
 
     // Everything seems good, let's start looking for intersections!
-    let soi_radius = target_orbit.orbit().soi_radius();
+    let soi_radius = target_orbit.soi_radius();
     let soi_radius_sq = soi_radius * soi_radius;
 
     // Quick check: if one orbit is much smaller than the other, then there's no
@@ -197,7 +197,6 @@ pub fn search_for_soi_encounter(
     let new_anomaly = encounter_helper.ship_orbit.s_at_time(entry_time);
     let new_state = encounter_helper
         .ship_orbit
-        .orbit()
         .get_state_at_universal_anomaly(new_anomaly);
 
     let event = Event {
@@ -260,8 +259,8 @@ impl SoiEncounterHelper<'_> {
 }
 
 fn get_apsis_interval<P, S>(timed_orbit: &TimedOrbit<P, S>) -> Interval {
-    let lo = timed_orbit.orbit().periapsis();
-    let hi = timed_orbit.orbit().apoapsis().unwrap_or(INFINITY);
+    let lo = timed_orbit.periapsis();
+    let hi = timed_orbit.apoapsis().unwrap_or(INFINITY);
     Interval::new(lo, hi)
 }
 
@@ -272,10 +271,10 @@ fn get_bbox<P: HasMass, S>(
     let s_interval = time_interval.monotone_map(|t| timed_orbit.s_at_time(t));
 
     // Get some constants
-    let beta = timed_orbit.orbit().beta();
-    let r_p = timed_orbit.orbit().periapsis();
-    let mu = timed_orbit.orbit().primary().mu();
-    let h = timed_orbit.orbit().angular_momentum();
+    let beta = timed_orbit.beta();
+    let r_p = timed_orbit.periapsis();
+    let mu = timed_orbit.primary().mu();
+    let h = timed_orbit.angular_momentum();
 
     // We want to compute some bounds on x cdot u. We start by getting bounds on the
     // Stumpff functions
@@ -285,7 +284,7 @@ fn get_bbox<P: HasMass, S>(
     // Now we're ready for the rest
     let unit_vectors = [Vector3::x(), Vector3::y(), Vector3::z()];
     let rotated_unit_vectors =
-        unit_vectors.map(|u| timed_orbit.orbit().rotation().inverse_transform_vector(&u));
+        unit_vectors.map(|u| timed_orbit.rotation().inverse_transform_vector(&u));
     rotated_unit_vectors.map(|u| (r_p - mu * g2_interval) * u.x + h * g1_interval * u.y)
 }
 
@@ -296,11 +295,11 @@ fn get_velocity_bbox<P: HasMass, S>(
     let s_interval = time_interval.monotone_map(|t| timed_orbit.s_at_time(t));
 
     // Get some constants
-    let beta = timed_orbit.orbit().beta();
-    let r_p = timed_orbit.orbit().periapsis();
-    let mu = timed_orbit.orbit().primary().mu();
-    let h = timed_orbit.orbit().angular_momentum();
-    let ecc = timed_orbit.orbit().eccentricity();
+    let beta = timed_orbit.beta();
+    let r_p = timed_orbit.periapsis();
+    let mu = timed_orbit.primary().mu();
+    let h = timed_orbit.angular_momentum();
+    let ecc = timed_orbit.eccentricity();
 
     // We want to compute some bounds on v cdot u. We start by getting bounds on the
     // Stumpff functions
@@ -319,7 +318,7 @@ fn get_velocity_bbox<P: HasMass, S>(
     // Now we're ready for the rest
     let unit_vectors = [Vector3::x(), Vector3::y(), Vector3::z()];
     let rotated_unit_vectors =
-        unit_vectors.map(|u| timed_orbit.orbit().rotation().inverse_transform_vector(&u));
+        unit_vectors.map(|u| timed_orbit.rotation().inverse_transform_vector(&u));
     rotated_unit_vectors.map(|u| {
         // Factor out 1/r so that it's only used once (reduces interval width)
         let tmp = -mu * g1_interval * u.x + h * g0_interval * u.y;

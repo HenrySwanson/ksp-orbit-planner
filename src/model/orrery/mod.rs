@@ -191,7 +191,7 @@ impl Orrery {
                     }
                     Some(orbit) => {
                         // Get the parent and compute the transform from its reference frame to root
-                        let parent_frame = Frame::BodyInertial(orbit.orbit().primary().id);
+                        let parent_frame = Frame::BodyInertial(orbit.primary().id);
                         let root_to_parent = self.convert_from_root(parent_frame, time);
 
                         // Get the transform from our frame to the parent's
@@ -221,9 +221,8 @@ impl Orrery {
             Frame::ShipOrbital(k) => {
                 let ship = &self.ships[&k];
                 let root_to_parent = self.convert_from_root(Frame::ShipInertial(k), time);
-                let orbit = ship.orbit.orbit();
                 let orientation = crate::math::geometry::always_find_rotation(
-                    &orbit.normal_vector(),
+                    &ship.orbit.normal_vector(),
                     &ship.orbit.state_at_time(time).velocity(),
                     1e-20,
                 );
@@ -269,7 +268,7 @@ impl Orrery {
 
     pub fn get_soi_radius(&self, id: BodyID) -> Option<f64> {
         let orbit = self.bodies[&id].two_body_orbit()?;
-        Some(orbit.orbit().soi_radius())
+        Some(orbit.soi_radius())
     }
 
     pub fn change_soi(&mut self, ship_id: ShipID, new_parent_id: BodyID, event_time: f64) {

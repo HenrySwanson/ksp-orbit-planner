@@ -13,12 +13,10 @@ pub use timed_orbit::TimedOrbit;
 pub const NEWTON_G: f64 = 6.6743015e-11;
 
 #[derive(Debug, Clone, Copy)]
-pub struct PointMass(f64);
-
-#[derive(Debug, Clone, Copy)]
-pub struct Orbit<P, S> {
+pub struct OrbitBase<P, S, E> {
     primary: P,
     secondary: S,
+    extra: E,
     /// Encodes the orientation of the orbit: it moves the xy plane to the
     /// orbital plane, and x to point towards periapsis.
     rotation: Rotation3<f64>,
@@ -30,6 +28,11 @@ pub struct Orbit<P, S> {
     slr: f64,
 }
 
+// Various type synonyms
+pub type Orbit<P, S> = OrbitBase<P, S, ()>;
+pub type BareOrbit = Orbit<(), ()>;
+pub type PhysicalOrbit = Orbit<PointMass, ()>;
+
 pub trait HasMass {
     fn mu(&self) -> f64;
 
@@ -37,6 +40,9 @@ pub trait HasMass {
         self.mu() / NEWTON_G
     }
 }
+
+#[derive(Debug, Clone, Copy)]
+pub struct PointMass(f64);
 
 impl PointMass {
     pub fn with_mu(mu: f64) -> Self {
@@ -63,10 +69,8 @@ where
     }
 }
 
-pub type BareOrbit = Orbit<(), ()>;
-pub type PhysicalOrbit = Orbit<PointMass, ()>;
-
-impl<P, S> Orbit<P, S> {
+// Methods common to all orbits
+impl<P, S, E> OrbitBase<P, S, E> {
     pub fn primary(&self) -> &P {
         &self.primary
     }
@@ -75,36 +79,52 @@ impl<P, S> Orbit<P, S> {
         &self.secondary
     }
 
-    pub fn as_ref(&self) -> Orbit<&P, &S> {
-        Orbit {
+    pub fn as_ref(&self) -> OrbitBase<&P, &S, E>
+    where
+        E: Copy,
+    {
+        OrbitBase {
             primary: &self.primary,
             secondary: &self.secondary,
+            extra: self.extra,
             rotation: self.rotation,
             alpha: self.alpha,
             slr: self.slr,
         }
     }
 
-    pub fn with_primary<P2>(self, new_primary: P2) -> Orbit<P2, S> {
+    pub fn with_primary<P2>(self, new_primary: P2) -> OrbitBase<P2, S, E> {
         self.map_primary(|_| new_primary)
     }
 
-    pub fn with_secondary<S2>(self, new_secondary: S2) -> Orbit<P, S2> {
+    pub fn with_secondary<S2>(self, new_secondary: S2) -> OrbitBase<P, S2, E> {
         self.map_secondary(|_| new_secondary)
     }
 
-    pub fn map_primary<P2>(self, primary_fn: impl FnOnce(P) -> P2) -> Orbit<P2, S> {
+    fn with_extra<E2>(self, new_extra: E2) -> OrbitBase<P, S, E2> {
+        OrbitBase {
+            primary: self.primary,
+            secondary: self.secondary,
+            extra: new_extra,
+            rotation: self.rotation,
+            alpha: self.alpha,
+            slr: self.slr,
+        }
+    }
+
+    pub fn map_primary<P2>(self, primary_fn: impl FnOnce(P) -> P2) -> OrbitBase<P2, S, E> {
         self.map(primary_fn, std::convert::identity)
     }
 
-    pub fn map_secondary<S2>(self, secondary_fn: impl FnOnce(S) -> S2) -> Orbit<P, S2> {
+    pub fn map_secondary<S2>(self, secondary_fn: impl FnOnce(S) -> S2) -> OrbitBase<P, S2, E> {
         self.map(std::convert::identity, secondary_fn)
     }
 
     pub fn to_bare(&self) -> BareOrbit {
-        Orbit {
+        BareOrbit {
             primary: (),
             secondary: (),
+            extra: (),
             rotation: self.rotation,
             alpha: self.alpha,
             slr: self.slr,
@@ -115,31 +135,14 @@ impl<P, S> Orbit<P, S> {
         self,
         primary_fn: impl FnOnce(P) -> P2,
         secondary_fn: impl FnOnce(S) -> S2,
-    ) -> Orbit<P2, S2> {
-        Orbit {
+    ) -> OrbitBase<P2, S2, E> {
+        OrbitBase {
             primary: primary_fn(self.primary),
             secondary: secondary_fn(self.secondary),
+            extra: self.extra,
             rotation: self.rotation,
             alpha: self.alpha,
             slr: self.slr,
-        }
-    }
-
-    pub fn from_kepler(
-        primary: P,
-        secondary: S,
-        a: f64,
-        ecc: f64,
-        incl: f64,
-        lan: f64,
-        argp: f64,
-    ) -> Self {
-        Orbit {
-            primary,
-            secondary,
-            rotation: rotation_from_angles(incl, lan, argp),
-            alpha: a.recip(),
-            slr: a * (1.0 - ecc * ecc),
         }
     }
 
@@ -232,44 +235,37 @@ impl<P, S> Orbit<P, S> {
     }
 }
 
-impl<P: HasMass, S> Orbit<P, S> {
-    pub fn to_physical(&self) -> PhysicalOrbit {
-        Orbit {
+// Methods requiring P to have mass
+impl<P: HasMass, S, E> OrbitBase<P, S, E> {
+    pub fn to_physical(&self) -> OrbitBase<PointMass, (), E>
+    where
+        P: HasMass,
+        E: Copy,
+    {
+        OrbitBase {
             primary: PointMass(self.primary.mu()),
             secondary: (),
+            extra: self.extra,
             rotation: self.rotation,
             alpha: self.alpha,
             slr: self.slr,
         }
     }
 
-    pub fn from_cartesian(
-        primary: P,
-        secondary: S,
-        position: &Vector3<f64>,
-        velocity: &Vector3<f64>,
-    ) -> Self {
-        // Compute some physical quantities for the orbit.
-        let mu = primary.mu();
-        let r = position.norm();
-        let energy = velocity.norm_squared() / 2.0 - mu / r;
-        let ang_mom = position.cross(velocity);
+    pub fn soi_radius(&self) -> f64
+    where
+        S: HasMass,
+    {
+        let mu_1 = self.primary.mu();
+        let mu_2 = self.secondary.mu();
 
-        // LRL vector = v x h / mu - r/|r|
-        let lrl = velocity.cross(&ang_mom) / mu - position / r;
+        let sma = self.semimajor_axis();
+        assert!(
+            sma > 0.0,
+            "SOI radius approximation only works with elliptical orbits"
+        );
 
-        // We want to rotate this orbit into a standard frame. Unfortunately, this
-        // might be ambiguous, if either angular momentum or the LRL vector are too
-        // close to zero. So we use a particularly cautious method.
-        let rotation = always_find_rotation(&ang_mom, &lrl, 1e-20);
-
-        Self {
-            primary,
-            secondary,
-            rotation,
-            alpha: -2.0 * energy / mu,
-            slr: ang_mom.norm_squared() / mu,
-        }
+        sma * (mu_2 / mu_1).powf(0.4)
     }
 
     // -- Physical orbital characteristics --
@@ -314,18 +310,58 @@ impl<P: HasMass, S> Orbit<P, S> {
     }
 }
 
-impl<P: HasMass, S: HasMass> Orbit<P, S> {
-    pub fn soi_radius(&self) -> f64 {
-        let mu_1 = self.primary.mu();
-        let mu_2 = self.secondary.mu();
+// Methods for constructing an Orbit
+impl<P, S> Orbit<P, S> {
+    pub fn from_kepler(
+        primary: P,
+        secondary: S,
+        a: f64,
+        ecc: f64,
+        incl: f64,
+        lan: f64,
+        argp: f64,
+    ) -> Self {
+        Orbit {
+            primary,
+            secondary,
+            extra: (),
+            rotation: rotation_from_angles(incl, lan, argp),
+            alpha: a.recip(),
+            slr: a * (1.0 - ecc * ecc),
+        }
+    }
 
-        let sma = self.semimajor_axis();
-        assert!(
-            sma > 0.0,
-            "SOI radius approximation only works with elliptical orbits"
-        );
+    pub fn from_cartesian(
+        primary: P,
+        secondary: S,
+        position: &Vector3<f64>,
+        velocity: &Vector3<f64>,
+    ) -> Self
+    where
+        P: HasMass,
+    {
+        // Compute some physical quantities for the orbit.
+        let mu = primary.mu();
+        let r = position.norm();
+        let energy = velocity.norm_squared() / 2.0 - mu / r;
+        let ang_mom = position.cross(velocity);
 
-        sma * (mu_2 / mu_1).powf(0.4)
+        // LRL vector = v x h / mu - r/|r|
+        let lrl = velocity.cross(&ang_mom) / mu - position / r;
+
+        // We want to rotate this orbit into a standard frame. Unfortunately, this
+        // might be ambiguous, if either angular momentum or the LRL vector are too
+        // close to zero. So we use a particularly cautious method.
+        let rotation = always_find_rotation(&ang_mom, &lrl, 1e-20);
+
+        Orbit {
+            primary,
+            secondary,
+            extra: (),
+            rotation,
+            alpha: -2.0 * energy / mu,
+            slr: ang_mom.norm_squared() / mu,
+        }
     }
 }
 
@@ -352,6 +388,7 @@ mod tests {
         let make_orbit = |alpha, slr| Orbit {
             primary: (),
             secondary: (),
+            extra: (),
             rotation: Rotation3::identity(),
             alpha,
             slr,
@@ -410,6 +447,7 @@ mod tests {
         let make_ellipse_orbit = |rotation| Orbit {
             primary: (),
             secondary: (),
+            extra: (),
             rotation,
             alpha: 0.1,
             slr: 6.4,

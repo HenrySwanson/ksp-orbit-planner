@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn test() {
         let orrery = read_file("ksp-bodies.txt");
-        let eeloo = orrery.orbit_of_body(BodyID(16)).unwrap().orbit().clone();
+        let eeloo = orrery.orbit_of_body(BodyID(16)).unwrap();
         assert_eq!(eeloo.primary().info.name, "Kerbol");
         assert_eq!(eeloo.secondary().info.name, "Eeloo");
 

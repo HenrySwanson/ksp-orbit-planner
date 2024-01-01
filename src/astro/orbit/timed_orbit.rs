@@ -1,65 +1,34 @@
-use super::{HasMass, Orbit};
+use super::{HasMass, Orbit, OrbitBase};
 use crate::astro::state::CartesianState;
 
-#[derive(Debug, Clone)]
-pub struct TimedOrbit<P, S> {
-    orbit: Orbit<P, S>,
+pub type TimedOrbit<P, S> = OrbitBase<P, S, TimeAtPeriapsis>;
+
+#[derive(Debug, Clone, Copy)]
+pub struct TimeAtPeriapsis {
     time_at_periapsis: f64,
 }
 
 impl<P, S> TimedOrbit<P, S> {
     pub fn from_orbit(orbit: Orbit<P, S>, time_at_periapsis: f64) -> Self {
-        Self {
-            orbit,
-            time_at_periapsis,
-        }
+        orbit.with_extra(TimeAtPeriapsis { time_at_periapsis })
     }
 
-    pub fn orbit(&self) -> &Orbit<P, S> {
-        &self.orbit
-    }
-
-    pub fn as_ref(&self) -> TimedOrbit<&P, &S> {
-        TimedOrbit {
-            orbit: self.orbit.as_ref(),
-            time_at_periapsis: self.time_at_periapsis,
-        }
-    }
-
-    pub fn primary(&self) -> &P {
-        self.orbit.primary()
-    }
-
-    pub fn secondary(&self) -> &S {
-        self.orbit.secondary()
-    }
-
-    pub fn with_primary<P2>(self, new_primary: P2) -> TimedOrbit<P2, S> {
-        TimedOrbit {
-            orbit: self.orbit.with_primary(new_primary),
-            time_at_periapsis: self.time_at_periapsis,
-        }
-    }
-
-    pub fn with_secondary<S2>(self, new_secondary: S2) -> TimedOrbit<P, S2> {
-        TimedOrbit {
-            orbit: self.orbit.with_secondary(new_secondary),
-            time_at_periapsis: self.time_at_periapsis,
-        }
+    pub fn without_time(&self) -> Orbit<&P, &S> {
+        self.as_ref().with_extra(())
     }
 }
 
 impl<P: HasMass, S> TimedOrbit<P, S> {
     pub fn state_at_time(&self, time: f64) -> CartesianState<&P> {
-        self.orbit.get_state_at_tsp(time - self.time_at_periapsis)
+        self.get_state_at_tsp(time - self.extra.time_at_periapsis)
     }
 
     pub fn s_at_time(&self, time: f64) -> f64 {
-        self.orbit.tsp_to_s(time - self.time_at_periapsis)
+        self.tsp_to_s(time - self.extra.time_at_periapsis)
     }
 
     pub fn time_at_s(&self, s: f64) -> f64 {
-        self.time_at_periapsis + self.orbit.s_to_tsp(s)
+        self.extra.time_at_periapsis + self.s_to_tsp(s)
     }
 }
 

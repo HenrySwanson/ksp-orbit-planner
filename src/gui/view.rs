@@ -278,7 +278,6 @@ impl View {
         // want center of the orbit instead. But only do that if you're doing
         // this only for the focused body.
         for orbit in self.orrery.body_orbits() {
-            let orbit = orbit.orbit();
             let body = orbit.secondary();
 
             let axes = [
@@ -355,7 +354,6 @@ impl View {
         };
 
         for orbit in self.orrery.body_orbits() {
-            let orbit = orbit.orbit();
             let body = orbit.secondary();
 
             if !should_draw(body.info.radius, orbit.to_bare()) {
@@ -373,7 +371,7 @@ impl View {
             );
         }
         for ship in self.orrery.ships() {
-            if !should_draw(TEST_SHIP_SIZE / 2.0, ship.orbit.orbit().to_bare()) {
+            if !should_draw(TEST_SHIP_SIZE / 2.0, ship.orbit.to_bare()) {
                 continue;
             }
 
@@ -446,7 +444,6 @@ Orbiting: {}",
         };
 
         let parent_body = self.orrery.get_body(orbit.primary().id);
-        let orbit = orbit.orbit();
 
         // Indentation is intentional
         format!(

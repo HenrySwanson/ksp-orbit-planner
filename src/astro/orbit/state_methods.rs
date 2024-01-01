@@ -1,13 +1,13 @@
 use nalgebra::Vector3;
 
-use super::{HasMass, Orbit};
+use super::{HasMass, OrbitBase};
 use crate::astro::state::CartesianState;
 use crate::math::root_finding::{find_root_bracket, newton_plus_bisection};
 use crate::math::stumpff::stumpff_G;
 
 const NUM_ITERATIONS_DELTA_T: usize = 2000;
 
-impl<P, S> Orbit<P, S> {
+impl<P, S, E> OrbitBase<P, S, E> {
     pub fn get_position_at_theta(&self, theta: f64) -> Option<Vector3<f64>> {
         if self.slr == 0.0 {
             // Radial orbits
@@ -27,7 +27,7 @@ impl<P, S> Orbit<P, S> {
     }
 }
 
-impl<P: HasMass, S> Orbit<P, S> {
+impl<P: HasMass, S, E> OrbitBase<P, S, E> {
     #[allow(non_snake_case)]
     pub fn get_state_native_frame(&self, s: f64) -> CartesianState<&P> {
         // Note: this function is only exposed because it makes rendering faster. Would

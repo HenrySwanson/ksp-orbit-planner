@@ -11,7 +11,6 @@ fn main() {
 
     let orrery = read_file("ksp-bodies.txt");
     for orbit in orrery.body_orbits() {
-        let orbit = orbit.orbit();
         let body = orbit.secondary();
         if body.info.name.to_lowercase() != args.name.to_lowercase() {
             continue;
