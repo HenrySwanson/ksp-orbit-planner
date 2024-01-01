@@ -144,6 +144,13 @@ pub fn search_for_soi_encounter(
             f_prime_of_y
         );
 
+        // Not part of the normal test, but useful for us: if the derivative is always
+        // positive, we can discard this interval -- it corresponds to an SOI exit,
+        // which is not a root we're interested in.
+        if f_prime_inclusion.lo() >= 0.0 {
+            continue;
+        }
+
         // Check the conditions. If this doesn't overlap at all, no roots! Discard this
         // region.
         let intersection = match time_interval.intersect(&krawczyk) {
@@ -154,12 +161,8 @@ pub fn search_for_soi_encounter(
         // If K(X, y, Y) is a subset of X, and r < 1, then we have a unique solution,
         // and Newton's method will converge to it! Break out.
         if krawczyk.is_subset_of(&time_interval) && possible_contraction.norm() < 1.0 {
-            // println!("Found region with unique root: t = {}", intersection);
-            if f_prime_of_y > 0.0 {
-                // println!("Spurious encounter; was exiting the SOI");
-                continue; // we know there are no other roots, so we can discard
-                          // this interval
-            }
+            // Check that this is an SOI encounter, not escape
+            debug_assert!(f_prime_of_y < 0.0);
             break intersection;
         }
 

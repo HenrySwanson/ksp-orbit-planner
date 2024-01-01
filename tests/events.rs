@@ -75,18 +75,13 @@ fn test_favorite_scenario() {
         // 60d
         (5199986.65163866, ESCAPE_KERBIN),
     ];
-    let num_days_to_simulate = 65;
 
     let mut orrery = read_file("ksp-bodies.txt");
     orrery.add_ship(Vector3::x() * 6000000.0, Vector3::y() * 1000.0, 0.0, KERBIN);
 
     let mut timeline = Timeline::new(orrery, 0.0);
-
-    // TODO: fix the extend time to work with just one extension,
-    // this is atrocious :)
-    for day in 0..num_days_to_simulate {
-        timeline.extend_until(day as f64 * 86400.0)
-    }
+    // Extend until last event + 1 hr
+    timeline.extend_until(expected_events.last().unwrap().0 + 3600.0);
 
     for tup in expected_events.into_iter().zip_longest(timeline.events()) {
         let ((expected_time, expected_data), actual) = match tup {

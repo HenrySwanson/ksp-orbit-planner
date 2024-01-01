@@ -98,17 +98,12 @@ impl Timeline {
         }
     }
 
-    /// Search until the given time for any new events, potentially creating a
-    /// new segment if an event is found.
+    /// Search until the given time for any new events, potentially creating
+    /// new segments if events are found.
     pub fn extend_until(&mut self, time: f64) {
-        let closed_segment = self.open_segment.split_at_next_event(time);
-
-        // If we find an event, we should add a new segment! Otherwise do nothing,
-        // the UpcomingEvents struct will have already saved our progress
-        // TODO: if we find an event, we must search again!!!!!!
-        // or, wait, does the segmenting save us? do we just render wrong for a hot
-        // second? idk.... it might...
-        if let Some(closed_segment) = closed_segment {
+        // Search for the next event. If we find one, add a new segment and repeat!
+        // Otherwise, do nothing; the UpcomingEvents struct will save our progress.
+        while let Some(closed_segment) = self.open_segment.split_at_next_event(time) {
             let event = &closed_segment.ending_event;
             println!(
                 "When extending end time to {}, found event at time {} for ship {}: {:?}",
