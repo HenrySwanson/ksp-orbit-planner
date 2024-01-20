@@ -32,6 +32,16 @@ impl Interval {
         self.hi
     }
 
+    pub fn split_left(&self, mid: f64) -> Self {
+        assert!(self.contains(mid));
+        Self::new_unchecked(self.lo, mid)
+    }
+
+    pub fn split_right(&self, mid: f64) -> Self {
+        assert!(self.contains(mid));
+        Self::new_unchecked(mid, self.hi)
+    }
+
     pub fn width(&self) -> f64 {
         debug_assert!(self.lo <= self.hi);
         self.hi - self.lo

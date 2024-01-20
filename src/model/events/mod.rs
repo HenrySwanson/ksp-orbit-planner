@@ -4,7 +4,6 @@ use nalgebra::Point3;
 
 use crate::model::orrery::{BodyID, ShipID};
 
-mod intervals;
 mod soi_change;
 
 pub use soi_change::{search_for_soi_encounter, search_for_soi_escape};

@@ -5,9 +5,9 @@ use nalgebra::{Point3, Vector3};
 
 use super::{Event, EventData, EventPoint, SOIChange};
 use crate::astro::{HasMass, TimedOrbit};
-use crate::math::root_finding::{bisection, Bracket};
+use crate::math::intervals::Interval;
+use crate::math::root_finding::bisection;
 use crate::math::stumpff::stumpff_G;
-use crate::model::events::intervals::Interval;
 use crate::model::events::SearchResult;
 use crate::model::orrery::{Body, BodyID, Orrery, ShipID};
 
@@ -189,7 +189,7 @@ pub fn search_for_soi_encounter(
     // encounter by 30s, and that throws off everything else
     let entry_time = bisection(
         |time| encounter_helper.get_distance_squared(time) - soi_radius_sq,
-        Bracket::new(encounter_interval.lo(), encounter_interval.hi()),
+        encounter_interval,
         NUM_ITERATIONS_SOI_ENCOUNTER,
     );
 
